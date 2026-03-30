@@ -1,38 +1,69 @@
 """
 db.py – databaseoppsett (SQLAlchemy), User-modell og DB-session dependency.
 
-Denne fila skal kunne brukes av både:
-- main.py (FastAPI)
-- manage_users.py (CLI)
+Støtter to måter å konfigurere databasen på via .env:
 
-Inneholder:
-- DATABASE_URL fra .env
-- engine + SessionLocal
-- Base + User-modell
-- init_db() for å opprette tabeller
-- get_db() dependency for FastAPI
+A) Én samlet URL (klassisk):
+   DATABASE_URL=mysql+pymysql://user:pass@localhost:3306/dbname
+
+B) Separate variabler (anbefalt, enklere å vedlikeholde):
+   DB_USER=mmc_admin
+   DB_PASSWORD=...
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_NAME=mmc_userdb
+
+Hvis DATABASE_URL ikke er satt, bygges den automatisk fra DB_*.
+Passord URL-encodes automatisk for å tåle spesialtegn.
 """
 
 import os
-from dotenv import load_dotenv
+from urllib.parse import quote_plus
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 
-# Leser inn .env slik at DATABASE_URL blir tilgjengelig
+# Leser inn .env-variabler slik at os.getenv(...) finner dem
 load_dotenv()
 
+# ---------------------------------------------------------
+# Bygg DATABASE_URL (enten direkte, eller fra DB_* variabler)
+# ---------------------------------------------------------
+
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL må være satt i .env filen!")
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "3306")
+    DB_NAME = os.getenv("DB_NAME")
 
-# Oppretter engine mot databasen
+    # Valider at vi har det vi trenger for å bygge URL
+    missing = [k for k, v in {
+        "DB_USER": DB_USER,
+        "DB_PASSWORD": DB_PASSWORD,
+        "DB_NAME": DB_NAME,
+    }.items() if not v]
+
+    if missing:
+        raise ValueError(
+            "DATABASE_URL is not set. Set DATABASE_URL or provide: "
+            + ", ".join(missing)
+        )
+
+    # URL-encode passord slik at spesialtegn ikke ødelegger URL-en
+    encoded_pw = quote_plus(DB_PASSWORD)
+
+    DATABASE_URL = f"mysql+pymysql://{DB_USER}:{encoded_pw}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# ---------------------------------------------------------
+# SQLAlchemy setup
+# ---------------------------------------------------------
+
 engine = create_engine(DATABASE_URL)
-
-# Lager en Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base for ORM-modeller
 Base = declarative_base()
 
 
@@ -47,17 +78,12 @@ class User(Base):
 
 
 def init_db() -> None:
-    """
-    Oppretter tabeller hvis de ikke finnes.
-    Kalles typisk ved oppstart av API og/eller CLI.
-    """
+    """Oppretter tabeller hvis de ikke finnes."""
     Base.metadata.create_all(bind=engine)
 
 
 def get_db():
-    """
-    FastAPI dependency som gir en DB-session per request og lukker den etterpå.
-    """
+    """FastAPI dependency som gir en DB-session per request og lukker den etterpå."""
     db: Session = SessionLocal()
     try:
         yield db
