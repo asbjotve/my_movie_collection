@@ -21,16 +21,11 @@
     /* Borders for both modals */
     #bonusModal .modal-content { border: 2px solid rgba(0,0,0,.25); }
 
-    /* Optional: slightly de-emphasize the primary action in disc modal */
-    #discModal .btn.btn-success { background-color: var(--bs-secondary); border-color: var(--bs-secondary); }
-    #discModal .btn.btn-success:hover { background-color: #5c636a; border-color: #565e64; }
-    #discModal .btn.btn-success:focus { box-shadow: 0 0 0 .25rem rgba(108,117,125,.35); }
-
     /* When we "freeze" the disc modal under the bonus modal */
     #discModal .modal-content.is-frozen {
       opacity: .55;
       filter: grayscale(25%);
-      pointer-events: none; /* extra safety */
+      pointer-events: none;
     }
   </style>
 </head>
@@ -48,9 +43,7 @@
     <div class="collapse mb-3" id="help">
       <div class="card card-body">
         <ul class="mb-0">
-          <li><strong>Discs</strong> are stored per row (single release row, or a box set disc row) as JSON in this prototype.</li>
-          <li><strong>Bonus items</strong> are stored per disc and correspond to <span class="mono">disc_bonus_item</span>.</li>
-          <li>Nested modals: when Bonus-items is open, the Discs modal becomes temporarily disabled to prevent misclicks.</li>
+          <li>When Bonus-items is open, the Discs modal becomes temporarily disabled to prevent misclicks.</li>
         </ul>
       </div>
     </div>
@@ -101,7 +94,6 @@
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-primary" type="button" id="btnSingleAddRow">Add row</button>
             <button class="btn btn-sm btn-outline-secondary" type="button" id="btnPreviewAll">Preview payload</button>
-            <button class="btn btn-sm btn-success" type="button" disabled>Submit</button>
           </div>
         </div>
 
@@ -122,44 +114,11 @@
 
       </div>
 
-      <!-- BOX SETS -->
+      <!-- BOX SETS placeholder -->
       <div class="tab-pane fade" id="box" role="tabpanel">
-
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <div>
-            <h2 class="h5 mb-1">Box sets</h2>
-            <div class="text-muted small">Add multiple box sets. Bonus items can be edited per disc.</div>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary" type="button" id="btnAddBoxSet">Add box set</button>
-            <button class="btn btn-outline-secondary" type="button" id="btnPreviewAllBoxSets">Preview box sets</button>
-            <button class="btn btn-success" type="button" disabled>Submit all</button>
-          </div>
-        </div>
-
-        <div class="accordion" id="boxSetsAccordion"></div>
+        <div class="alert alert-secondary mb-0">Box-set builder omitted in this minimal file.</div>
       </div>
 
-    </div>
-
-    <!-- Paste list modal -->
-    <div class="modal fade" id="pasteModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content border-2">
-          <div class="modal-header">
-            <h5 class="modal-title">Paste movie list</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <label class="form-label" for="boxPasteArea">One movie per line</label>
-            <textarea class="form-control" id="boxPasteArea" rows="8"></textarea>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
-            <button class="btn btn-primary" type="button" id="btnBoxPasteApply" data-bs-dismiss="modal">Add</button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Disc modal -->
@@ -198,6 +157,7 @@
 
           <div class="modal-footer">
             <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+            <!-- FIX: keep this button a normal success button (not grey) -->
             <button class="btn btn-success" type="button" id="btnSaveDiscsForSingle" data-bs-dismiss="modal">Save discs</button>
           </div>
         </div>
@@ -271,9 +231,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
   <script>
-    // ========= helpers =========
+    // helpers
     function el(html) {
       const t = document.createElement('template');
       t.innerHTML = html.trim();
@@ -300,35 +259,30 @@
       node.setAttribute(attrName, JSON.stringify(value ?? null));
     }
 
-    // ========= freeze/unfreeze disc modal when bonus modal is open =========
+    // modal freeze logic
     const discModalEl = document.getElementById('discModal');
     const bonusModalEl = document.getElementById('bonusModal');
 
     function isModalShown(modalEl) {
       return modalEl.classList.contains('show');
     }
-
     function freezeDiscModalIfOpen() {
       if (!isModalShown(discModalEl)) return;
       const content = discModalEl.querySelector('.modal-content');
       content.classList.add('is-frozen');
-
-      // inert is supported in modern browsers; fallback is pointer-events none above
       try { content.inert = true; } catch {}
       content.setAttribute('aria-hidden', 'true');
     }
-
     function unfreezeDiscModalIfOpen() {
       const content = discModalEl.querySelector('.modal-content');
       content.classList.remove('is-frozen');
       try { content.inert = false; } catch {}
       content.removeAttribute('aria-hidden');
     }
-
     bonusModalEl.addEventListener('shown.bs.modal', freezeDiscModalIfOpen);
     bonusModalEl.addEventListener('hidden.bs.modal', unfreezeDiscModalIfOpen);
 
-    // ========= bonus modal =========
+    // bonus modal
     const bonusItemsTbody = document.querySelector('#bonusItemsTable tbody');
     const bonusNotBonusAlert = document.getElementById('bonusNotBonusAlert');
     const bonusModalSubtitle = document.getElementById('bonusModalSubtitle');
@@ -355,7 +309,7 @@
           </td>
           <td><input class="form-control form-control-sm" name="runtime_seconds" type="number" min="0" placeholder="e.g. 600" value="${escapeHtml(runtime_seconds)}"></td>
           <td><input class="form-control form-control-sm" name="notes" placeholder="optional" value="${escapeHtml(notes)}"></td>
-          <td><button class="btn btn-sm btn-outline-danger" type="button" aria-label="Remove item">✕</button></td>
+          <td><button class="btn btn-sm btn-outline-danger" type="button">✕</button></td>
         </tr>
       `);
       row.querySelector('select[name="item_type"]').value = item_type || 'featurette';
@@ -387,15 +341,13 @@
     document.getElementById('btnSaveBonusItems').addEventListener('click', () => {
       if (!bonusTarget?.node) return;
 
-      const items = [...bonusItemsTbody.querySelectorAll('tr')].map(tr => {
-        const seq = Number(tr.querySelector('input[name="seq_no"]').value || 0);
-        const title = tr.querySelector('input[name="title"]').value.trim();
-        const item_type = tr.querySelector('select[name="item_type"]').value;
-        const runtime_seconds_raw = tr.querySelector('input[name="runtime_seconds"]').value;
-        const runtime_seconds = runtime_seconds_raw.trim() === "" ? null : Number(runtime_seconds_raw);
-        const notes = tr.querySelector('input[name="notes"]').value.trim();
-        return { seq_no: seq || null, title, item_type, runtime_seconds, notes: notes || null };
-      });
+      const items = [...bonusItemsTbody.querySelectorAll('tr')].map(tr => ({
+        seq_no: Number(tr.querySelector('input[name="seq_no"]').value || 0) || null,
+        title: tr.querySelector('input[name="title"]').value.trim(),
+        item_type: tr.querySelector('select[name="item_type"]').value,
+        runtime_seconds: tr.querySelector('input[name="runtime_seconds"]').value.trim() === "" ? null : Number(tr.querySelector('input[name="runtime_seconds"]').value),
+        notes: tr.querySelector('input[name="notes"]').value.trim() || null
+      }));
 
       const cleaned = items.filter(x => (x.title && x.title.trim()) || x.seq_no);
       cleaned.sort((a, b) => (a.seq_no ?? 0) - (b.seq_no ?? 0));
@@ -408,19 +360,16 @@
       clearBonusTable();
     });
 
-    // ========= singles + disc modal =========
+    // singles + disc modal
     const singleTbody = document.querySelector('#singleTable tbody');
     const discEditorTbody = document.querySelector('#discEditorTable tbody');
     const discModalSubtitle = document.getElementById('discModalSubtitle');
     let discModalTargetSingleRow = null;
 
     function clearDiscEditorTable() { discEditorTbody.innerHTML = ''; }
-
     function updateSingleDiscButtonLabel(singleRow) {
       const discs = getJsonAttr(singleRow, 'data-discs', []);
-      const btn = singleRow.querySelector('button[data-action="edit-discs"]');
-      const n = Array.isArray(discs) ? discs.length : 0;
-      btn.textContent = n ? `Discs (${n})` : 'Discs';
+      singleRow.querySelector('button[data-action="edit-discs"]').textContent = discs.length ? `Discs (${discs.length})` : 'Discs';
     }
 
     function addDiscEditorRow({type_disc="feature", format="BD", label="", bonus_items=[]} = {}) {
@@ -443,7 +392,7 @@
           <td class="nowrap">
             <button class="btn btn-xs btn-outline-secondary" type="button" data-action="edit-bonus">Edit</button>
           </td>
-          <td><button class="btn btn-sm btn-outline-danger" type="button" aria-label="Remove disc">✕</button></td>
+          <td><button class="btn btn-sm btn-outline-danger" type="button">✕</button></td>
         </tr>
       `);
 
@@ -453,7 +402,7 @@
 
       const updateBonusLabel = () => {
         const items = getJsonAttr(row, 'data-bonus-items', []);
-        row.querySelector('button[data-action="edit-bonus"]').textContent = (items && items.length) ? `Edit (${items.length})` : 'Edit';
+        row.querySelector('button[data-action="edit-bonus"]').textContent = items.length ? `Edit (${items.length})` : 'Edit';
       };
       updateBonusLabel();
 
@@ -481,10 +430,8 @@
       discModalSubtitle.textContent = `${title} · EAN ${barcode}`;
 
       const existingDiscs = getJsonAttr(singleRow, 'data-discs', []);
-      (existingDiscs || []).forEach(d => addDiscEditorRow(d));
-      if (!existingDiscs || existingDiscs.length === 0) {
-        addDiscEditorRow({type_disc: 'feature', format: document.getElementById('singleFormat').value});
-      }
+      existingDiscs.forEach(d => addDiscEditorRow(d));
+      if (existingDiscs.length === 0) addDiscEditorRow({type_disc: 'feature', format: document.getElementById('singleFormat').value});
 
       new bootstrap.Modal(discModalEl).show();
     }
@@ -496,13 +443,12 @@
     document.getElementById('btnSaveDiscsForSingle').addEventListener('click', () => {
       if (!discModalTargetSingleRow) return;
 
-      const discs = [...discEditorTbody.querySelectorAll('tr')].map(tr => {
-        const type_disc = tr.querySelector('select[name="type_disc"]').value;
-        const format = tr.querySelector('select[name="format"]').value;
-        const label = tr.querySelector('input[name="label"]').value.trim();
-        const bonus_items = getJsonAttr(tr, 'data-bonus-items', []);
-        return { type_disc, format, label: label || null, bonus_items };
-      });
+      const discs = [...discEditorTbody.querySelectorAll('tr')].map(tr => ({
+        type_disc: tr.querySelector('select[name="type_disc"]').value,
+        format: tr.querySelector('select[name="format"]').value,
+        label: tr.querySelector('input[name="label"]').value.trim() || null,
+        bonus_items: getJsonAttr(tr, 'data-bonus-items', [])
+      }));
 
       setJsonAttr(discModalTargetSingleRow, 'data-discs', discs);
       updateSingleDiscButtonLabel(discModalTargetSingleRow);
@@ -520,10 +466,9 @@
           <td class="nowrap">
             <button class="btn btn-xs btn-outline-primary" type="button" data-action="edit-discs">Discs</button>
           </td>
-          <td><button class="btn btn-sm btn-outline-danger" type="button" aria-label="Remove row">✕</button></td>
+          <td><button class="btn btn-sm btn-outline-danger" type="button">✕</button></td>
         </tr>
       `);
-
       row.querySelector('button[data-action="edit-discs"]').addEventListener('click', () => openDiscModalForSingleRow(row));
       row.querySelector('.btn-outline-danger').addEventListener('click', () => row.remove());
       singleTbody.appendChild(row);
@@ -531,17 +476,16 @@
     }
 
     function readSinglesForm() {
-      const rows = [...singleTbody.querySelectorAll('tr')].map(tr => ({
-        title: tr.querySelector('input[name="title"]').value.trim(),
-        barcode: tr.querySelector('input[name="barcode"]').value.trim(),
-        imdb_id: tr.querySelector('input[name="imdb"]').value.trim() || null,
-        discs: getJsonAttr(tr, 'data-discs', [])
-      }));
       return {
         kind: "singles",
         format: document.getElementById('singleFormat').value,
         default_copy_count: Number(document.getElementById('singleCopyCount').value || 1),
-        rows
+        rows: [...singleTbody.querySelectorAll('tr')].map(tr => ({
+          title: tr.querySelector('input[name="title"]').value.trim(),
+          barcode: tr.querySelector('input[name="barcode"]').value.trim(),
+          imdb_id: tr.querySelector('input[name="imdb"]').value.trim() || null,
+          discs: getJsonAttr(tr, 'data-discs', [])
+        }))
       };
     }
 
@@ -552,20 +496,8 @@
       document.getElementById('singleQuickImport').value = "";
     });
 
-    // ========= box sets (minimal, preview only) =========
-    const accordion = document.getElementById('boxSetsAccordion');
-    document.getElementById('btnAddBoxSet').addEventListener('click', () => {
-      // placeholder (can bring back full multi-boxset builder if you want)
-      const item = el(`<div class="alert alert-secondary mb-2">Box-set builder omitted in this snippet for brevity.</div>`);
-      accordion.appendChild(item);
-    });
-
-    document.getElementById('btnPreviewAllBoxSets').addEventListener('click', () => {
-      showPreview({ kind: "box_sets_bulk", box_sets: [] });
-    });
-
     document.getElementById('btnPreviewAll').addEventListener('click', () => {
-      showPreview({ kind: "bulk_add_preview", singles: readSinglesForm() });
+      showPreview({ kind: "bulk_add_preview", singles: readSinglesForm(), box_sets: [] });
     });
 
     // init
