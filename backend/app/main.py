@@ -20,8 +20,10 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from db import User, get_db, init_db
-from auth import verify_password
+from app.db import User, get_db, init_db
+from app.auth import verify_password
+
+from app.routes.add_data.physical_collection_import_route import router as physical_collection_import_router
 
 load_dotenv()
 
@@ -107,6 +109,8 @@ async def get_current_user(
 # =========================================================
 # Ruter
 # =========================================================
+
+app.include_router(physical_collection_import_router)
 
 @app.get("/")
 async def root():

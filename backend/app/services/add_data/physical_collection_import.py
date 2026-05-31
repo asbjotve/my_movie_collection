@@ -1,0 +1,751 @@
+import json
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+
+def _new_uuid_bytes() -> bytes:
+    return uuid.uuid4().bytes
+
+
+def _normalize_label(label: Optional[str]) -> Optional[str]:
+    if label is None:
+        return None
+    if isinstance(label, str) and label.strip().lower() == "null":
+        return None
+    label = label.strip()
+    return label or None
+
+
+def _get_content_by_imdb_id(db: Session, imdb_id: Optional[str]) -> Optional[bytes]:
+    if not imdb_id:
+        return None
+
+    row = db.execute(
+        text("""
+            SELECT content_id
+            FROM content
+            WHERE imdb_id = :imdb_id
+            LIMIT 1
+        """),
+        {"imdb_id": imdb_id},
+    ).fetchone()
+
+    return row[0] if row else None
+
+
+def _create_content(
+    db: Session,
+    title: str,
+    imdb_id: Optional[str],
+    tmdb_id: Optional[str],
+    temporary_flag: int = 0,
+) -> bytes:
+    content_id = _new_uuid_bytes()
+
+    db.execute(
+        text("""
+            INSERT INTO content (
+                content_id,
+                title,
+                content_type,
+                imdb_id,
+                watched_flag,
+                temporary_flag
+            )
+            VALUES (
+                :content_id,
+                :title,
+                :content_type,
+                :imdb_id,
+                :watched_flag,
+                :temporary_flag
+            )
+        """),
+        {
+            "content_id": content_id,
+            "title": title,
+            "content_type": "movie",
+            "imdb_id": imdb_id,
+            "watched_flag": 0,
+            "temporary_flag": temporary_flag,
+        },
+    )
+
+    if imdb_id:
+        db.execute(
+            text("""
+                INSERT INTO content_external_source (
+                    source,
+                    content_id,
+                    external_id,
+                    data_json,
+                    fetched_at
+                )
+                VALUES (
+                    :source,
+                    :content_id,
+                    :external_id,
+                    :data_json,
+                    :fetched_at
+                )
+            """),
+            {
+                "source": "imdb",
+                "content_id": content_id,
+                "external_id": imdb_id,
+                "data_json": json.dumps({"imdb_id": imdb_id}),
+                "fetched_at": datetime.utcnow(),
+            },
+        )
+
+    if tmdb_id:
+        db.execute(
+            text("""
+                INSERT INTO content_external_source (
+                    source,
+                    content_id,
+                    external_id,
+                    data_json,
+                    fetched_at
+                )
+                VALUES (
+                    :source,
+                    :content_id,
+                    :external_id,
+                    :data_json,
+                    :fetched_at
+                )
+            """),
+            {
+                "source": "tmdb",
+                "content_id": content_id,
+                "external_id": tmdb_id,
+                "data_json": json.dumps({"tmdb_id": tmdb_id}),
+                "fetched_at": datetime.utcnow(),
+            },
+        )
+
+    return content_id
+
+
+def _get_or_create_content(
+    db: Session,
+    title: str,
+    imdb_id: Optional[str],
+    tmdb_id: Optional[str],
+) -> tuple[bytes, bool]:
+    if imdb_id:
+        existing_content_id = _get_content_by_imdb_id(db, imdb_id)
+        if existing_content_id:
+            return existing_content_id, False
+
+        return _create_content(
+            db=db,
+            title=title,
+            imdb_id=imdb_id,
+            tmdb_id=tmdb_id,
+            temporary_flag=0,
+        ), True
+
+    return _create_content(
+        db=db,
+        title=title,
+        imdb_id=None,
+        tmdb_id=tmdb_id,
+        temporary_flag=1,
+    ), True
+
+
+def _find_physical_collection_by_barcode(
+    db: Session,
+    barcode: Optional[str],
+    box_set_barcode: Optional[str],
+) -> Optional[bytes]:
+    if barcode:
+        row = db.execute(
+            text("""
+                SELECT collection_id
+                FROM physical_collection
+                WHERE barcode = :barcode
+                LIMIT 1
+            """),
+            {"barcode": barcode},
+        ).fetchone()
+        if row:
+            return row[0]
+
+    if box_set_barcode:
+        row = db.execute(
+            text("""
+                SELECT collection_id
+                FROM physical_collection
+                WHERE box_set_barcode = :box_set_barcode
+                  AND barcode IS NULL
+                LIMIT 1
+            """),
+            {"box_set_barcode": box_set_barcode},
+        ).fetchone()
+        if row:
+            return row[0]
+
+    return None
+
+
+def _create_physical_collection(
+    db: Session,
+    format_value: Optional[str],
+    barcode: Optional[str],
+    box_set_barcode: Optional[str],
+) -> bytes:
+    collection_id = _new_uuid_bytes()
+
+    db.execute(
+        text("""
+            INSERT INTO physical_collection (
+                collection_id,
+                barcode,
+                format,
+                box_set_barcode
+            )
+            VALUES (
+                :collection_id,
+                :barcode,
+                :format,
+                :box_set_barcode
+            )
+        """),
+        {
+            "collection_id": collection_id,
+            "barcode": barcode,
+            "format": format_value,
+            "box_set_barcode": box_set_barcode,
+        },
+    )
+
+    return collection_id
+
+
+def _ensure_content_in_collection(
+    db: Session,
+    collection_id: bytes,
+    content_id: bytes,
+    box_set_title_sort: int,
+) -> None:
+    row = db.execute(
+        text("""
+            SELECT 1
+            FROM content_in_physical_collection
+            WHERE collection_id = :collection_id
+              AND content_id = :content_id
+            LIMIT 1
+        """),
+        {
+            "collection_id": collection_id,
+            "content_id": content_id,
+        },
+    ).fetchone()
+
+    if row:
+        return
+
+    db.execute(
+        text("""
+            INSERT INTO content_in_physical_collection (
+                collection_id,
+                content_id,
+                box_set_title_sort
+            )
+            VALUES (
+                :collection_id,
+                :content_id,
+                :box_set_title_sort
+            )
+        """),
+        {
+            "collection_id": collection_id,
+            "content_id": content_id,
+            "box_set_title_sort": box_set_title_sort,
+        },
+    )
+
+
+def _ensure_physical_copy(
+    db: Session,
+    collection_id: bytes,
+    copy_id: int,
+) -> None:
+    row = db.execute(
+        text("""
+            SELECT 1
+            FROM physical_copy
+            WHERE collection_id = :collection_id
+              AND copy_id = :copy_id
+            LIMIT 1
+        """),
+        {
+            "collection_id": collection_id,
+            "copy_id": copy_id,
+        },
+    ).fetchone()
+
+    if row:
+        return
+
+    db.execute(
+        text("""
+            INSERT INTO physical_copy (
+                copy_id,
+                collection_id
+            )
+            VALUES (
+                :copy_id,
+                :collection_id
+            )
+        """),
+        {
+            "copy_id": copy_id,
+            "collection_id": collection_id,
+        },
+    )
+
+
+def _create_disc(
+    db: Session,
+    type_disc: str,
+    format_value: str,
+    label: Optional[str],
+) -> bytes:
+    disc_id = _new_uuid_bytes()
+
+    db.execute(
+        text("""
+            INSERT INTO disc (
+                disc_id,
+                type_disc,
+                format,
+                label
+            )
+            VALUES (
+                :disc_id,
+                :type_disc,
+                :format,
+                :label
+            )
+        """),
+        {
+            "disc_id": disc_id,
+            "type_disc": type_disc,
+            "format": format_value,
+            "label": label,
+        },
+    )
+
+    return disc_id
+
+
+def _create_disc_in(
+    db: Session,
+    collection_id: bytes,
+    copy_id: int,
+    disc_id: bytes,
+    box_set_disc_order: Optional[int],
+    related_content_id: Optional[bytes],
+) -> None:
+    db.execute(
+        text("""
+            INSERT INTO disc_in (
+                copy_id,
+                collection_id,
+                disc_id,
+                box_set_disc_order,
+                related_content_id
+            )
+            VALUES (
+                :copy_id,
+                :collection_id,
+                :disc_id,
+                :box_set_disc_order,
+                :related_content_id
+            )
+        """),
+        {
+            "copy_id": copy_id,
+            "collection_id": collection_id,
+            "disc_id": disc_id,
+            "box_set_disc_order": box_set_disc_order,
+            "related_content_id": related_content_id,
+        },
+    )
+
+
+def _create_bonus_items(
+    db: Session,
+    disc_id: bytes,
+    bonus_items: list[dict],
+) -> int:
+    created = 0
+
+    for idx, item in enumerate(bonus_items, start=1):
+        seq_no = item.get("seq_no", idx)
+
+        db.execute(
+            text("""
+                INSERT INTO disc_bonus_item (
+                    disc_id,
+                    seq_no,
+                    title,
+                    item_type,
+                    runtime_seconds,
+                    notes
+                )
+                VALUES (
+                    :disc_id,
+                    :seq_no,
+                    :title,
+                    :item_type,
+                    :runtime_seconds,
+                    :notes
+                )
+            """),
+            {
+                "disc_id": disc_id,
+                "seq_no": seq_no,
+                "title": item.get("title"),
+                "item_type": item.get("item_type"),
+                "runtime_seconds": item.get("runtime_seconds"),
+                "notes": item.get("notes"),
+            },
+        )
+        created += 1
+
+    return created
+
+
+def _default_single_disc_label(title: str, type_disc: str, disc_no: int) -> str:
+    if type_disc == "feature":
+        if disc_no == 1:
+            return f"{title} – Movie"
+        return f"{title} – Movie Disc {disc_no}"
+    if type_disc == "bonus":
+        return f"{title} – Bonus"
+    return f"{title} – {type_disc}"
+
+
+def _default_box_disc_label(
+    type_disc: str,
+    disc_order: int,
+    related_title: Optional[str],
+) -> str:
+    if related_title:
+        if type_disc == "feature":
+            return f"{related_title} – Movie"
+        if type_disc == "bonus":
+            return f"{related_title} – Bonus"
+        return f"{related_title} – {type_disc}"
+
+    if type_disc == "bonus":
+        return "Box-set – Bonus"
+    if type_disc == "feature":
+        return f"Box-set – Feature Disc {disc_order}"
+    return f"Box-set – {type_disc}"
+
+
+def import_singles_payload(db: Session, payload: dict) -> dict:
+    imported_rows = 0
+    created_contents = 0
+    created_collections = 0
+    created_discs = 0
+    created_bonus_items = 0
+
+    default_copy_count = payload.get("default_copy_count", 1)
+
+    for row in payload.get("rows", []):
+        title = row["title"]
+        format_value = row.get("format")
+        barcode = row.get("barcode")
+        imdb_id = row.get("imdb_id")
+        tmdb_id = row.get("tmdb_id")
+        discs = row.get("discs", [])
+
+        existing_collection_id = _find_physical_collection_by_barcode(
+            db=db,
+            barcode=barcode,
+            box_set_barcode=None,
+        )
+        if existing_collection_id:
+            raise ValueError(f"Single release with barcode {barcode} already exists")
+
+        content_id, was_created = _get_or_create_content(
+            db=db,
+            title=title,
+            imdb_id=imdb_id,
+            tmdb_id=tmdb_id,
+        )
+        if was_created:
+            created_contents += 1
+
+        collection_id = _create_physical_collection(
+            db=db,
+            format_value=format_value,
+            barcode=barcode,
+            box_set_barcode=None,
+        )
+        created_collections += 1
+
+        _ensure_content_in_collection(
+            db=db,
+            collection_id=collection_id,
+            content_id=content_id,
+            box_set_title_sort=1,
+        )
+
+        for copy_id in range(1, default_copy_count + 1):
+            _ensure_physical_copy(
+                db=db,
+                collection_id=collection_id,
+                copy_id=copy_id,
+            )
+
+            for disc_no, disc_payload in enumerate(discs, start=1):
+                label = _normalize_label(disc_payload.get("label"))
+                if not label:
+                    label = _default_single_disc_label(
+                        title=title,
+                        type_disc=disc_payload["type_disc"],
+                        disc_no=disc_no,
+                    )
+
+                disc_id = _create_disc(
+                    db=db,
+                    type_disc=disc_payload["type_disc"],
+                    format_value=disc_payload["format"],
+                    label=label,
+                )
+                created_discs += 1
+
+                _create_disc_in(
+                    db=db,
+                    collection_id=collection_id,
+                    copy_id=copy_id,
+                    disc_id=disc_id,
+                    box_set_disc_order=disc_no,
+                    related_content_id=content_id,
+                )
+
+                created_bonus_items += _create_bonus_items(
+                    db=db,
+                    disc_id=disc_id,
+                    bonus_items=disc_payload.get("bonus_items", []),
+                )
+
+        imported_rows += 1
+
+    return {
+        "status": "ok",
+        "kind": "singles",
+        "imported_rows": imported_rows,
+        "created_contents": created_contents,
+        "created_collections": created_collections,
+        "created_discs": created_discs,
+        "created_bonus_items": created_bonus_items,
+    }
+
+
+def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
+    imported_box_sets = 0
+    created_contents = 0
+    created_collections = 0
+    created_discs = 0
+    created_bonus_items = 0
+
+    for box_set in payload.get("box_sets", []):
+        box_set_barcode = box_set.get("box_set_barcode")
+        format_value = box_set.get("format")
+        copy_count = box_set.get("copy_count", 1)
+        movies = box_set.get("movies", [])
+        discs = box_set.get("discs", [])
+
+        existing_box_collection_id = _find_physical_collection_by_barcode(
+            db=db,
+            barcode=None,
+            box_set_barcode=box_set_barcode,
+        )
+        if existing_box_collection_id and box_set_barcode is not None:
+            raise ValueError(f"Box set with barcode {box_set_barcode} already exists")
+
+        box_collection_id = _create_physical_collection(
+            db=db,
+            format_value=format_value,
+            barcode=None,
+            box_set_barcode=box_set_barcode,
+        )
+        created_collections += 1
+
+        for copy_id in range(1, copy_count + 1):
+            _ensure_physical_copy(
+                db=db,
+                collection_id=box_collection_id,
+                copy_id=copy_id,
+            )
+
+        movie_content_ids: list[bytes] = []
+        inner_case_collection_ids: list[Optional[bytes]] = []
+
+        ordered_movies = sorted(movies, key=lambda m: m["order"])
+
+        for movie in ordered_movies:
+            title = movie["title"]
+            imdb_id = movie.get("imdb_id")
+            tmdb_id = movie.get("tmdb_id")
+            inner_case_ean = movie.get("inner_case_ean")
+            treat_as_single = movie.get("treat_as_single", False)
+
+            content_id, was_created = _get_or_create_content(
+                db=db,
+                title=title,
+                imdb_id=imdb_id,
+                tmdb_id=tmdb_id,
+            )
+            if was_created:
+                created_contents += 1
+
+            movie_content_ids.append(content_id)
+
+            _ensure_content_in_collection(
+                db=db,
+                collection_id=box_collection_id,
+                content_id=content_id,
+                box_set_title_sort=movie["order"],
+            )
+
+            inner_collection_id = None
+            if treat_as_single or inner_case_ean:
+                if not inner_case_ean:
+                    raise ValueError(
+                        f"Movie '{title}' is marked as treat_as_single but has no inner_case_ean"
+                    )
+
+                existing_inner_id = _find_physical_collection_by_barcode(
+                    db=db,
+                    barcode=inner_case_ean,
+                    box_set_barcode=None,
+                )
+                if existing_inner_id:
+                    inner_collection_id = existing_inner_id
+                else:
+                    inner_collection_id = _create_physical_collection(
+                        db=db,
+                        format_value=format_value,
+                        barcode=inner_case_ean,
+                        box_set_barcode=box_set_barcode,
+                    )
+                    created_collections += 1
+
+                _ensure_content_in_collection(
+                    db=db,
+                    collection_id=inner_collection_id,
+                    content_id=content_id,
+                    box_set_title_sort=1,
+                )
+
+                for copy_id in range(1, copy_count + 1):
+                    _ensure_physical_copy(
+                        db=db,
+                        collection_id=inner_collection_id,
+                        copy_id=copy_id,
+                    )
+
+            inner_case_collection_ids.append(inner_collection_id)
+
+        ordered_discs = sorted(discs, key=lambda d: d["order"])
+
+        for disc_payload in ordered_discs:
+            related_index = disc_payload.get("related_index")
+            related_title = disc_payload.get("related_title")
+            label = _normalize_label(disc_payload.get("label"))
+
+            target_collection_id: bytes
+            related_content_id: Optional[bytes]
+
+            if related_index is None:
+                target_collection_id = box_collection_id
+                related_content_id = None
+            else:
+                if related_index < 0 or related_index >= len(movie_content_ids):
+                    raise ValueError(
+                        f"Disc order {disc_payload['order']} has invalid related_index={related_index}"
+                    )
+
+                target_collection_id = inner_case_collection_ids[related_index]
+                if target_collection_id is None:
+                    raise ValueError(
+                        f"Disc order {disc_payload['order']} points to movie index {related_index}, "
+                        "but that movie has no inner-case physical collection"
+                    )
+
+                related_content_id = movie_content_ids[related_index]
+
+            if not label:
+                label = _default_box_disc_label(
+                    type_disc=disc_payload["type_disc"],
+                    disc_order=disc_payload["order"],
+                    related_title=related_title,
+                )
+
+            for copy_id in range(1, copy_count + 1):
+                disc_id = _create_disc(
+                    db=db,
+                    type_disc=disc_payload["type_disc"],
+                    format_value=disc_payload["format"],
+                    label=label,
+                )
+                created_discs += 1
+
+                _create_disc_in(
+                    db=db,
+                    collection_id=target_collection_id,
+                    copy_id=copy_id,
+                    disc_id=disc_id,
+                    box_set_disc_order=disc_payload["order"],
+                    related_content_id=related_content_id,
+                )
+
+                created_bonus_items += _create_bonus_items(
+                    db=db,
+                    disc_id=disc_id,
+                    bonus_items=disc_payload.get("bonus_items", []),
+                )
+
+        imported_box_sets += 1
+
+    return {
+        "status": "ok",
+        "kind": "box_sets_bulk",
+        "imported_box_sets": imported_box_sets,
+        "created_contents": created_contents,
+        "created_collections": created_collections,
+        "created_discs": created_discs,
+        "created_bonus_items": created_bonus_items,
+    }
+
+
+def import_physical_collection_payload(db: Session, payload: dict) -> dict:
+    kind = payload.get("kind")
+
+    try:
+        if kind == "singles":
+            result = import_singles_payload(db, payload)
+        elif kind == "box_sets_bulk":
+            result = import_box_sets_bulk_payload(db, payload)
+        else:
+            raise ValueError(f"Unsupported payload kind: {kind}")
+
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise

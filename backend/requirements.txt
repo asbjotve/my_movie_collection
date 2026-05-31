@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy
+python-dotenv
+python-jose
+argon2-cffi
+PyMySQL
