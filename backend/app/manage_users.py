@@ -15,9 +15,14 @@ Merk:
 """
 
 import sys
+from pathlib import Path
 
-from db import User, SessionLocal, init_db
-from auth import get_password_hash
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from app.db import User, SessionLocal, init_db
+from app.auth import get_password_hash
 
 # Sørg for at tabeller finnes før vi begynner å jobbe
 init_db()

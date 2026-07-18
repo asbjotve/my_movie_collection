@@ -24,6 +24,7 @@ from app.db import User, get_db, init_db
 from app.auth import verify_password
 
 from app.routes.add_data.physical_collection_import_route import router as physical_collection_import_router
+from app.routes.add_data.wishlist_movie_cover_route import router as wishlist_movie_cover_router
 
 load_dotenv()
 
@@ -111,6 +112,7 @@ async def get_current_user(
 # =========================================================
 
 app.include_router(physical_collection_import_router)
+app.include_router(wishlist_movie_cover_router)
 
 @app.get("/")
 async def root():

@@ -5,3 +5,4 @@ python-dotenv
 python-jose
 argon2-cffi
 PyMySQL
+pydantic-settings
