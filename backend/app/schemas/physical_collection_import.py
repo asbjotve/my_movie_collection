@@ -46,6 +46,8 @@ class BoxSetDiscPayload(BaseModel):
     type_disc: str
     format: str
     label: Optional[str] = None
+    storage_slot_no: Optional[int] = Field(default=None, ge=1)
+    add_to_storage: bool = False
     related_index: Optional[int] = Field(default=None, ge=0)
     related_title: Optional[str] = None
     bonus_items: List[BonusItemPayload] = Field(default_factory=list)
@@ -53,6 +55,7 @@ class BoxSetDiscPayload(BaseModel):
 
 class BoxSetPayload(BaseModel):
     box_set_index: int = Field(ge=1)
+    storage_id: Optional[str] = None
     format: str
     box_set_barcode: Optional[str] = None
     copy_count: int = Field(ge=1)
@@ -62,6 +65,7 @@ class BoxSetPayload(BaseModel):
 
 class BoxSetsBulkImportPayload(BaseModel):
     kind: Literal["box_sets_bulk"]
+    storage_id: Optional[str] = None
     box_sets: List[BoxSetPayload] = Field(default_factory=list)
 
 

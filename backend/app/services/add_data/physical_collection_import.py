@@ -11,6 +11,15 @@ def _new_uuid_bytes() -> bytes:
     return uuid.uuid4().bytes
 
 
+def _uuid_str_to_bytes(value: Optional[str]) -> Optional[bytes]:
+    if value is None:
+        return None
+    try:
+        return uuid.UUID(value).bytes
+    except ValueError as e:
+        raise ValueError(f"Invalid UUID value: {value}") from e
+
+
 def _normalize_label(label: Optional[str]) -> Optional[str]:
     if label is None:
         return None
@@ -425,6 +434,46 @@ def _create_bonus_items(
     return created
 
 
+def _get_storage_max_slot(db: Session, storage_id: bytes) -> int:
+    row = db.execute(
+        text("""
+            SELECT COALESCE(MAX(number_in_storage), 0)
+            FROM disc_in_storage
+            WHERE storage_id = :storage_id
+        """),
+        {"storage_id": storage_id},
+    ).fetchone()
+
+    return int(row[0] or 0)
+
+
+def _create_disc_in_storage(
+    db: Session,
+    storage_id: bytes,
+    disc_id: bytes,
+    number_in_storage: int,
+) -> None:
+    db.execute(
+        text("""
+            INSERT INTO disc_in_storage (
+                storage_id,
+                disc_id,
+                number_in_storage
+            )
+            VALUES (
+                :storage_id,
+                :disc_id,
+                :number_in_storage
+            )
+        """),
+        {
+            "storage_id": storage_id,
+            "disc_id": disc_id,
+            "number_in_storage": number_in_storage,
+        },
+    )
+
+
 def _default_single_disc_label(title: str, type_disc: str, disc_no: int) -> str:
     if type_disc == "feature":
         if disc_no == 1:
@@ -562,8 +611,16 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
     created_discs = 0
     created_bonus_items = 0
 
+    payload_storage_id = _uuid_str_to_bytes(payload.get("storage_id"))
+    storage_next_slot_cache: dict[bytes, int] = {}
+
     for box_set in payload.get("box_sets", []):
         box_set_barcode = box_set.get("box_set_barcode")
+        box_set_storage_id = _uuid_str_to_bytes(box_set.get("storage_id"))
+        effective_storage_id = (
+            box_set_storage_id if box_set_storage_id is not None else payload_storage_id
+        )
+
         format_value = box_set.get("format")
         copy_count = box_set.get("copy_count", 1)
         movies = box_set.get("movies", [])
@@ -667,6 +724,8 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
             related_index = disc_payload.get("related_index")
             related_title = disc_payload.get("related_title")
             label = _normalize_label(disc_payload.get("label"))
+            add_to_storage = bool(disc_payload.get("add_to_storage", False))
+            storage_slot_no = disc_payload.get("storage_slot_no")
 
             target_collection_id: bytes
             related_content_id: Optional[bytes]
@@ -719,6 +778,30 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
                     disc_id=disc_id,
                     bonus_items=disc_payload.get("bonus_items", []),
                 )
+
+                if add_to_storage:
+                    if effective_storage_id is None:
+                        raise ValueError(
+                            f"Disc order {disc_payload['order']} has add_to_storage=true, "
+                            "but no storage_id is defined on payload or box set"
+                        )
+
+                    if storage_slot_no is not None:
+                        assigned_slot = storage_slot_no
+                    else:
+                        if effective_storage_id not in storage_next_slot_cache:
+                            current_max = _get_storage_max_slot(db, effective_storage_id)
+                            storage_next_slot_cache[effective_storage_id] = current_max + 1
+
+                        assigned_slot = storage_next_slot_cache[effective_storage_id]
+                        storage_next_slot_cache[effective_storage_id] += 1
+
+                    _create_disc_in_storage(
+                        db=db,
+                        storage_id=effective_storage_id,
+                        disc_id=disc_id,
+                        number_in_storage=assigned_slot,
+                    )
 
         imported_box_sets += 1
 
