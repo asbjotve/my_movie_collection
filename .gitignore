@@ -32,3 +32,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Unrelevated documentation
+GIT_WORKFLOW.md 
+BACKEND_DEVELOP_MAIN_DIFF.md
+GIT_COMMANDS.md
