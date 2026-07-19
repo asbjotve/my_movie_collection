@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Media-katalog v6</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div>
+        <p class="eyebrow">v6</p>
+        <h1>Kortstokk med faner</h1>
+      </div>
+      <div class="controls">
+        <input id="searchInput" type="search" placeholder="Søk">
+        <select id="typeFilter">
+          <option value="">Alle typer</option>
+          <option value="movie">Film</option>
+          <option value="series">Serie</option>
+          <option value="concert">Konsert</option>
+        </select>
+      </div>
+    </header>
+
+    <section class="layout">
+      <div class="panel">
+        <div class="list-head">
+          <h2>Titler</h2>
+          <div class="muted">Treff: <strong id="resultCount">0</strong></div>
+        </div>
+        <div id="cardGrid" class="card-grid"></div>
+      </div>
+
+      <section id="detailPanel" class="detail-panel"></section>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

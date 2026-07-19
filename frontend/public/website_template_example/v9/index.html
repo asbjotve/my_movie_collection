@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Media-katalog v9</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div>
+        <p class="eyebrow">v9</p>
+        <h1>Dashboard med nøkkeltall</h1>
+      </div>
+      <div class="controls">
+        <input id="searchInput" type="search" placeholder="Søk">
+        <select id="typeFilter">
+          <option value="">Alle typer</option>
+          <option value="movie">Film</option>
+          <option value="series">Serie</option>
+          <option value="concert">Konsert</option>
+        </select>
+      </div>
+    </header>
+
+    <section id="statsRow" class="stats-row"></section>
+    <section id="listGrid" class="list-grid"></section>
+    <section id="detailPanel"></section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

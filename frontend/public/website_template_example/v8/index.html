@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Media-katalog v8</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <aside class="filters">
+      <p class="eyebrow">v8</p>
+      <h1>Filterkolonne</h1>
+      <label>
+        <span>Søk</span>
+        <input id="searchInput" type="search" placeholder="Søk i samlingen">
+      </label>
+      <label>
+        <span>Type</span>
+        <select id="typeFilter">
+          <option value="">Alle typer</option>
+          <option value="movie">Film</option>
+          <option value="series">Serie</option>
+          <option value="concert">Konsert</option>
+        </select>
+      </label>
+      <label class="check">
+        <input id="watchedFilter" type="checkbox">
+        <span>Bare usette</span>
+      </label>
+      <div class="muted">Treff: <strong id="resultCount">0</strong></div>
+      <div id="listPanel" class="list-panel"></div>
+    </aside>
+
+    <section id="detailPanel" class="detail-panel"></section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

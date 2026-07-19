@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media-katalog v11</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">v11</p>
+        <h1>TMDB-detaljside for egen database</h1>
+        <p class="intro">Stor detaljflate øverst, men med fysisk samlingsdata og kilder organisert i egne seksjoner under.</p>
+      </div>
+
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Søk tittel, strekkode eller ekstern ID">
+        <select id="typeFilter">
+          <option value="">Alle typer</option>
+          <option value="movie">Film</option>
+          <option value="series">Serie</option>
+          <option value="concert">Konsert</option>
+        </select>
+      </div>
+    </header>
+
+    <section id="heroSection"></section>
+
+    <section class="surface switcher-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Bytt tittel</p>
+          <h2>Eksempeldata fra samme modell</h2>
+        </div>
+        <div class="result-badge"><span id="resultCount">0</span> treff</div>
+      </div>
+      <div id="cardRail" class="card-rail"></div>
+    </section>
+
+    <section class="content-grid">
+      <div id="mainColumn" class="column-stack"></div>
+      <aside id="sideColumn" class="column-stack"></aside>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media-katalog v2</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <div class="brand-block">
+        <p class="eyebrow">v2</p>
+        <h1>Min filmsamling</h1>
+      </div>
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Søk etter tittel eller strekkode">
+        <select id="typeFilter">
+          <option value="">Alle typer</option>
+          <option value="movie">Film</option>
+          <option value="series">Serie</option>
+          <option value="concert">Konsert</option>
+        </select>
+        <label class="watch-filter">
+          <input id="watchedFilter" type="checkbox">
+          <span>Bare usette</span>
+        </label>
+      </div>
+    </header>
+
+    <main class="content-shell">
+      <section id="heroSection"></section>
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Utforsk samlingen</p>
+            <h2>Velg tittel</h2>
+          </div>
+          <span id="resultCount" class="result-count"></span>
+        </div>
+        <div id="cardRail" class="card-rail"></div>
+      </section>
+      <section id="detailSections" class="detail-sections"></section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

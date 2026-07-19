@@ -1,0 +1,164 @@
+:root {
+  --bg: #07101b;
+  --panel: rgba(13, 21, 34, 0.9);
+  --panel-soft: rgba(18, 29, 46, 0.88);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f2f7ff;
+  --muted: #a8b9d3;
+  --accent: #7fd9ff;
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(92, 131, 255, 0.18), transparent 24%),
+    linear-gradient(180deg, #050b13 0%, var(--bg) 100%);
+}
+button, input, select { font: inherit; }
+.page {
+  width: min(1260px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 22px 0 40px;
+  display: grid;
+  gap: 18px;
+}
+.toolbar, .panel, .hero, .mini-card, .rail-card {
+  border: 1px solid var(--line);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: end;
+}
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 12px;
+  font-weight: 700;
+}
+h1, h2, h3, p { margin: 0; }
+.controls { display: flex; gap: 10px; flex-wrap: wrap; }
+.controls input, .controls select {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+}
+.controls input { width: min(340px, 70vw); }
+.hero {
+  min-height: 480px;
+  border-radius: 28px;
+  overflow: hidden;
+  position: relative;
+  background:
+    linear-gradient(90deg, rgba(5, 12, 22, 0.94) 0%, rgba(5, 12, 22, 0.7) 38%, rgba(5, 12, 22, 0.2) 100%),
+    linear-gradient(135deg, var(--hero-start), var(--hero-end));
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 78% 20%, rgba(255,255,255,0.18), transparent 14%);
+}
+.hero-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 30px;
+  align-items: end;
+  min-height: 480px;
+  padding: 30px;
+}
+.poster {
+  aspect-ratio: 2 / 3;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent 40%), linear-gradient(160deg, var(--hero-start), var(--hero-end));
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.poster-type, .pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.2);
+  font-size: 12px;
+}
+.poster-title { font-size: 28px; font-weight: 800; line-height: 1.08; }
+.hero-copy h2 { font-size: clamp(2.1rem, 4vw, 3.5rem); margin-bottom: 8px; }
+.subtitle, .summary, .muted { color: var(--muted); }
+.hero-meta, .fact-row, .card-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+.hero-meta { margin: 14px 0 16px; }
+.summary { max-width: 62ch; line-height: 1.65; }
+.panel {
+  border-radius: 24px;
+  padding: 22px;
+  background: var(--panel);
+}
+.rail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+.card-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+.rail-card {
+  border-radius: 20px;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+.rail-card.is-active { outline: 2px solid rgba(127, 217, 255, 0.55); }
+.rail-cover {
+  height: 210px;
+  padding: 14px;
+  display: flex;
+  align-items: end;
+  background: linear-gradient(160deg, var(--card-start), var(--card-end));
+}
+.rail-title { font-size: 18px; font-weight: 800; line-height: 1.1; }
+.rail-body { padding: 14px; display: grid; gap: 8px; }
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+}
+.mini-card {
+  border-radius: 22px;
+  padding: 20px;
+  background: var(--panel);
+}
+.mini-card h3 { margin-bottom: 10px; }
+.stack { display: grid; gap: 10px; }
+.item {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line);
+}
+@media (max-width: 980px) {
+  .hero-content, .detail-grid, .toolbar { grid-template-columns: 1fr; display: grid; }
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media-katalog v13</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="site-header">
+      <div class="brand-block">
+        <p class="eyebrow">v13</p>
+        <h1>TMDB-detaljside med tre faner</h1>
+        <p class="intro">Detaljsiden holder filmen i sentrum, mens roller og samlingsdata ligger i egne faner.</p>
+      </div>
+
+      <div class="search-shell">
+        <label class="search-box" for="searchInput">
+          <span class="search-label">Søk</span>
+          <input id="searchInput" type="search" placeholder="Søk etter tittel, originaltittel eller ekstern ID">
+        </label>
+      </div>
+    </header>
+
+    <section id="searchPanel" class="search-panel is-hidden"></section>
+
+    <section id="heroSection"></section>
+
+    <nav id="tabBar" class="tab-bar"></nav>
+
+    <section class="content-layout">
+      <div id="mainContent" class="main-content"></div>
+      <aside id="sideContent" class="side-content"></aside>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

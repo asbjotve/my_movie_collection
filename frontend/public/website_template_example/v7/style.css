@@ -1,0 +1,61 @@
+:root {
+  --bg: #060b14;
+  --panel: rgba(13, 19, 31, 0.88);
+  --line: rgba(255,255,255,0.08);
+  --text: #eff5ff;
+  --muted: #9eb0cb;
+  --accent: #8fd8ff;
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background: radial-gradient(circle at top, rgba(82,120,255,.18), transparent 24%), linear-gradient(180deg, #04070d 0%, var(--bg) 100%);
+}
+button, input, select { font: inherit; }
+.page { width: min(1280px, calc(100% - 24px)); margin: 0 auto; padding: 20px 0 36px; display: grid; gap: 18px; }
+.header { display: flex; justify-content: space-between; gap: 16px; align-items: end; }
+.eyebrow { margin: 0 0 8px; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 700; }
+h1, h2, h3, p { margin: 0; }
+.controls { display: flex; gap: 10px; flex-wrap: wrap; }
+.controls input, .controls select {
+  min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(255,255,255,.04); color: var(--text);
+}
+.hero {
+  min-height: 440px; border-radius: 28px; overflow: hidden; position: relative;
+  border: 1px solid var(--line); box-shadow: 0 22px 60px rgba(0,0,0,.35);
+  background: linear-gradient(135deg, var(--hero-start), var(--hero-end));
+}
+.hero::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.78) 100%);
+}
+.hero-inner {
+  position: absolute; inset: 0; z-index: 1; padding: 28px;
+  display: flex; align-items: end; justify-content: space-between; gap: 20px;
+}
+.hero-copy { max-width: 720px; }
+.subtitle, .summary, .meta-row { color: rgba(255,255,255,.78); }
+.meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 16px; }
+.pill {
+  display: inline-flex; padding: 7px 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18); background: rgba(10,15,25,.35); font-size: 12px;
+}
+.summary { line-height: 1.65; max-width: 60ch; }
+.poster-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.poster-card {
+  min-height: 280px; padding: 14px; border-radius: 22px; border: 1px solid var(--line);
+  background: linear-gradient(160deg, var(--card-start), var(--card-end));
+  display: flex; flex-direction: column; justify-content: end; color: inherit; text-align: left; cursor: pointer;
+  box-shadow: 0 22px 60px rgba(0,0,0,.28);
+}
+.poster-card.is-active { outline: 2px solid rgba(143,216,255,.5); }
+.poster-card h3 { font-size: 18px; line-height: 1.1; margin-bottom: 8px; }
+.poster-card .meta { color: rgba(255,255,255,.78); font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .header, .hero-inner { grid-template-columns: 1fr; display: grid; }
+}

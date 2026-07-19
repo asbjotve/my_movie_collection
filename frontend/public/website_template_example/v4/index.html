@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Media-katalog v4</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <header class="toolbar">
+      <div>
+        <p class="eyebrow">v4</p>
+        <h1>Backdrop + metadata</h1>
+      </div>
+      <div class="controls">
+        <input id="searchInput" type="search" placeholder="Søk tittel eller strekkode">
+        <select id="typeFilter">
+          <option value="">Alle typer</option>
+          <option value="movie">Film</option>
+          <option value="series">Serie</option>
+          <option value="concert">Konsert</option>
+        </select>
+      </div>
+    </header>
+
+    <section id="heroSection"></section>
+
+    <section class="panel rail-panel">
+      <div class="rail-header">
+        <div>
+          <p class="eyebrow">Utvalg</p>
+          <h2>Bytt tittel</h2>
+        </div>
+        <div class="muted">Treff: <strong id="resultCount">0</strong></div>
+      </div>
+      <div id="cardRail" class="card-rail"></div>
+    </section>
+
+    <section id="detailGrid" class="detail-grid"></section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Media-katalog v1</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">Media-katalog</div>
+    <div class="muted small">v1 · inspirert av `dexample/v2`</div>
+  </header>
+
+  <main class="page-wrap">
+    <section class="panel filter-panel">
+      <div class="filter-grid">
+        <label class="field field-grow">
+          <span>Søk</span>
+          <input id="searchInput" type="search" placeholder="Søk tittel / original tittel / strekkode">
+        </label>
+
+        <label class="field">
+          <span>Type</span>
+          <select id="typeFilter">
+            <option value="">Alle</option>
+            <option value="movie">Film</option>
+            <option value="series">Serie</option>
+            <option value="concert">Konsert</option>
+          </select>
+        </label>
+
+        <label class="check-pill">
+          <input id="watchedFilter" type="checkbox">
+          <span>Bare ikke-sett</span>
+        </label>
+      </div>
+
+      <div class="result-line muted small">
+        Treff: <strong id="resultCount">0</strong>
+      </div>
+    </section>
+
+    <section id="contentGrid" class="content-grid"></section>
+    <section id="detailSection"></section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

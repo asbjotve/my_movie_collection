@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Front-utkast</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(18, 26, 51, 0.78);
+      --text: #e8ecff;
+      --muted: #a8b2d8;
+      --line: rgba(37, 48, 87, 0.88);
+      --accent: #7aa2ff;
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 500px at 20% -10%, #1b2a66, transparent),
+        radial-gradient(900px 400px at 80% 0%, #35215c, transparent),
+        var(--bg);
+      color: var(--text);
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 18px 48px;
+    }
+    .hero,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+    }
+    .hero {
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    h1, h2, p { margin: 0; }
+    .lead {
+      color: var(--muted);
+      margin-top: 10px;
+      line-height: 1.6;
+      max-width: 60ch;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      padding: 18px;
+      text-decoration: none;
+      color: inherit;
+      display: grid;
+      gap: 10px;
+    }
+    .card:hover {
+      border-color: rgba(122, 162, 255, 0.72);
+    }
+    .tag {
+      width: fit-content;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(122, 162, 255, 0.28);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .desc {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Forslag</p>
+      <h1>Velg et utkast</h1>
+      <p class="lead">
+        Hver løsning ligger i egen mappe under <code>front/v*</code>, slik at de kan sammenlignes side om side uten API-data.
+      </p>
+    </section>
+
+    <section class="grid">
+      <a class="card" href="./v1/index.html">
+        <span class="tag">v1</span>
+        <h2>dexample-v2-inspirert</h2>
+        <p class="desc">Kortgrid øverst og detaljseksjon under, tett på uttrykket i eksisterende PHP-eksempel.</p>
+      </a>
+
+      <a class="card" href="./v2/index.html">
+        <span class="tag">v2</span>
+        <h2>TMDB-inspirert hero</h2>
+        <p class="desc">Stor detaljflate for valgt tittel, med mindre fokus på datatabeller og mer fokus på stemning.</p>
+      </a>
+
+      <a class="card" href="./v3/index.html">
+        <span class="tag">v3</span>
+        <h2>Bibliotek + sidepanel</h2>
+        <p class="desc">Mer app-preget oversikt, der valglisten ligger til venstre og valgt tittel får en kompakt detaljvisning til høyre.</p>
+      </a>
+
+      <a class="card" href="./v4/index.html">
+        <span class="tag">v4</span>
+        <h2>Backdrop + metadata</h2>
+        <p class="desc">Stor toppflate med metadata-bånd og færre kort lenger ned, for en mer kinoinspirert førsteside.</p>
+      </a>
+
+      <a class="card" href="./v5/index.html">
+        <span class="tag">v5</span>
+        <h2>Katalog med tabellfokus</h2>
+        <p class="desc">Mer databasepreget visning med liste/tabell til venstre og rask faktaboks til høyre.</p>
+      </a>
+
+      <a class="card" href="./v6/index.html">
+        <span class="tag">v6</span>
+        <h2>Kortstokk med faner</h2>
+        <p class="desc">Fokus på én valgt tittel med faner for oversikt, utgaver og kilder i en mer modulær presentasjon.</p>
+      </a>
+
+      <a class="card" href="./v7/index.html">
+        <span class="tag">v7</span>
+        <h2>Plakatvegg + overlay</h2>
+        <p class="desc">Mer visuelt kinoaktig med plakatvegg og informasjon lagt som overlay på valgt tittel.</p>
+      </a>
+
+      <a class="card" href="./v8/index.html">
+        <span class="tag">v8</span>
+        <h2>Master-detail med filterkolonne</h2>
+        <p class="desc">En mer administrativ arbeidsflate med dedikert filterkolonne og stor detaljvisning.</p>
+      </a>
+
+      <a class="card" href="./v9/index.html">
+        <span class="tag">v9</span>
+        <h2>Dashboard med nøkkeltall</h2>
+        <p class="desc">Forside som først viser samlingen samlet, før valgt tittel utdypes lenger ned.</p>
+      </a>
+
+      <a class="card" href="./v10/index.html">
+        <span class="tag">v10</span>
+        <h2>Minimal detaljside</h2>
+        <p class="desc">En luftig og enkel variant med få elementer og fokus på rolig presentasjon av valgt tittel.</p>
+      </a>
+
+      <a class="card" href="./v11/index.html">
+        <span class="tag">v11</span>
+        <h2>TMDB-detaljside + databasestruktur</h2>
+        <p class="desc">Stor filmhero øverst, men med utgaver, kopier, disker, lagring og eksterne kilder organisert under.</p>
+      </a>
+
+      <a class="card" href="./v12/index.html">
+        <span class="tag">v12</span>
+        <h2>TMDB-detaljside med samlingsfane</h2>
+        <p class="desc">Søk øverst, ingen karusell, og fysisk/digital eierskap samlet i en egen fane.</p>
+      </a>
+
+      <a class="card" href="./v13/index.html">
+        <span class="tag">v13</span>
+        <h2>Tre faner: detaljer, roller og samling</h2>
+        <p class="desc">En ny variant med egne faner for filmdetaljer, roller &amp; besetning og min samling.</p>
+      </a>
+
+      <a class="card" href="./v14/index.php">
+        <span class="tag">v14</span>
+        <h2>Dexample v1 som frontutkast</h2>
+        <p class="desc">Standalone PHP-demo med søk, filterchips og modalvisning, basert på statiske eksempeldata.</p>
+      </a>
+    </section>
+  </main>
+</body>
+</html>
