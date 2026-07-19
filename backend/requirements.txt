@@ -3,6 +3,7 @@ uvicorn[standard]
 SQLAlchemy
 python-dotenv
 python-jose
+python-multipart
 argon2-cffi
 PyMySQL
 pydantic-settings
