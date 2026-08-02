@@ -6,6 +6,7 @@ An online database of owned movies, with possibility to fill data from The TVDB 
 - [ ] Function: Bulk-add movies
 - [ ] Function: Addd list of movies, based on a .csv
 - [ ] Function: Remove a movie from collection
+- [ ] Function: Posibility to add lists, ex. top 250 or 'Movies to watch'.
 
 ## Purpose and background
 When I first started organizing my collection, I used a simple Excel worksheet. Later, I transitioned to 
