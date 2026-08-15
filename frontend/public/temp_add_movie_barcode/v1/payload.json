@@ -1,0 +1,24 @@
+{
+  "kind": "singles",
+  "storage_id": "564a3999-5d00-11f1-9526-bab3c527eb51",
+  "default_copy_count": 1,
+  "rows": [
+    {
+      "title": "Hello",
+      "format": "BD",
+      "barcode": "",
+      "imdb_id": null,
+      "tmdb_id": null,
+      "discs": [
+        {
+          "type_disc": "feature",
+          "format": "BD",
+          "label": null,
+          "bonus_items": [],
+          "storage_slot_no": null,
+          "add_to_storage": false
+        }
+      ]
+    }
+  ]
+}

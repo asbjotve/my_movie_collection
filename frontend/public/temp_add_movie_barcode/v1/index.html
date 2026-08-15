@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strekkodeskanner</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Arial, sans-serif;
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --border: #d1d5db;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .page {
+      width: min(100%, 30rem);
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    .card {
+      margin-top: 2rem;
+      background: var(--card);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      box-shadow: 0 12px 32px rgba(17, 24, 39, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.5rem;
+    }
+
+    p {
+      margin: 0 0 1rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .field {
+      margin-bottom: 1rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.9rem 1rem;
+      font-size: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+    }
+
+    .barcode-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+
+    .barcode-row input {
+      margin: 0;
+      flex: 1;
+    }
+
+    button {
+      border: 0;
+      border-radius: 0.85rem;
+      padding: 1rem;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--primary);
+      cursor: pointer;
+    }
+
+    .scan-button {
+      width: auto;
+      white-space: nowrap;
+    }
+
+    button:hover,
+    button:focus-visible {
+      background: var(--primary-hover);
+    }
+
+    button:disabled {
+      opacity: 0.7;
+    }
+
+    .status {
+      min-height: 1.5rem;
+      margin-top: 0.25rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .submit-button {
+      width: 100%;
+      margin-top: 0.75rem;
+    }
+
+    .scanner {
+      display: none;
+      margin-top: 1rem;
+      overflow: hidden;
+      border-radius: 1rem;
+      background: #000;
+    }
+
+    .scanner.active {
+      display: block;
+    }
+
+    #reader {
+      width: 100%;
+    }
+
+    @media (min-width: 768px) {
+      .card {
+        margin-top: 4rem;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .barcode-row {
+        flex-direction: column;
+      }
+
+      .scan-button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="card">
+      <h1>Strekkodeskanner</h1>
+      <p>Fyll inn filmtittel, skann strekkoden og send skjemaet til API-et.</p>
+
+      <form id="movieForm">
+        <div class="field">
+          <label for="title">Filmtittel</label>
+          <input id="title" name="title" type="text" autocomplete="off" placeholder="Skriv inn filmtittel" required>
+        </div>
+
+        <div class="field">
+          <label for="barcode">Strekkode</label>
+          <div class="barcode-row">
+            <input id="barcode" name="barcode" type="text" inputmode="numeric" autocomplete="off" placeholder="Skannet kode vises her" required>
+            <button id="scanButton" class="scan-button" type="button">Skann strekkode</button>
+          </div>
+        </div>
+
+        <button id="submitButton" class="submit-button" type="submit">Send skjema</button>
+      </form>
+
+      <div id="status" class="status"></div>
+
+      <div id="scanner" class="scanner">
+        <div id="reader"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    const API_URL = "./submit.php";
+
+    const movieForm = document.getElementById("movieForm");
+    const titleInput = document.getElementById("title");
+    const barcodeInput = document.getElementById("barcode");
+    const scanButton = document.getElementById("scanButton");
+    const submitButton = document.getElementById("submitButton");
+    const statusText = document.getElementById("status");
+    const scannerWrapper = document.getElementById("scanner");
+
+    let scanner;
+    let scanning = false;
+    let payloadTemplate;
+
+    function setStatus(message) {
+      statusText.textContent = message;
+    }
+
+    function clonePayload(payload) {
+      return JSON.parse(JSON.stringify(payload));
+    }
+
+    async function getPayloadTemplate() {
+      if (payloadTemplate) {
+        return clonePayload(payloadTemplate);
+      }
+
+      const response = await fetch("./payload.json", {
+        headers: {
+          "Accept": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Kunne ikke lese payload.json.");
+      }
+
+      payloadTemplate = await response.json();
+      return clonePayload(payloadTemplate);
+    }
+
+    async function submitForm(event) {
+      event.preventDefault();
+
+      const title = titleInput.value.trim();
+      const barcode = barcodeInput.value.trim();
+
+      if (!title || !barcode) {
+        setStatus("Fyll inn både filmtittel og strekkode.");
+        return;
+      }
+
+      submitButton.disabled = true;
+      scanButton.disabled = true;
+      setStatus("Sender skjema...");
+
+      try {
+        if (scanning) {
+          await stopScanner();
+        }
+
+        const payload = await getPayloadTemplate();
+
+        if (!Array.isArray(payload.rows) || payload.rows.length === 0) {
+          throw new Error("payload.json mangler rows[0].");
+        }
+
+        payload.rows[0].title = title;
+        payload.rows[0].barcode = barcode;
+
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const responseBody = await response.text();
+
+        if (!response.ok) {
+          throw new Error(responseBody || `API-et svarte med feil (${response.status}).`);
+        }
+
+        setStatus("Skjema sendt.");
+      } catch (error) {
+        setStatus(error.message || "Kunne ikke sende skjemaet.");
+      } finally {
+        submitButton.disabled = false;
+        scanButton.disabled = false;
+      }
+    }
+
+    async function stopScanner() {
+      if (!scanner || !scanning) {
+        return;
+      }
+
+      await scanner.stop();
+      await scanner.clear();
+      scanning = false;
+      scannerWrapper.classList.remove("active");
+      scanButton.textContent = "Skann strekkode";
+    }
+
+    async function startScanner() {
+      if (!window.Html5Qrcode) {
+        setStatus("Strekkodeskanning er ikke tilgjengelig i denne nettleseren.");
+        return;
+      }
+
+      scanner = new Html5Qrcode("reader");
+      scannerWrapper.classList.add("active");
+      scanButton.textContent = "Stopp skanning";
+
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: (viewfinderWidth, viewfinderHeight) => {
+              const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.8;
+              return { width: size, height: size };
+            },
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39
+            ]
+          },
+          async (decodedText) => {
+            barcodeInput.value = decodedText;
+            setStatus("Strekkode skannet.");
+            await stopScanner();
+          },
+          () => {}
+        );
+
+        scanning = true;
+        setStatus("Pek kameraet mot strekkoden.");
+      } catch (error) {
+        scannerWrapper.classList.remove("active");
+        scanButton.textContent = "Skann strekkode";
+        setStatus("Kunne ikke starte kameraet. Sjekk kameratilgang og HTTPS.");
+      }
+    }
+
+    scanButton.addEventListener("click", async () => {
+      scanButton.disabled = true;
+
+      try {
+        if (scanning) {
+          await stopScanner();
+          setStatus("Skanning stoppet.");
+        } else {
+          await startScanner();
+        }
+      } finally {
+        scanButton.disabled = false;
+      }
+    });
+
+    movieForm.addEventListener("submit", submitForm);
+  </script>
+</body>
+</html>
