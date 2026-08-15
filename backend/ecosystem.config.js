@@ -16,7 +16,8 @@ module.exports = {
       merge_logs: true,
       env: {
         PYTHONUNBUFFERED: "1",
-        OSLOMET_ENV: "prod"
+        OSLOMET_ENV: "prod",
+        WISHLIST_COVER_MAX_BYTES: "31457280"
       }
     }
   ]

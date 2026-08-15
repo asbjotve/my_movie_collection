@@ -18,6 +18,9 @@ async def create_wishlist_movie(
     title: str = Form(...),
     original_title: str | None = Form(None),
     first_release_year: int | None = Form(None),
+    imdb_id: str | None = Form(None),
+    tmdb_id: str | None = Form(None),
+    tvdb_id: str | None = Form(None),
     cover_image: UploadFile = File(...),
     db: Session = Depends(get_media_db),
 ):
@@ -28,6 +31,9 @@ async def create_wishlist_movie(
             title=title,
             original_title=original_title,
             first_release_year=first_release_year,
+            imdb_id=imdb_id,
+            tmdb_id=tmdb_id,
+            tvdb_id=tvdb_id,
             cover_bytes=cover_bytes,
             cover_content_type=cover_image.content_type,
         )
