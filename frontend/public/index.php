@@ -24,6 +24,21 @@ $solutions = [
             'v13' => 'v13/index.php',
         ],
     ],
+    'custom_list_manager' => [
+        'title' => 'Custom List Manager',
+        'desc'  => 'Create new custom lists and add items to them via a dropdown (excludes the Wishlist).',
+        'entries' => [
+            'v1' => 'v1/index.php',
+            'v2' => 'v2/index.php',
+        ],
+    ],
+    'wishlist_view' => [
+        'title' => 'Wishlist View',
+        'desc'  => 'Mobile-friendly table listing all movies added to the wishlist.',
+        'entries' => [
+            'v1' => 'v1/index.php',
+        ],
+    ],
     'my_movie_list' => [
         'title' => 'My Movie List',
         'desc'  => 'A simple searchable table of movies (title, IMDb/TMDB/TVDB IDs).',
