@@ -5,12 +5,18 @@ from app.media_db import get_media_db
 from app.services.add_data.wishlist_movie_cover import (
     WishlistMovieUploadError,
     create_wishlist_movie_with_cover,
+    list_wishlist_movies,
 )
 
 router = APIRouter(
     prefix="/wishlist",
     tags=["wishlist"],
 )
+
+
+@router.get("/movies")
+async def get_wishlist_movies(db: Session = Depends(get_media_db)):
+    return list_wishlist_movies(db)
 
 
 @router.post("/movies")
