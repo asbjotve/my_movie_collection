@@ -1,44 +1,26 @@
-import os
-import re
 import uuid
-from pathlib import Path
 from typing import Final
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-DEFAULT_UPLOAD_DIR: Final[Path] = Path(
-    os.getenv(
-        "WISHLIST_COVER_UPLOAD_DIR",
-        "/var/www/mmc.plexcity.net/public/uploads/wishlist-covers",
-    )
+from app.services.add_data.list_item_shared import (
+    DEFAULT_PUBLIC_BASE_URL,
+    DEFAULT_UPLOAD_DIR,
+    ListItemUploadError,
+    build_cover_filename,
+    normalize_external_id,
+    normalize_first_release,
+    normalize_original_title,
+    normalize_title,
+    read_cover_bytes,
 )
-DEFAULT_PUBLIC_BASE_URL: Final[str] = os.getenv(
-    "WISHLIST_COVER_PUBLIC_BASE_URL",
-    "/uploads/wishlist-covers",
-).rstrip("/")
-MAX_UPLOAD_BYTES: Final[int] = int(
-    os.getenv("WISHLIST_COVER_MAX_BYTES", str(10 * 1024 * 1024))
-)
-ALLOWED_IMAGE_TYPES: Final[dict[str, str]] = {
-    "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/png": ".png",
-    "image/pjpeg": ".jpg",
-    "image/webp": ".webp",
-    "image/heic": ".heic",
-    "image/heif": ".heif",
-}
 
+# Kept as an alias for backwards compatibility with existing imports/callers.
+WishlistMovieUploadError = ListItemUploadError
 
 WISHLIST_LIST_NAME: Final[str] = "Wishlist"
-
-
-class WishlistMovieUploadError(ValueError):
-    def __init__(self, message: str, status_code: int = 400) -> None:
-        super().__init__(message)
-        self.status_code = status_code
 
 
 def _get_or_create_wishlist_list_id(db: Session) -> bytes:
@@ -64,68 +46,42 @@ def _get_or_create_wishlist_list_id(db: Session) -> bytes:
     return list_id
 
 
-def _slugify(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
-    return slug or "movie"
+def list_wishlist_movies(db: Session) -> list[dict[str, str | int | None]]:
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                li.list_item_id,
+                li.title,
+                li.original_title,
+                li.first_release_year,
+                li.imdb_id,
+                li.tmdb_id,
+                li.tvdb_id,
+                li.cover_image
+            FROM list_items li
+            JOIN custom_list_entries cle ON cle.list_item_id = li.list_item_id
+            JOIN custom_lists cl ON cl.list_id = cle.list_id
+            WHERE cl.list_name = :list_name
+            ORDER BY li.title ASC
+            """
+        ),
+        {"list_name": WISHLIST_LIST_NAME},
+    ).fetchall()
 
-
-def _build_cover_filename(title: str, suffix: str) -> str:
-    return f"{_slugify(title)}-{uuid.uuid4().hex[:12]}{suffix}"
-
-
-def _normalize_title(value: str) -> str:
-    normalized = value.strip()
-    if not normalized:
-        raise WishlistMovieUploadError("Tittel er påkrevd.")
-    return normalized
-
-
-def _normalize_original_title(value: str | None) -> str | None:
-    if value is None:
-        return None
-
-    normalized = value.strip()
-    return normalized or None
-
-
-def _normalize_external_id(value: str | None) -> str | None:
-    if value is None:
-        return None
-
-    normalized = value.strip()
-    return normalized or None
-
-
-def _normalize_first_release(first_release_year: int | None) -> int | None:
-    if first_release_year is None:
-        return None
-
-    if first_release_year < 1888 or first_release_year > 2100:
-        raise WishlistMovieUploadError("Årstall må være mellom 1888 og 2100.")
-
-    return first_release_year
-
-
-def _read_cover_bytes(cover_bytes: bytes, content_type: str | None) -> tuple[bytes, str]:
-    normalized_content_type = (content_type or "").lower().strip()
-    suffix = ALLOWED_IMAGE_TYPES.get(normalized_content_type)
-    if suffix is None:
-        allowed = ", ".join(sorted(ALLOWED_IMAGE_TYPES))
-        raise WishlistMovieUploadError(
-            f"Ugyldig bildefil. Tillatte typer er: {allowed}."
-        )
-
-    if not cover_bytes:
-        raise WishlistMovieUploadError("Bildefilen er tom.")
-
-    if len(cover_bytes) > MAX_UPLOAD_BYTES:
-        max_mb = MAX_UPLOAD_BYTES / (1024 * 1024)
-        raise WishlistMovieUploadError(
-            f"Bildefilen er for stor. Maks størrelse er {max_mb:.0f} MB.",
-            status_code=413,
-        )
-
-    return cover_bytes, suffix
+    return [
+        {
+            "list_item_id": str(uuid.UUID(bytes=row.list_item_id)),
+            "title": row.title,
+            "original_title": row.original_title,
+            "first_release_year": row.first_release_year,
+            "imdb_id": row.imdb_id,
+            "tmdb_id": row.tmdb_id,
+            "tvdb_id": row.tvdb_id,
+            "cover_image": row.cover_image,
+        }
+        for row in rows
+    ]
 
 
 def create_wishlist_movie_with_cover(
@@ -139,20 +95,20 @@ def create_wishlist_movie_with_cover(
     tmdb_id: str | None = None,
     tvdb_id: str | None = None,
 ) -> dict[str, str | int | bool | None]:
-    normalized_title = _normalize_title(title)
-    normalized_original_title = _normalize_original_title(original_title)
-    normalized_first_release_year = _normalize_first_release(first_release_year)
-    normalized_imdb_id = _normalize_external_id(imdb_id)
-    normalized_tmdb_id = _normalize_external_id(tmdb_id)
-    normalized_tvdb_id = _normalize_external_id(tvdb_id)
-    normalized_cover_bytes, cover_suffix = _read_cover_bytes(
+    normalized_title = normalize_title(title)
+    normalized_original_title = normalize_original_title(original_title)
+    normalized_first_release_year = normalize_first_release(first_release_year)
+    normalized_imdb_id = normalize_external_id(imdb_id)
+    normalized_tmdb_id = normalize_external_id(tmdb_id)
+    normalized_tvdb_id = normalize_external_id(tvdb_id)
+    normalized_cover_bytes, cover_suffix = read_cover_bytes(
         cover_bytes=cover_bytes,
         content_type=cover_content_type,
     )
 
     DEFAULT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-    filename = _build_cover_filename(normalized_title, cover_suffix)
+    filename = build_cover_filename(normalized_title, cover_suffix)
     public_path = f"{DEFAULT_PUBLIC_BASE_URL}/{filename}"
     absolute_path = DEFAULT_UPLOAD_DIR / filename
     list_item_id = uuid.uuid4().bytes
