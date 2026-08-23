@@ -95,7 +95,6 @@ function tvdbRequest(string $url): array
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err      = curl_error($ch);
-    curl_close($ch);
 
     if ($response === false) {
         throw new RuntimeException('cURL-feil mot TVDB: ' . $err);
