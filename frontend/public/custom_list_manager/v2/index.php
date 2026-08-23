@@ -93,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'add_ite
     $imdbId = trim((string) ($_POST['imdb_id'] ?? ''));
     $tmdbId = trim((string) ($_POST['tmdb_id'] ?? ''));
     $tvdbId = trim((string) ($_POST['tvdb_id'] ?? ''));
+    $season = trim((string) ($_POST['season'] ?? ''));
     $coverImage = $_FILES['cover_image'] ?? null;
 
     if ($listId === '') {
@@ -134,6 +135,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'add_ite
         }
         if ($tvdbId !== '') {
             $postFields['tvdb_id'] = $tvdbId;
+        }
+        if ($season !== '') {
+            $postFields['season'] = $season;
         }
 
         [$rawResponse, $curlError, $httpCode] = apiRequest($listItemsEndpoint, $postFields);
@@ -378,34 +382,54 @@ if ($listsResponse === false || $listsCurlError) {
     }
     .btn-tmdb:hover{ background: rgba(122,162,255,.2); }
 
-    #searchModal .modal-content{
+    .btn-tvdb{
+      appearance:none;
+      border:1px solid rgba(255,193,102,.5);
+      background: rgba(255,193,102,.12);
+      color: #ffc166;
+      font: inherit; font-weight:700; font-size:13px;
+      border-radius:12px;
+      padding:12px 14px;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .btn-tvdb:hover{ background: rgba(255,193,102,.2); }
+
+    #searchModal .modal-content,
+    #tvdbSearchModal .modal-content{
       background: var(--panel);
       color: var(--text);
       border:1px solid rgba(37,48,87,.9);
       border-radius:16px;
     }
-    #searchModal .modal-header{
+    #searchModal .modal-header,
+    #tvdbSearchModal .modal-header{
       background: var(--panel2) !important;
       border-bottom:1px solid rgba(37,48,87,.8);
     }
-    #searchModal .modal-title{ color: var(--text); }
-    #searchModal .form-control{
+    #searchModal .modal-title,
+    #tvdbSearchModal .modal-title{ color: var(--text); }
+    #searchModal .form-control,
+    #tvdbSearchModal .form-control{
       background: rgba(15,23,48,.7);
       border:1px solid rgba(37,48,87,.9);
       color: var(--text);
     }
-    #searchModal .form-control:focus{
+    #searchModal .form-control:focus,
+    #tvdbSearchModal .form-control:focus{
       background: rgba(15,23,48,.7);
       color: var(--text);
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(122,162,255,.18);
     }
-    #searchModal .input-group-text{
+    #searchModal .input-group-text,
+    #tvdbSearchModal .input-group-text{
       background: rgba(15,23,48,.7);
       border:1px solid rgba(37,48,87,.9);
       color: var(--muted);
     }
-    #searchModal .form-text{ color: var(--muted); }
+    #searchModal .form-text,
+    #tvdbSearchModal .form-text{ color: var(--muted); }
 
     .dropdown-results{
       border:1px solid rgba(37,48,87,.8);
@@ -513,6 +537,7 @@ if ($listsResponse === false || $listsCurlError) {
               <input type="text" id="title" name="title" placeholder="F.eks. Dune" value="<?= h($_POST['title'] ?? '') ?>" required>
             </label>
             <button type="button" class="btn-tmdb" data-bs-toggle="modal" data-bs-target="#searchModal">🔍 Hent fra TMDB</button>
+            <button type="button" class="btn-tvdb" data-bs-toggle="modal" data-bs-target="#tvdbSearchModal">🔎 Hent fra TVDB</button>
           </div>
 
           <label>
@@ -554,6 +579,12 @@ if ($listsResponse === false || $listsCurlError) {
           </fieldset>
 
           <label>
+            Sesong (valgfritt)
+            <input type="text" name="season" placeholder="F.eks. Sesong 3, 1-3 eller Alle sesonger" value="<?= h($_POST['season'] ?? '') ?>">
+          </label>
+          <div class="hint">Rent personlig notat – uavhengig av TVDB/TMDB-data, som alltid gjelder hele serien/filmen.</div>
+
+          <label>
             Coverbilde (valgfritt)
             <input type="file" name="cover_image" accept="image/*" capture="environment">
           </label>
@@ -592,6 +623,9 @@ if ($listsResponse === false || $listsCurlError) {
 
             <div class="k">TVDB ID</div>
             <div class="v"><?= h((string) ($itemResponseData['tvdb_id'] ?? '')) ?></div>
+
+            <div class="k">Sesong</div>
+            <div class="v"><?= h((string) ($itemResponseData['season'] ?? '')) ?></div>
 
             <div class="k">Cover</div>
             <div class="v">
@@ -649,6 +683,58 @@ if ($listsResponse === false || $listsCurlError) {
   </div>
 </div>
 
+<!-- TVDB search modal -->
+<div class="modal fade" id="tvdbSearchModal" tabindex="-1" aria-labelledby="tvdbSearchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="tvdbSearchModalLabel">🔎 Søk etter filmer og TV-serier (TVDB)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Lukk"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="mb-3 d-flex flex-wrap gap-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="tvdbTypeRadios" id="tvdbTypeSeries" value="series" checked>
+            <label class="form-check-label" for="tvdbTypeSeries">TV-serier</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="tvdbTypeRadios" id="tvdbTypeMovies" value="movie">
+            <label class="form-check-label" for="tvdbTypeMovies">Filmer</label>
+          </div>
+        </div>
+
+        <div class="search-wrapper">
+          <div class="input-group input-group-lg">
+            <span class="input-group-text">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              </svg>
+            </span>
+
+            <input type="text" id="tvdbSearchInput" class="form-control" placeholder="Søk etter filmer eller TV-serier..." autocomplete="off">
+
+            <span class="input-group-text" id="tvdbLoadingSpinner" style="display: none;">
+              <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Søker...</span>
+              </div>
+            </span>
+          </div>
+
+          <div class="form-text mt-1">
+            💡 Minst 2 tegn. Bytt mellom TV-serier og filmer over.
+          </div>
+
+          <div id="tvdbDropdownResults" class="dropdown-results mt-2"></div>
+        </div>
+
+        <div id="tvdbSearchStatus" class="text-center mt-2 text-muted" style="min-height: 24px;"></div>
+        <div id="tvdbSelectedItem" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   // --- Tabs ---
@@ -686,5 +772,6 @@ if ($listsResponse === false || $listsCurlError) {
   });
 </script>
 <script src="script.js"></script>
+<script src="tvdb-search.js"></script>
 </body>
 </html>
