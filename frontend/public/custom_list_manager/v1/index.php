@@ -87,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'add_ite
     $imdbId = trim((string) ($_POST['imdb_id'] ?? ''));
     $tmdbId = trim((string) ($_POST['tmdb_id'] ?? ''));
     $tvdbId = trim((string) ($_POST['tvdb_id'] ?? ''));
+    $season = trim((string) ($_POST['season'] ?? ''));
     $coverImage = $_FILES['cover_image'] ?? null;
 
     if ($listId === '') {
@@ -128,6 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'add_ite
         }
         if ($tvdbId !== '') {
             $postFields['tvdb_id'] = $tvdbId;
+        }
+        if ($season !== '') {
+            $postFields['season'] = $season;
         }
 
         [$rawResponse, $curlError, $httpCode] = apiRequest($listItemsEndpoint, $postFields);
@@ -433,6 +437,12 @@ if ($listsResponse === false || $listsCurlError) {
         </fieldset>
 
         <label>
+          Sesong (valgfritt)
+          <input type="text" name="season" placeholder="F.eks. Sesong 3, 1-3 eller Alle sesonger" value="<?= h($_POST['season'] ?? '') ?>">
+        </label>
+        <div class="hint">Rent personlig notat – uavhengig av TVDB/TMDB-data, som alltid gjelder hele serien/filmen.</div>
+
+        <label>
           Coverbilde (valgfritt)
           <input type="file" name="cover_image" accept="image/*" capture="environment">
         </label>
@@ -471,6 +481,9 @@ if ($listsResponse === false || $listsCurlError) {
 
           <div class="k">TVDB ID</div>
           <div class="v"><?= h((string) ($itemResponseData['tvdb_id'] ?? '')) ?></div>
+
+          <div class="k">Sesong</div>
+          <div class="v"><?= h((string) ($itemResponseData['season'] ?? '')) ?></div>
 
           <div class="k">Cover</div>
           <div class="v">

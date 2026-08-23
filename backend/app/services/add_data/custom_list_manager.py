@@ -12,6 +12,7 @@ from app.services.add_data.list_item_shared import (
     normalize_external_id,
     normalize_first_release,
     normalize_original_title,
+    normalize_season,
     normalize_title,
     read_cover_bytes,
 )
@@ -96,6 +97,7 @@ def add_item_to_custom_list(
     imdb_id: str | None = None,
     tmdb_id: str | None = None,
     tvdb_id: str | None = None,
+    season: str | None = None,
 ) -> dict[str, str | int | bool | None]:
     parsed_list_id = _parse_list_id(list_id)
 
@@ -113,6 +115,7 @@ def add_item_to_custom_list(
     normalized_imdb_id = normalize_external_id(imdb_id)
     normalized_tmdb_id = normalize_external_id(tmdb_id)
     normalized_tvdb_id = normalize_external_id(tvdb_id)
+    normalized_season = normalize_season(season)
 
     # Cover image is optional for custom lists (unlike the wishlist upload flow).
     has_cover = cover_bytes is not None and len(cover_bytes) > 0
@@ -146,6 +149,7 @@ def add_item_to_custom_list(
                     imdb_id,
                     tmdb_id,
                     tvdb_id,
+                    season,
                     cover_image
                 )
                 VALUES (
@@ -156,6 +160,7 @@ def add_item_to_custom_list(
                     :imdb_id,
                     :tmdb_id,
                     :tvdb_id,
+                    :season,
                     :cover_image
                 )
                 """
@@ -168,6 +173,7 @@ def add_item_to_custom_list(
                 "imdb_id": normalized_imdb_id,
                 "tmdb_id": normalized_tmdb_id,
                 "tvdb_id": normalized_tvdb_id,
+                "season": normalized_season,
                 "cover_image": public_path,
             },
         )
@@ -205,6 +211,7 @@ def add_item_to_custom_list(
         "imdb_id": normalized_imdb_id,
         "tmdb_id": normalized_tmdb_id,
         "tvdb_id": normalized_tvdb_id,
+        "season": normalized_season,
         "cover_image": public_path,
         "stored_in": list_row.list_name,
     }

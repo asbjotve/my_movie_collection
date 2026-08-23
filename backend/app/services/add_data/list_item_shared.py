@@ -68,6 +68,18 @@ def normalize_external_id(value: str | None) -> str | None:
     return normalized or None
 
 
+def normalize_season(value: str | None) -> str | None:
+    """Free-text season note (e.g. "3", "1-3", "Alle sesonger").
+
+    Purely a manual/personal field, unrelated to TVDB/TMDB data.
+    """
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    return normalized or None
+
+
 def normalize_first_release(first_release_year: int | None) -> int | None:
     if first_release_year is None:
         return None

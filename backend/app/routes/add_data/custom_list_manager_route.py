@@ -45,6 +45,7 @@ async def post_custom_list_item(
     imdb_id: str | None = Form(None),
     tmdb_id: str | None = Form(None),
     tvdb_id: str | None = Form(None),
+    season: str | None = Form(None),
     cover_image: UploadFile | None = File(None),
     db: Session = Depends(get_media_db),
 ):
@@ -60,6 +61,7 @@ async def post_custom_list_item(
             imdb_id=imdb_id,
             tmdb_id=tmdb_id,
             tvdb_id=tvdb_id,
+            season=season,
             cover_bytes=cover_bytes,
             cover_content_type=cover_content_type,
         )
