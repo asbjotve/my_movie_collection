@@ -162,6 +162,41 @@ $sectionAccess = [
     }
     .tag.good{ background: rgba(61,220,151,.14); border-color: rgba(61,220,151,.5); }
 
+    /* ---- Filter/søk (Mine filmer) – samme mønster som v15 ---- */
+    .filterBar{
+      display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+      margin-bottom:14px;
+    }
+    .search{
+      flex:1; min-width:220px; max-width:420px;
+      display:flex; gap:10px; align-items:center;
+      background: var(--panel2);
+      border:1px solid var(--line);
+      border-radius: 12px;
+      padding:9px 12px;
+    }
+    .search input{
+      width:100%;
+      background: transparent; border:0; outline:0; color: var(--text);
+      font-size:14px;
+    }
+    .chiprow{ display:flex; flex-wrap:wrap; gap:8px; }
+    .chip{
+      padding:7px 12px; border-radius:999px;
+      border:1px solid var(--line);
+      background: var(--panel2);
+      color: var(--muted);
+      cursor:pointer;
+      font-size:12px;
+      user-select:none;
+    }
+    .chip.active{ border-color: rgba(111,141,255,.85); color: var(--text); }
+    .unwatchedToggle{
+      display:flex; gap:8px; align-items:center;
+      color: var(--muted); font-size:13px;
+      white-space: nowrap;
+    }
+
     /* ---- Visningsbytte: rutenett / liste-tabell (Mine filmer) ---- */
     .viewToggle{
       display:flex; gap:6px; margin-bottom:16px;
@@ -272,7 +307,19 @@ $sectionAccess = [
   <!-- ============ MINE FILMER ============ -->
   <section class="panel active" id="panel-mine_filmer">
     <h2 class="pageTitle">Mine filmer</h2>
-    <p class="pageHint">Live data fra databasen (som v15). Bytt mellom rutenett og liste/tabell nedenfor.</p>
+    <p class="pageHint">Live data fra databasen (som v15). Bytt mellom rutenett og liste/tabell, og filtrer/søk nedenfor.</p>
+
+    <div class="filterBar">
+      <div class="search">
+        <input id="mineFilmerSearch" placeholder="Søk tittel / original tittel…" />
+      </div>
+      <div class="chiprow" id="mineFilmerTypeChips"></div>
+      <label class="unwatchedToggle">
+        <input id="mineFilmerOnlyUnwatched" type="checkbox" />
+        Vis bare ikke-sett
+      </label>
+    </div>
+
     <div class="viewToggle" id="mineFilmerViewToggle">
       <button data-view="grid" class="active">🖼️ Rutenett</button>
       <button data-view="list">📋 Liste</button>
@@ -379,8 +426,8 @@ $sectionAccess = [
     }[c]));
   }
 
-  function renderMineFilmerGrid(){
-    mineFilmerGrid.innerHTML = mineFilmerData.map(item => `
+  function renderMineFilmerGrid(items){
+    mineFilmerGrid.innerHTML = items.map(item => `
       <div class="card">
         <div class="cover">
           <div class="coverBadge">${escapeHtml((item.content_type || "").toUpperCase())}</div>
@@ -396,8 +443,8 @@ $sectionAccess = [
     `).join("");
   }
 
-  function renderMineFilmerTable(){
-    mineFilmerTableBody.innerHTML = mineFilmerData.map(item => {
+  function renderMineFilmerTable(items){
+    mineFilmerTableBody.innerHTML = items.map(item => {
       const year = (item.first_release || "").slice(0, 4) || "-";
       const imdbCell = item.imdb_id
         ? `<a href="https://www.imdb.com/title/${escapeHtml(item.imdb_id)}/" target="_blank" rel="noopener">${escapeHtml(item.imdb_id)}</a>`
@@ -413,15 +460,57 @@ $sectionAccess = [
     }).join("");
   }
 
+  // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----
+  let mineFilmerActiveType = null;
+  const mineFilmerSearch = document.getElementById("mineFilmerSearch");
+  const mineFilmerTypeChips = document.getElementById("mineFilmerTypeChips");
+  const mineFilmerOnlyUnwatched = document.getElementById("mineFilmerOnlyUnwatched");
+
+  function getFilteredMineFilmer(){
+    const term = mineFilmerSearch.value.trim().toLowerCase();
+    const showUnwatched = mineFilmerOnlyUnwatched.checked;
+
+    return mineFilmerData.filter(item => {
+      if (mineFilmerActiveType && item.content_type !== mineFilmerActiveType) return false;
+      if (showUnwatched && item.watched_flag) return false;
+      if (!term) return true;
+      return (item.title || "").toLowerCase().includes(term) ||
+             (item.original_title || "").toLowerCase().includes(term);
+    });
+  }
+
+  function renderMineFilmerTypeChips(){
+    const types = [...new Set(mineFilmerData.map(i => i.content_type).filter(Boolean))].sort();
+    mineFilmerTypeChips.innerHTML = "";
+
+    const all = document.createElement("div");
+    all.className = "chip" + (mineFilmerActiveType === null ? " active" : "");
+    all.textContent = "Alle";
+    all.onclick = () => { mineFilmerActiveType = null; renderMineFilmerTypeChips(); renderMineFilmer(); };
+    mineFilmerTypeChips.appendChild(all);
+
+    for (const t of types){
+      const el = document.createElement("div");
+      el.className = "chip" + (mineFilmerActiveType === t ? " active" : "");
+      el.textContent = t;
+      el.onclick = () => { mineFilmerActiveType = t; renderMineFilmerTypeChips(); renderMineFilmer(); };
+      mineFilmerTypeChips.appendChild(el);
+    }
+  }
+
+  mineFilmerSearch.addEventListener("input", renderMineFilmer);
+  mineFilmerOnlyUnwatched.addEventListener("change", renderMineFilmer);
+
   function renderMineFilmer(){
+    const filtered = getFilteredMineFilmer();
     if (mineFilmerView === "grid"){
       mineFilmerGrid.style.display = "";
       mineFilmerTable.style.display = "none";
-      renderMineFilmerGrid();
+      renderMineFilmerGrid(filtered);
     } else {
       mineFilmerGrid.style.display = "none";
       mineFilmerTable.style.display = "";
-      renderMineFilmerTable();
+      renderMineFilmerTable(filtered);
     }
   }
 
@@ -448,8 +537,10 @@ $sectionAccess = [
       mineFilmerStatus.style.color = "var(--danger)";
       return;
     }
+    renderMineFilmerTypeChips();
     renderMineFilmer();
   }
+
 
   loadMineFilmer();
 
