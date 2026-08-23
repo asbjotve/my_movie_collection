@@ -121,7 +121,7 @@ $sectionAccess = [
       display:inline-block;
     }
 
-    main{ padding: 14px 22px; max-width: 1200px; margin: 0 auto; }
+    main{ padding: 14px 22px; max-width: 1800px; margin: 0 auto; }
     .panel{ display:none; }
     .panel.active{ display:block; }
 
@@ -130,7 +130,7 @@ $sectionAccess = [
 
     .grid{
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap:14px;
     }
     .card{
@@ -140,7 +140,7 @@ $sectionAccess = [
       overflow:hidden;
     }
     .card .cover{
-      height:180px;
+      height:260px;
       background: linear-gradient(135deg, rgba(111,141,255,.35), rgba(61,220,151,.18));
       display:flex; align-items:flex-end; justify-content:flex-start;
       padding:10px;
