@@ -2,20 +2,13 @@
 declare(strict_types=1);
 session_start();
 
-$supportedLangs = ['en', 'nb'];
-if (isset($_GET['lang']) && in_array($_GET['lang'], $supportedLangs, true)) {
-  $_SESSION['lang'] = $_GET['lang'];
-}
-$lang = $_SESSION['lang'] ?? 'en';
-if (!in_array($lang, $supportedLangs, true)) $lang = 'en';
+require_once __DIR__ . '/lang.php';
 
-$t = require __DIR__ . "/lang/{$lang}.php";
+$lang = bamf_current_lang();
+$t = bamf_load_translations($lang);
 
 function h(string $s): string {
   return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
-function tr(array $t, string $key): string {
-  return $t[$key] ?? $key;
 }
 ?>
 <!doctype html>
@@ -411,7 +404,7 @@ function tr(array $t, string $key): string {
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    const I18N = <?= json_encode($t, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    const I18N = <?= json_encode(bamf_flatten_for_js($t), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 
     function el(html) {
       const t = document.createElement('template');
