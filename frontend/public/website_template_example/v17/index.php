@@ -121,12 +121,12 @@ $sectionAccess = [
       display:inline-block;
     }
 
-    main{ padding: 22px; max-width: 1200px; margin: 0 auto; }
+    main{ padding: 14px 22px; max-width: 1200px; margin: 0 auto; }
     .panel{ display:none; }
     .panel.active{ display:block; }
 
-    h2.pageTitle{ margin: 0 0 4px; font-size:20px; }
-    p.pageHint{ margin: 0 0 20px; color: var(--muted); font-size:13px; }
+    h2.pageTitle{ margin: 0 0 2px; font-size:15px; }
+    p.pageHint{ margin: 0 0 10px; color: var(--muted); font-size:11px; }
 
     .grid{
       display:grid;
@@ -164,49 +164,49 @@ $sectionAccess = [
 
     /* ---- Filter/søk (Mine filmer) – samme mønster som v15 ---- */
     .filterBar{
-      display:flex; flex-wrap:wrap; align-items:center; gap:12px;
-      margin-bottom:14px;
+      display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+      margin-bottom:10px;
     }
     .search{
-      flex:1; min-width:220px; max-width:420px;
-      display:flex; gap:10px; align-items:center;
+      flex:1; min-width:180px; max-width:360px;
+      display:flex; gap:8px; align-items:center;
       background: var(--panel2);
       border:1px solid var(--line);
-      border-radius: 12px;
-      padding:9px 12px;
+      border-radius: 10px;
+      padding:6px 10px;
     }
     .search input{
       width:100%;
       background: transparent; border:0; outline:0; color: var(--text);
-      font-size:14px;
+      font-size:13px;
     }
-    .chiprow{ display:flex; flex-wrap:wrap; gap:8px; }
+    .chiprow{ display:flex; flex-wrap:wrap; gap:6px; }
     .chip{
-      padding:7px 12px; border-radius:999px;
+      padding:5px 10px; border-radius:999px;
       border:1px solid var(--line);
       background: var(--panel2);
       color: var(--muted);
       cursor:pointer;
-      font-size:12px;
+      font-size:11px;
       user-select:none;
     }
     .chip.active{ border-color: rgba(111,141,255,.85); color: var(--text); }
     .unwatchedToggle{
-      display:flex; gap:8px; align-items:center;
-      color: var(--muted); font-size:13px;
+      display:flex; gap:6px; align-items:center;
+      color: var(--muted); font-size:12px;
       white-space: nowrap;
     }
 
     /* ---- Visningsbytte: rutenett / liste-tabell (Mine filmer) ---- */
     .viewToggle{
-      display:flex; gap:6px; margin-bottom:16px;
+      display:flex; gap:6px; margin-left:auto;
     }
     .viewToggle button{
       appearance:none; border:1px solid var(--line); background: var(--panel2);
       color: var(--muted);
-      font-size:13px; font-weight:600;
-      padding:7px 14px;
-      border-radius: 10px;
+      font-size:12px; font-weight:600;
+      padding:5px 12px;
+      border-radius: 8px;
       cursor:pointer;
     }
     .viewToggle button.active{
@@ -307,7 +307,7 @@ $sectionAccess = [
   <!-- ============ MINE FILMER ============ -->
   <section class="panel active" id="panel-mine_filmer">
     <h2 class="pageTitle">Mine filmer</h2>
-    <p class="pageHint">Live data fra databasen (som v15). Bytt mellom rutenett og liste/tabell, og filtrer/søk nedenfor.</p>
+    <p class="pageHint">Live data fra databasen.</p>
 
     <div class="filterBar">
       <div class="search">
@@ -318,12 +318,12 @@ $sectionAccess = [
         <input id="mineFilmerOnlyUnwatched" type="checkbox" />
         Vis bare ikke-sett
       </label>
+      <div class="viewToggle" id="mineFilmerViewToggle">
+        <button data-view="grid" class="active">🖼️ Rutenett</button>
+        <button data-view="list">📋 Liste</button>
+      </div>
     </div>
 
-    <div class="viewToggle" id="mineFilmerViewToggle">
-      <button data-view="grid" class="active">🖼️ Rutenett</button>
-      <button data-view="list">📋 Liste</button>
-    </div>
     <div id="mineFilmerStatus" style="color:var(--muted); font-size:13px;">Laster data fra databasen…</div>
     <div class="grid" id="mineFilmerGrid"></div>
     <table class="dataTable" id="mineFilmerTable" style="display:none;">
