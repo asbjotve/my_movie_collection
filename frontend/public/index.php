@@ -30,6 +30,7 @@ $solutions = [
         'entries' => [
             'v1' => 'v1/index.php',
             'v2' => 'v2/index.php',
+            'v3' => 'v3/index.php',
         ],
     ],
     'wishlist_view' => [
