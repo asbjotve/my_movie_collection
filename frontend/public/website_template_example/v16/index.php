@@ -22,9 +22,25 @@ declare(strict_types=1);
  *  gjør nå). "Mine filmer" og "Ønskeliste" kan trolig forbli åpne,
  *  avhengig av om løsningen skal være hel-privat eller delvis offentlig.
  * ============================================================
+ *
+ *  KONFIGURERBAR TILGANG PER MENYPUNKT
+ *  $sectionAccess under styrer om et menypunkt vises med hengelås-ikon
+ *  og merknadsboks (dvs. "krever innlogging når det kommer") eller om
+ *  det er helt åpent. Sett verdien til true/false per punkt – ingen
+ *  annen kode må endres for å justere dette. "Ønskeliste" er satt til
+ *  true her (låst) som eksempel på at den også kan konfigureres, men
+ *  kan enkelt endres til false igjen.
+ * ============================================================
  */
 
 $isLoggedIn = false; // Plassholder – finnes ingen ekte innloggingsløsning ennå.
+
+$sectionAccess = [
+    'mine_filmer'    => false, // åpen
+    'onskeliste'     => true,  // låst (konfigurerbar – kan settes til false)
+    'andre_lister'   => true,  // låst
+    'administrering' => true,  // låst
+];
 ?>
 <!doctype html>
 <html lang="no">
@@ -181,10 +197,10 @@ $isLoggedIn = false; // Plassholder – finnes ingen ekte innloggingsløsning en
 <div class="topbar">
   <div class="brand">🎬 Media-katalog</div>
   <nav class="mainnav" id="mainnav">
-    <button data-panel="mine_filmer" class="active">Mine filmer</button>
-    <button data-panel="onskeliste">Ønskeliste</button>
-    <button data-panel="andre_lister">Andre lister<span class="lockIcon">🔒</span></button>
-    <button data-panel="administrering">Administrering<span class="lockIcon">🔒</span></button>
+    <button data-panel="mine_filmer" class="active">Mine filmer<?= $sectionAccess['mine_filmer'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+    <button data-panel="onskeliste">Ønskeliste<?= $sectionAccess['onskeliste'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+    <button data-panel="andre_lister">Andre lister<?= $sectionAccess['andre_lister'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+    <button data-panel="administrering">Administrering<?= $sectionAccess['administrering'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
   </nav>
   <div class="authState">
     <span class="dot"></span>
@@ -206,6 +222,12 @@ $isLoggedIn = false; // Plassholder – finnes ingen ekte innloggingsløsning en
     <h2 class="pageTitle">Ønskeliste</h2>
     <p class="pageHint">Plassholder-data – ingen databasekobling i denne versjonen.</p>
     <div class="list" id="onskelisteList"></div>
+    <?php if ($sectionAccess['onskeliste']): ?>
+    <div class="noteBox">
+      🔒 <strong>Vurdering:</strong> her satt til å kreve innlogging (konfigurerbart via
+      <code>$sectionAccess['onskeliste']</code> øverst i filen) – kan enkelt settes åpen igjen.
+    </div>
+    <?php endif; ?>
   </section>
 
   <!-- ============ ANDRE LISTER ============ -->
