@@ -112,8 +112,30 @@ denne versjonen:
 - Ønskeliste/Andre lister/Administrering er fortsatt uendret
   demo-paneler fra v16, inkl. konfigurerbar lås-status.
 
+## v18 – Første versjon med data via API (ikke direkte MySQL)
+Identisk med v17 i utseende/funksjonalitet (toppmeny, rutenett/liste-
+bytte, tekstfiltrering), men databasetilgangen er flyttet ut av PHP:
+- Nytt FastAPI-endepunkt `GET /media/content`
+  (`backend/app/routes/media_catalog_route.py` +
+  `backend/app/services/media_catalog.py`) gjør nå selve SQL-
+  spørringene mot `db_mediearkiv` (content + physical_collection +
+  content_external_source), og returnerer samme datastruktur som
+  v15/v17 sin `api.php` gjorde.
+- v18 sin egen `api.php` gjør ingen SQL i det hele tatt – den er kun en
+  tynn server-side proxy (`curl` mot `http://172.19.0.1:9500/media/content`)
+  som sender JSON-responsen videre til nettleseren. Dette unngår CORS
+  (alt serveres fortsatt fra samme origin) og krever ingen endring i
+  Apache/edge-oppsettet.
+- `imdb_id` hentes nå direkte fra `content.imdb_id`-kolonnen i stedet
+  for via `content_external_source`, siden den kolonnen viste seg å
+  allerede finnes og være delvis populert.
+- Dette er bevisst starten på en større overgang: målet er at stadig
+  mer av media-katalog-logikken (samlinger, kilder, roller m.m.) flyttes
+  inn i dette API-et over tid, slik at PHP-sidene forblir tynne
+  visningslag uten egen SQL/duplisert databaselogikk.
+
 ---
 
-*Sist oppdatert i forbindelse med v17-arbeidet. Oppdater dette
+*Sist oppdatert i forbindelse med v18-arbeidet. Oppdater dette
 dokumentet når nye versjoner legges til under
 `frontend/public/website_template_example/`.*

@@ -81,7 +81,7 @@ $solutions = [
             'v7' => 'v7/index.html', 'v8' => 'v8/index.html', 'v9' => 'v9/index.html',
             'v10' => 'v10/index.html', 'v11' => 'v11/index.html', 'v12' => 'v12/index.html',
             'v13' => 'v13/index.html', 'v14' => 'v14/index.php',
-            'v15' => 'v15/index.php', 'v16' => 'v16/index.php', 'v17' => 'v17/index.php',
+            'v15' => 'v15/index.php', 'v16' => 'v16/index.php', 'v17' => 'v17/index.php', 'v18' => 'v18/index.php',
         ],
     ],
 ];
