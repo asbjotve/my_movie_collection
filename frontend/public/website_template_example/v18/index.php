@@ -149,7 +149,9 @@ $sectionAccess = [
       border:1px solid var(--line);
       border-radius: 14px;
       overflow:hidden;
+      transition: transform .12s ease, border-color .12s ease;
     }
+    .card:hover{ transform: translateY(-2px); border-color: rgba(111,141,255,.7); }
     .card .cover{
       height:260px;
       background: linear-gradient(135deg, rgba(111,141,255,.35), rgba(61,220,151,.18));
@@ -439,7 +441,7 @@ $sectionAccess = [
 
   function renderMineFilmerGrid(items){
     mineFilmerGrid.innerHTML = items.map(item => `
-      <div class="card">
+      <div class="card" data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
         <div class="cover">
           <div class="coverBadge">${escapeHtml((item.content_type || "").toUpperCase())}</div>
         </div>
@@ -452,16 +454,21 @@ $sectionAccess = [
         </div>
       </div>
     `).join("");
+    mineFilmerGrid.querySelectorAll(".card").forEach(el => {
+      el.addEventListener("click", () => {
+        window.location.href = "detail.php?id=" + encodeURIComponent(el.dataset.id);
+      });
+    });
   }
 
   function renderMineFilmerTable(items){
     mineFilmerTableBody.innerHTML = items.map(item => {
       const year = (item.first_release || "").slice(0, 4) || "-";
       const imdbCell = item.imdb_id
-        ? `<a href="https://www.imdb.com/title/${escapeHtml(item.imdb_id)}/" target="_blank" rel="noopener">${escapeHtml(item.imdb_id)}</a>`
+        ? `<a href="https://www.imdb.com/title/${escapeHtml(item.imdb_id)}/" target="_blank" rel="noopener" class="imdbLink">${escapeHtml(item.imdb_id)}</a>`
         : "-";
       return `
-        <tr>
+        <tr data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
           <td>${escapeHtml(item.title)}</td>
           <td>${escapeHtml(item.original_title || "-")}</td>
           <td>${year}</td>
@@ -469,6 +476,12 @@ $sectionAccess = [
         </tr>
       `;
     }).join("");
+    mineFilmerTableBody.querySelectorAll("tr").forEach(el => {
+      el.addEventListener("click", (e) => {
+        if (e.target.closest(".imdbLink")) return; // ikke naviger hvis man klikket IMDb-lenken
+        window.location.href = "detail.php?id=" + encodeURIComponent(el.dataset.id);
+      });
+    });
   }
 
   // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----

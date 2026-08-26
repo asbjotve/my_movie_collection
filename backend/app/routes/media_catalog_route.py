@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.media_db import get_media_db
-from app.services.media_catalog import list_content
+from app.services.media_catalog import get_content_by_id, list_content
 
 router = APIRouter(
     prefix="/media",
@@ -20,3 +20,15 @@ def get_content(db: Session = Depends(get_media_db)):
     som mer av frontend flyttes over til dette API-et.
     """
     return list_content(db)
+
+
+@router.get("/content/{content_id}")
+def get_content_detail(content_id: str, db: Session = Depends(get_media_db)):
+    """Én content-rad (detaljvisning), med fysiske utgaver og eksterne
+    kilder. content_id er 32-tegns hex (samme form som feltet i
+    /media/content sin respons).
+    """
+    item = get_content_by_id(db, content_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Fant ikke content med denne IDen")
+    return item
