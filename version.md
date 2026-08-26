@@ -149,7 +149,9 @@ bytte, tekstfiltrering), men databasetilgangen er flyttet ut av PHP:
     Vises kun for det som faktisk er registrert på Blu-ray/DVD. Klikk
     på et box-sett viser en liten tabell til høyre med alle filmene/
     platene i boksen (tittel, format, lagringsplass/`number_in_storage`),
-    med gjeldende film uthevet.
+    med gjeldende film uthevet. Klikk på et vanlig (ikke-box-sett)
+    eksemplar med flere plater (f.eks. film + bonusdisk) viser samme
+    type tabell, men med platene i dette eksemplaret i stedet.
   - **Kjøpsinformasjon** – viser foreløpig kun en tekst om at data
     mangler (krever egne felt for pris/kjøpsdato/butikk, finnes ikke
     ennå).

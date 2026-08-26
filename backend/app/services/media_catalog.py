@@ -141,6 +141,23 @@ def _load_physical_copies(
             for d in discs:
                 d["bonus_items"] = bonus_by_disc.get(d["disc_id"], [])
 
+    if disc_id_by_hex:
+        storage_stmt = text(
+            """
+            SELECT disc_id, number_in_storage
+            FROM disc_in_storage
+            WHERE disc_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True))
+        storage_rows = db.execute(
+            storage_stmt, {"ids": list(disc_id_by_hex.values())}
+        ).fetchall()
+        storage_by_disc_hex = {_hex_id(row.disc_id): row.number_in_storage for row in storage_rows}
+
+        for discs in discs_by_copy.values():
+            for d in discs:
+                d["number_in_storage"] = storage_by_disc_hex.get(d["disc_id"])
+
     physical_copies: list[dict] = []
     for row in copy_rows:
         ck = _hex_id(row.collection_id)

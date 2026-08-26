@@ -372,8 +372,10 @@ declare(strict_types=1);
   // Ett eksemplar (physical_copy) = én rad, uansett om det er en
   // enkeltplate eller et box-sett med flere plater - box-settet vises
   // altså bare som én oppføring, ikke én rad pr. plate. Klikk på et
-  // box-sett viser en liten tabell til høyre med alle filmene/platene
-  // i boksen (inkl. ev. number_in_storage). ----
+  // eksemplar med flere plater viser en liten tabell til høyre:
+  // - box-sett: alle filmene i boksen (tittel/format/lagringsplass)
+  // - enkelt-utgivelse med flere plater (f.eks. bonusdisk): alle
+  //   platene i dette eksemplaret (platetype/format/lagringsplass) ----
   function renderCollectionTab(item){
     const panel = document.getElementById("collectionPanel");
     const copies = item.physical_copies || [];
@@ -388,7 +390,9 @@ declare(strict_types=1);
       const discTxt = c.disc_count > 1
         ? c.disc_count + " plater"
         : c.disc_count === 1 ? "1 plate" : "Ukjent antall plater";
-      const clickable = c.is_box_set && (c.box_set_items || []).length;
+      const hasBoxItems = c.is_box_set && (c.box_set_items || []).length;
+      const hasMultiDisc = !c.is_box_set && (c.discs || []).length > 1;
+      const clickable = hasBoxItems || hasMultiDisc;
 
       return `
         <div class="copyRow${clickable ? " clickable" : ""}" ${clickable ? `data-copy-index="${i}"` : ""}>
@@ -397,7 +401,8 @@ declare(strict_types=1);
           <span class="meta">${escapeHtml(discTxt)}</span>
           ${c.barcode ? `<span class="meta">Strekkode: ${escapeHtml(c.barcode)}</span>` : ""}
           ${c.box_set_barcode ? `<span class="meta">Boks-strekkode: ${escapeHtml(c.box_set_barcode)}</span>` : ""}
-          ${clickable ? `<span class="hint">Vis innhold i boksen &rarr;</span>` : ""}
+          ${hasBoxItems ? `<span class="hint">Vis innhold i boksen &rarr;</span>` : ""}
+          ${hasMultiDisc ? `<span class="hint">Vis platene &rarr;</span>` : ""}
         </div>
       `;
     }).join("");
@@ -432,10 +437,35 @@ declare(strict_types=1);
       boxSetTable.style.display = "block";
     }
 
+    function renderDiscsTable(copy){
+      const tableRows = (copy.discs || []).map(d => `
+        <tr>
+          <td>${escapeHtml(d.label || d.type_disc || "Plate")}</td>
+          <td>${escapeHtml(d.format || "-")}</td>
+          <td>${d.number_in_storage ?? "-"}</td>
+        </tr>
+      `).join("");
+
+      boxSetTable.innerHTML = `
+        <h4>Plater i dette eksemplaret</h4>
+        <table>
+          <thead>
+            <tr><th>Plate</th><th>Format</th><th>Lagringsplass</th></tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      `;
+      boxSetTable.style.display = "block";
+    }
+
     panel.querySelectorAll(".copyRow[data-copy-index]").forEach(row => {
       row.addEventListener("click", () => {
         const copy = copies[Number(row.dataset.copyIndex)];
-        renderBoxSetTable(copy);
+        if (copy.is_box_set) {
+          renderBoxSetTable(copy);
+        } else {
+          renderDiscsTable(copy);
+        }
       });
     });
   }

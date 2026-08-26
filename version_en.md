@@ -161,7 +161,10 @@ out of PHP:
     count, and barcode(s). Only shown for titles actually registered on
     Blu-ray/DVD. Clicking a box set shows a small table to the right
     with all movies/discs in the box (title, format, storage slot /
-    `number_in_storage`), with the current movie highlighted.
+    `number_in_storage`), with the current movie highlighted. Clicking
+    a regular (non-box-set) copy that has more than one disc (e.g. a
+    movie + a bonus disc) shows the same type of table, but with the
+    discs of that copy instead.
   - **Purchase information** ("Kjøpsinformasjon") – currently shows
     only a note that data is missing (requires its own fields for
     price/purchase date/store, which don't exist yet).
