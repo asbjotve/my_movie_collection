@@ -14,6 +14,8 @@ class SingleDiscPayload(BaseModel):
     type_disc: str
     format: str
     label: Optional[str] = None
+    storage_slot_no: Optional[int] = Field(default=None, ge=1)
+    add_to_storage: bool = False
     bonus_items: List[BonusItemPayload] = Field(default_factory=list)
 
 
@@ -28,6 +30,7 @@ class SingleRowPayload(BaseModel):
 
 class SinglesImportPayload(BaseModel):
     kind: Literal["singles"]
+    storage_id: Optional[str] = None
     default_copy_count: int = Field(ge=1)
     rows: List[SingleRowPayload] = Field(default_factory=list)
 

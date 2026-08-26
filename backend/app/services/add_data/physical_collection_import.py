@@ -511,6 +511,8 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
     created_bonus_items = 0
 
     default_copy_count = payload.get("default_copy_count", 1)
+    payload_storage_id = _uuid_str_to_bytes(payload.get("storage_id"))
+    storage_next_slot_cache: dict[bytes, int] = {}
 
     for row in payload.get("rows", []):
         title = row["title"]
@@ -590,6 +592,33 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
                     disc_id=disc_id,
                     bonus_items=disc_payload.get("bonus_items", []),
                 )
+
+                add_to_storage = bool(disc_payload.get("add_to_storage", False))
+                storage_slot_no = disc_payload.get("storage_slot_no")
+
+                if add_to_storage:
+                    if payload_storage_id is None:
+                        raise ValueError(
+                            f"Disc for '{title}' has add_to_storage=true, "
+                            "but no storage_id is defined on payload"
+                        )
+
+                    if storage_slot_no is not None:
+                        assigned_slot = storage_slot_no
+                    else:
+                        if payload_storage_id not in storage_next_slot_cache:
+                            current_max = _get_storage_max_slot(db, payload_storage_id)
+                            storage_next_slot_cache[payload_storage_id] = current_max + 1
+
+                        assigned_slot = storage_next_slot_cache[payload_storage_id]
+                        storage_next_slot_cache[payload_storage_id] += 1
+
+                    _create_disc_in_storage(
+                        db=db,
+                        storage_id=payload_storage_id,
+                        disc_id=disc_id,
+                        number_in_storage=assigned_slot,
+                    )
 
         imported_rows += 1
 
