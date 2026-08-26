@@ -146,20 +146,150 @@ def _load_physical_copies(
         ck = _hex_id(row.collection_id)
         collection = collection_by_hex.get(ck, {})
         discs = discs_by_copy.get((ck, row.copy_id), [])
+        box_set_barcode = collection.get("box_set_barcode")
         physical_copies.append(
             {
                 "collection_id": ck,
                 "copy_id": row.copy_id,
                 "format": collection.get("format"),
                 "barcode": collection.get("barcode"),
-                "box_set_barcode": collection.get("box_set_barcode"),
-                "is_box_set": bool(collection.get("box_set_barcode")),
+                "box_set_barcode": box_set_barcode,
+                "is_box_set": bool(box_set_barcode),
                 "disc_count": len(discs),
                 "discs": discs,
+                "box_set_items": (
+                    _load_box_set_items(db, box_set_barcode) if box_set_barcode else []
+                ),
             }
         )
 
     return physical_copies
+
+
+def _load_box_set_items(db: Session, box_set_barcode: str) -> list[dict]:
+    """Henter alle filmer/plater som hører til samme box-sett (samme
+    `box_set_barcode`), til bruk i "vis innhold i boksen"-tabellen på
+    detaljsiden. Beholder-samlingen (som binder titlene sammen, se
+    `_load_physical_copies`) holdes utenfor - kun de film-spesifikke
+    samlingene med egen plate telles med.
+    """
+
+    collection_rows = db.execute(
+        text(
+            """
+            SELECT collection_id
+            FROM physical_collection
+            WHERE box_set_barcode = :box_set_barcode
+            """
+        ),
+        {"box_set_barcode": box_set_barcode},
+    ).fetchall()
+    all_ids = [row.collection_id for row in collection_rows]
+    if not all_ids:
+        return []
+
+    title_count_rows = db.execute(
+        text(
+            """
+            SELECT collection_id, COUNT(DISTINCT content_id) AS n_titles
+            FROM content_in_physical_collection
+            WHERE collection_id IN :ids
+            GROUP BY collection_id
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": all_ids},
+    ).fetchall()
+    container_ids = {row.collection_id for row in title_count_rows if row.n_titles > 1}
+    item_ids = [cid for cid in all_ids if cid not in container_ids] or all_ids
+
+    # Rekkefølgen (box_set_title_sort) er registrert på beholder-
+    # samlingens content_in_physical_collection-rader, ikke på filmens
+    # egen plate-samling (der ligger alltid sort_order=1). Bruk derfor
+    # beholderen som kilde til rekkefølge når den finnes.
+    sort_source_ids = list(container_ids) if container_ids else item_ids
+    title_rows = db.execute(
+        text(
+            """
+            SELECT
+                cipc.content_id AS content_id,
+                cipc.box_set_title_sort AS sort_order,
+                c.title AS title
+            FROM content_in_physical_collection cipc
+            JOIN content c ON c.content_id = cipc.content_id
+            WHERE cipc.collection_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": sort_source_ids},
+    ).fetchall()
+
+    # Kobling fra content_id til filmens egen plate-samling (for å
+    # finne disc-/lagringsinfo), hentet fra de film-spesifikke
+    # samlingene (item_ids).
+    content_to_item_collection = db.execute(
+        text(
+            """
+            SELECT content_id, collection_id
+            FROM content_in_physical_collection
+            WHERE collection_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": item_ids},
+    ).fetchall()
+    item_collection_by_content = {
+        row.content_id: row.collection_id for row in content_to_item_collection
+    }
+
+    disc_rows = db.execute(
+        text(
+            """
+            SELECT
+                di.collection_id AS collection_id,
+                di.disc_id AS disc_id,
+                d.format AS format,
+                d.label AS label
+            FROM disc_in di
+            JOIN disc d ON d.disc_id = di.disc_id
+            WHERE di.collection_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": item_ids},
+    ).fetchall()
+    disc_by_collection = {row.collection_id: row for row in disc_rows}
+
+    storage_ids = [row.disc_id for row in disc_rows]
+    storage_by_disc: dict[bytes, int] = {}
+    if storage_ids:
+        storage_rows = db.execute(
+            text(
+                """
+                SELECT disc_id, number_in_storage
+                FROM disc_in_storage
+                WHERE disc_id IN :ids
+                """
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": storage_ids},
+        ).fetchall()
+        storage_by_disc = {row.disc_id: row.number_in_storage for row in storage_rows}
+
+    items = []
+    for row in title_rows:
+        item_collection_id = item_collection_by_content.get(row.content_id)
+        disc = disc_by_collection.get(item_collection_id) if item_collection_id else None
+        items.append(
+            {
+                "content_id": _hex_id(row.content_id),
+                "title": row.title,
+                "sort_order": row.sort_order,
+                "format": disc.format if disc else None,
+                "disc_label": disc.label if disc else None,
+                "number_in_storage": (
+                    storage_by_disc.get(disc.disc_id) if disc else None
+                ),
+            }
+        )
+
+    items.sort(key=lambda i: (i["sort_order"] is None, i["sort_order"]))
+    return items
 
 
 def list_content(db: Session) -> list[dict]:

@@ -235,6 +235,31 @@ declare(strict_types=1);
       white-space:nowrap;
     }
     .copyRow .meta{ color: var(--muted); font-size:12px; }
+    .copyRow.clickable{ cursor:pointer; }
+    .copyRow.clickable:hover{ background: rgba(111,141,255,.08); }
+    .copyRow .hint{ color: var(--accent); font-size:11px; margin-left:auto; }
+
+    .collectionLayout{
+      display:grid;
+      grid-template-columns: 1fr 320px;
+      gap:16px;
+      align-items:start;
+    }
+    @media (max-width: 700px){
+      .collectionLayout{ grid-template-columns: 1fr; }
+    }
+    .boxSetTable{
+      background: var(--panel);
+      border:1px solid var(--line);
+      border-radius: 12px;
+      padding:14px;
+    }
+    .boxSetTable h4{ margin:0 0 10px; font-size:12px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .boxSetTable table{ width:100%; border-collapse:collapse; font-size:12px; }
+    .boxSetTable th{ text-align:left; color: var(--muted); font-weight:600; padding:4px 6px; border-bottom:1px solid var(--line); }
+    .boxSetTable td{ padding:6px 6px; border-bottom:1px solid var(--line); }
+    .boxSetTable tr:last-child td{ border-bottom:none; }
+    .boxSetTable tr.currentItem td{ color: var(--accent2); font-weight:700; }
 
     #detailStatus{ color: var(--muted); font-size:13px; }
   </style>
@@ -346,7 +371,9 @@ declare(strict_types=1);
   // ---- "Samlingsopplysninger": flat liste over fysiske eksemplarer.
   // Ett eksemplar (physical_copy) = én rad, uansett om det er en
   // enkeltplate eller et box-sett med flere plater - box-settet vises
-  // altså bare som én oppføring, ikke én rad pr. plate. ----
+  // altså bare som én oppføring, ikke én rad pr. plate. Klikk på et
+  // box-sett viser en liten tabell til høyre med alle filmene/platene
+  // i boksen (inkl. ev. number_in_storage). ----
   function renderCollectionTab(item){
     const panel = document.getElementById("collectionPanel");
     const copies = item.physical_copies || [];
@@ -356,24 +383,61 @@ declare(strict_types=1);
       return;
     }
 
-    const rows = copies.map(c => {
+    const rows = copies.map((c, i) => {
       const b = formatBadge(c.format);
       const discTxt = c.disc_count > 1
         ? c.disc_count + " plater"
         : c.disc_count === 1 ? "1 plate" : "Ukjent antall plater";
+      const clickable = c.is_box_set && (c.box_set_items || []).length;
 
       return `
-        <div class="copyRow">
+        <div class="copyRow${clickable ? " clickable" : ""}" ${clickable ? `data-copy-index="${i}"` : ""}>
           <span class="fmt">${escapeHtml(b.label)}</span>
           ${c.is_box_set ? `<span class="boxTag">Box-sett</span>` : ""}
           <span class="meta">${escapeHtml(discTxt)}</span>
           ${c.barcode ? `<span class="meta">Strekkode: ${escapeHtml(c.barcode)}</span>` : ""}
           ${c.box_set_barcode ? `<span class="meta">Boks-strekkode: ${escapeHtml(c.box_set_barcode)}</span>` : ""}
+          ${clickable ? `<span class="hint">Vis innhold i boksen &rarr;</span>` : ""}
         </div>
       `;
     }).join("");
 
-    panel.innerHTML = `<div class="copyList">${rows}</div>`;
+    panel.innerHTML = `
+      <div class="collectionLayout">
+        <div class="copyList">${rows}</div>
+        <div class="boxSetTable" id="boxSetTable" style="display:none;"></div>
+      </div>
+    `;
+
+    const boxSetTable = document.getElementById("boxSetTable");
+
+    function renderBoxSetTable(copy){
+      const tableRows = (copy.box_set_items || []).map(it => `
+        <tr class="${it.content_id === item.content_id ? "currentItem" : ""}">
+          <td>${escapeHtml(it.title)}</td>
+          <td>${escapeHtml(it.format || "-")}</td>
+          <td>${it.number_in_storage ?? "-"}</td>
+        </tr>
+      `).join("");
+
+      boxSetTable.innerHTML = `
+        <h4>Innhold i boksen</h4>
+        <table>
+          <thead>
+            <tr><th>Tittel</th><th>Format</th><th>Lagringsplass</th></tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      `;
+      boxSetTable.style.display = "block";
+    }
+
+    panel.querySelectorAll(".copyRow[data-copy-index]").forEach(row => {
+      row.addEventListener("click", () => {
+        const copy = copies[Number(row.dataset.copyIndex)];
+        renderBoxSetTable(copy);
+      });
+    });
   }
 
   // ---- Format-/kilde-badges: BD/DVD/4K UHD + Plex, kan vises samtidig ----

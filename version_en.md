@@ -159,7 +159,9 @@ out of PHP:
     box set (a box set is therefore shown as a single entry, not one
     row per disc). Shows format, a "Box set" tag when applicable, disc
     count, and barcode(s). Only shown for titles actually registered on
-    Blu-ray/DVD.
+    Blu-ray/DVD. Clicking a box set shows a small table to the right
+    with all movies/discs in the box (title, format, storage slot /
+    `number_in_storage`), with the current movie highlighted.
   - **Purchase information** ("Kjøpsinformasjon") – currently shows
     only a note that data is missing (requires its own fields for
     price/purchase date/store, which don't exist yet).
@@ -167,7 +169,11 @@ out of PHP:
   `physical_copies` - one row per `physical_copy`, with its disc
   details (`disc_in`, `disc`, `disc_bonus_item`) grouped per copy
   (not per collection), for single-item lookups only (the list view
-  doesn't need this level of detail).
+  doesn't need this level of detail). For box sets it also fetches
+  `box_set_items` (all movies sharing the same `box_set_barcode`, with
+  the correct order taken from the box container's
+  `content_in_physical_collection`, plus each movie's
+  `disc_in_storage.number_in_storage`).
 - Production company and TVDB/TMDB linking are still not built – they
   require dedicated tables (see chat discussion), planned as a
   separate future step.

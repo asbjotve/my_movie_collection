@@ -146,7 +146,10 @@ bytte, tekstfiltrering), men databasetilgangen er flyttet ut av PHP:
     det er en enkeltplate eller et box-sett med flere plater (box-sett
     vises altså som kun én oppføring, ikke én rad pr. plate). Viser
     format, evt. "Box-sett"-merke, antall plater og strekkode(r).
-    Vises kun for det som faktisk er registrert på Blu-ray/DVD.
+    Vises kun for det som faktisk er registrert på Blu-ray/DVD. Klikk
+    på et box-sett viser en liten tabell til høyre med alle filmene/
+    platene i boksen (tittel, format, lagringsplass/`number_in_storage`),
+    med gjeldende film uthevet.
   - **Kjøpsinformasjon** – viser foreløpig kun en tekst om at data
     mangler (krever egne felt for pris/kjøpsdato/butikk, finnes ikke
     ennå).
@@ -154,7 +157,11 @@ bytte, tekstfiltrering), men databasetilgangen er flyttet ut av PHP:
   `physical_copies` - én rad pr. `physical_copy`, med tilhørende
   plateinformasjon (`disc_in`, `disc`, `disc_bonus_item`) gruppert pr.
   eksemplar (ikke pr. samling), kun for enkelt-oppslag (listevisningen
-  trenger ikke dette dybdenivået).
+  trenger ikke dette dybdenivået). For box-sett hentes i tillegg
+  `box_set_items` (alle filmer som deler samme `box_set_barcode`, med
+  riktig rekkefølge hentet fra boks-beholderens
+  `content_in_physical_collection`, samt `disc_in_storage.number_in_storage`
+  pr. film).
 - Produksjonsselskap og TVDB/TMDB-kobling er fortsatt ikke bygget –
   krever egne tabeller (se diskusjon i chatten), planlagt som eget
   steg senere.
