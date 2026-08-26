@@ -38,6 +38,31 @@ def _load_physical_copies(
     if not raw_collection_ids:
         return []
 
+    # En "box-samling" (samme collection_id delt av flere filmer via
+    # content_in_physical_collection) representerer bare grupperingen
+    # av boksen, ikke denne filmens egen fysiske plate - selve platen
+    # ligger i en egen collection-rad spesifikt for denne filmen (som
+    # regel med samme box_set_barcode). Slike "beholder"-samlinger
+    # filtreres derfor bort her, ellers ville f.eks. "Politiskolen" i
+    # en 3-filmsboks vist to oppføringer (boksen + filmens egen plate)
+    # i stedet for én. Faller tilbake til å vise dem uansett hvis det
+    # ikke finnes noen andre samlinger å vise (bedre enn en tom liste).
+    title_count_rows = db.execute(
+        text(
+            """
+            SELECT collection_id, COUNT(DISTINCT content_id) AS n_titles
+            FROM content_in_physical_collection
+            WHERE collection_id IN :ids
+            GROUP BY collection_id
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": raw_collection_ids},
+    ).fetchall()
+    container_ids = {row.collection_id for row in title_count_rows if row.n_titles > 1}
+    filtered_ids = [cid for cid in raw_collection_ids if cid not in container_ids]
+    if filtered_ids:
+        raw_collection_ids = filtered_ids
+
     collection_by_hex = {c["collection_id"]: c for c in collections}
 
     copy_rows = db.execute(
