@@ -10,7 +10,7 @@ senere etter hvert som mer av frontend flyttes over hit.
 
 import uuid
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 
@@ -20,6 +20,107 @@ def _hex_id(raw: bytes) -> str:
 
 def _parse_hex_id(content_id: str) -> bytes:
     return uuid.UUID(hex=content_id).bytes
+
+
+def _attach_collection_details(
+    db: Session, collections: list[dict], raw_collection_ids: list[bytes]
+) -> None:
+    """Fyller inn plate-/eksemplar-detaljer ("Samlingsopplysninger") på
+    hvert element i `collections` (i-place): antall fysiske eksemplarer
+    og en liste plater (disc) med ev. bonusmateriale pr. plate.
+
+    Brukes kun av detaljsiden (get_content_by_id) - listevisningen
+    trenger ikke dette dybdenivået.
+    """
+
+    if not raw_collection_ids:
+        return
+
+    by_id = {c["collection_id"]: c for c in collections}
+    for c in collections:
+        c["copy_count"] = 0
+        c["discs"] = []
+
+    # SQLAlchemy `text()` med IN-lister trenger `expanding=True`.
+    copy_stmt = text(
+        """
+        SELECT collection_id, COUNT(*) AS copy_count
+        FROM physical_copy
+        WHERE collection_id IN :ids
+        GROUP BY collection_id
+        """
+    ).bindparams(bindparam("ids", expanding=True))
+    for row in db.execute(copy_stmt, {"ids": raw_collection_ids}).fetchall():
+        key = _hex_id(row.collection_id)
+        if key in by_id:
+            by_id[key]["copy_count"] = row.copy_count
+
+    disc_stmt = text(
+        """
+        SELECT DISTINCT
+            di.collection_id AS collection_id,
+            di.disc_id AS disc_id,
+            di.box_set_disc_order AS box_set_disc_order,
+            d.type_disc AS type_disc,
+            d.format AS format,
+            d.label AS label
+        FROM disc_in di
+        JOIN disc d ON d.disc_id = di.disc_id
+        WHERE di.collection_id IN :ids
+        ORDER BY di.collection_id, di.box_set_disc_order
+        """
+    ).bindparams(bindparam("ids", expanding=True))
+    disc_rows = db.execute(disc_stmt, {"ids": raw_collection_ids}).fetchall()
+
+    disc_id_by_hex: dict[str, bytes] = {}
+    discs_by_collection: dict[str, list[dict]] = {}
+    for row in disc_rows:
+        ck = _hex_id(row.collection_id)
+        dk = _hex_id(row.disc_id)
+        disc_id_by_hex[dk] = row.disc_id
+        discs_by_collection.setdefault(ck, []).append(
+            {
+                "disc_id": dk,
+                "box_set_disc_order": row.box_set_disc_order,
+                "type_disc": row.type_disc,
+                "format": row.format,
+                "label": row.label,
+                "bonus_items": [],
+            }
+        )
+
+    if disc_id_by_hex:
+        bonus_stmt = text(
+            """
+            SELECT disc_id, seq_no, title, item_type, runtime_seconds, notes
+            FROM disc_bonus_item
+            WHERE disc_id IN :ids
+            ORDER BY disc_id, seq_no
+            """
+        ).bindparams(bindparam("ids", expanding=True))
+        bonus_rows = db.execute(
+            bonus_stmt, {"ids": list(disc_id_by_hex.values())}
+        ).fetchall()
+
+        bonus_by_disc: dict[str, list[dict]] = {}
+        for row in bonus_rows:
+            dk = _hex_id(row.disc_id)
+            bonus_by_disc.setdefault(dk, []).append(
+                {
+                    "title": row.title,
+                    "item_type": row.item_type,
+                    "runtime_seconds": row.runtime_seconds,
+                    "notes": row.notes,
+                }
+            )
+
+        for ck, discs in discs_by_collection.items():
+            for d in discs:
+                d["bonus_items"] = bonus_by_disc.get(d["disc_id"], [])
+
+    for ck, discs in discs_by_collection.items():
+        if ck in by_id:
+            by_id[ck]["discs"] = discs
 
 
 def list_content(db: Session) -> list[dict]:
@@ -190,6 +291,17 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         {"content_id": raw_id},
     ).fetchall()
 
+    collections = [
+        {
+            "collection_id": _hex_id(r.collection_id),
+            "format": r.format,
+            "barcode": r.barcode,
+            "box_set_barcode": r.box_set_barcode,
+        }
+        for r in collection_rows
+    ]
+    _attach_collection_details(db, collections, [r.collection_id for r in collection_rows])
+
     return {
         "content_id": _hex_id(row.content_id),
         "title": row.title,
@@ -203,15 +315,7 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         "temporary_flag": bool(row.temporary_flag),
         "content_type": row.content_type,
         "imdb_id": row.imdb_id,
-        "collections": [
-            {
-                "collection_id": _hex_id(r.collection_id),
-                "format": r.format,
-                "barcode": r.barcode,
-                "box_set_barcode": r.box_set_barcode,
-            }
-            for r in collection_rows
-        ],
+        "collections": collections,
         "sources": [
             {
                 "source": r.source,

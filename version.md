@@ -133,9 +133,31 @@ bytte, tekstfiltrering), men databasetilgangen er flyttet ut av PHP:
   mer av media-katalog-logikken (samlinger, kilder, roller m.m.) flyttes
   inn i dette API-et over tid, slik at PHP-sidene forblir tynne
   visningslag uten egen SQL/duplisert databaselogikk.
+- Klikk på en poster/rad åpner en egen detaljside (`detail.php?id=...`)
+  med poster, faktaboks (utgitt/spilletid/aldersgrense/type/
+  produksjonsselskap [foreløpig "-", se under]/IMDb), eierskaps-/
+  formatbadges (Blu-ray/DVD/4K UHD + Plex – vises side ved side hvis
+  flere finnes samtidig) og eksterne kilder.
+- Detaljsiden har tre faner under hovedinnholdet:
+  - **Rollebesetning** – viser foreløpig kun en tekst om at data
+    mangler (krever egen skuespiller/crew-tabell, finnes ikke ennå).
+  - **Samlingsopplysninger** – ekte data for filmer som finnes i fysisk
+    samling: format, strekkode(r), antall eksemplarer og plateliste
+    (med bonusmateriale hvis registrert). Vises kun for det som faktisk
+    er registrert på Blu-ray/DVD.
+  - **Kjøpsinformasjon** – viser foreløpig kun en tekst om at data
+    mangler (krever egne felt for pris/kjøpsdato/butikk, finnes ikke
+    ennå).
+- Backend-utvidelse: `get_content_by_id()` henter nå også antall
+  fysiske eksemplarer og plate-/bonusmateriale-detaljer pr. samling
+  (`physical_copy`, `disc_in`, `disc`, `disc_bonus_item`), kun for
+  enkelt-oppslag (listevisningen trenger ikke dette dybdenivået).
+- Produksjonsselskap og TVDB/TMDB-kobling er fortsatt ikke bygget –
+  krever egne tabeller (se diskusjon i chatten), planlagt som eget
+  steg senere.
 
 ---
 
-*Sist oppdatert i forbindelse med v18-arbeidet. Oppdater dette
-dokumentet når nye versjoner legges til under
+*Sist oppdatert i forbindelse med v18-arbeidet (faner på detaljsiden).
+Oppdater dette dokumentet når nye versjoner legges til under
 `frontend/public/website_template_example/`.*

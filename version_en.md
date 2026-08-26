@@ -144,9 +144,33 @@ out of PHP:
   sources, cast, etc.) into this API over time, so the PHP pages
   remain thin display layers without their own SQL/duplicated
   database logic.
+- Clicking a poster/row opens a dedicated detail page (`detail.php?id=...`)
+  with the poster, a facts box (release date/runtime/age rating/type/
+  production company [currently "-", see below]/IMDb), ownership/format
+  badges (Blu-ray/DVD/4K UHD + Plex – shown side by side if several
+  apply at once), and external sources.
+- The detail page has three tabs below the main content:
+  - **Cast & Crew** ("Rollebesetning") – currently shows only a note
+    that data is missing (requires its own cast/crew table, which
+    doesn't exist yet).
+  - **Collection details** ("Samlingsopplysninger") – real data for
+    titles that exist in the physical collection: format, barcode(s),
+    number of copies owned, and a disc list (with bonus material if
+    registered). Only shown for titles actually registered on
+    Blu-ray/DVD.
+  - **Purchase information** ("Kjøpsinformasjon") – currently shows
+    only a note that data is missing (requires its own fields for
+    price/purchase date/store, which don't exist yet).
+- Backend extension: `get_content_by_id()` now also fetches the number
+  of physical copies and disc-/bonus-material details per collection
+  (`physical_copy`, `disc_in`, `disc`, `disc_bonus_item`), for single-item
+  lookups only (the list view doesn't need this level of detail).
+- Production company and TVDB/TMDB linking are still not built – they
+  require dedicated tables (see chat discussion), planned as a
+  separate future step.
 
 ---
 
-*Last updated as part of the v18 work. Update this document whenever
+*Last updated as part of the v18 work (detail page tabs). Update this document whenever
 new versions are added under
 `frontend/public/website_template_example/`.*

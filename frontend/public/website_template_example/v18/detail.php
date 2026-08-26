@@ -184,6 +184,57 @@ declare(strict_types=1);
     .sourceRow a{ color: var(--accent); text-decoration:none; }
     .sourceRow a:hover{ text-decoration:underline; }
 
+    /* ---- Faner: Rollebesetning / Samlingsopplysninger / Kjøpsinformasjon ---- */
+    .tabSection{ margin-top:26px; }
+    .tabBar{
+      display:flex; gap:4px;
+      border-bottom:1px solid var(--line);
+      margin-bottom:16px;
+    }
+    .tabBtn{
+      appearance:none; border:none; background:transparent;
+      color: var(--muted);
+      font-size:14px; font-weight:600;
+      padding:10px 16px;
+      cursor:pointer;
+      border-bottom:2px solid transparent;
+      margin-bottom:-1px;
+    }
+    .tabBtn:hover{ color: var(--text); }
+    .tabBtn.active{ color: var(--text); border-bottom-color: var(--accent); }
+    .tabPanel{ display:none; }
+    .tabPanel.active{ display:block; }
+    .emptyNote{ color: var(--muted); font-size:13px; }
+
+    .collectionCard{
+      background: var(--panel);
+      border:1px solid var(--line);
+      border-radius: 12px;
+      padding:14px 16px;
+      margin-bottom:14px;
+    }
+    .collectionCard:last-child{ margin-bottom:0; }
+    .collectionCard .ccHead{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .collectionCard .ccHead .fmt{
+      font-size:12px; font-weight:700; letter-spacing:.02em;
+      padding:4px 10px; border-radius:999px;
+      background: rgba(111,141,255,.15); border:1px solid rgba(111,141,255,.5);
+    }
+    .collectionCard .ccHead .meta{ color: var(--muted); font-size:12px; }
+    .discRow{
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+      padding:8px 0;
+      border-bottom:1px solid var(--line);
+      font-size:13px;
+    }
+    .discRow:last-child{ border-bottom:none; }
+    .discRow .label{ font-weight:600; }
+    .discRow .sub{ color: var(--muted); font-size:12px; }
+    .bonusList{ margin:6px 0 0 0; padding-left:18px; color: var(--muted); font-size:12px; }
+
     #detailStatus{ color: var(--muted); font-size:13px; }
   </style>
 </head>
@@ -237,6 +288,34 @@ declare(strict_types=1);
       </div>
     </div>
   </div>
+
+  <div class="tabSection" id="tabSection" style="display:none;">
+    <div class="tabBar">
+      <button class="tabBtn active" data-tab="cast">Rollebesetning</button>
+      <button class="tabBtn" data-tab="collection">Samlingsopplysninger</button>
+      <button class="tabBtn" data-tab="purchase">Kjøpsinformasjon</button>
+    </div>
+
+    <div class="tabPanel active" data-tab-panel="cast">
+      <div class="emptyNote">
+        Ingen data registrert ennå. Dette krever en egen tabell for
+        skuespillere/crew (rolle, navn, ev. bilde) koblet til filmen –
+        finnes ikke i databasen i dag.
+      </div>
+    </div>
+
+    <div class="tabPanel" data-tab-panel="collection" id="collectionPanel">
+      <!-- fylles av renderCollectionTab() -->
+    </div>
+
+    <div class="tabPanel" data-tab-panel="purchase">
+      <div class="emptyNote">
+        Ingen kjøpsinformasjon registrert ennå. Dette krever egne felt/
+        tabell for f.eks. pris, kjøpsdato og butikk – finnes ikke i
+        databasen i dag.
+      </div>
+    </div>
+  </div>
 </main>
 
 <script>
@@ -251,6 +330,75 @@ declare(strict_types=1);
 
   const detailStatus = document.getElementById("detailStatus");
   const detailLayout = document.getElementById("detailLayout");
+  const tabSection = document.getElementById("tabSection");
+
+  // ---- Faner: enkel klikk-styrt visning, ingen avhengigheter ----
+  document.querySelectorAll(".tabBtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tabBtn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tabPanel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.querySelector(`.tabPanel[data-tab-panel="${btn.dataset.tab}"]`).classList.add("active");
+    });
+  });
+
+  function formatRuntimeSeconds(sec){
+    if (!sec) return null;
+    const m = Math.round(sec / 60);
+    return m + " min";
+  }
+
+  // ---- "Samlingsopplysninger": kun for eksemplarer registrert som
+  // fysisk medie (Blu-ray/DVD), med plate- og bonusmateriale-detaljer. ----
+  function renderCollectionTab(item){
+    const panel = document.getElementById("collectionPanel");
+    const collections = item.collections || [];
+
+    if (!collections.length){
+      panel.innerHTML = `<div class="emptyNote">Ikke registrert i fysisk samling (ingen Blu-ray/DVD-eksemplar for denne tittelen).</div>`;
+      return;
+    }
+
+    panel.innerHTML = collections.map(c => {
+      const b = formatBadge(c.format);
+      const copyTxt = c.copy_count
+        ? c.copy_count + " eksemplar" + (c.copy_count === 1 ? "" : "er")
+        : "Ukjent antall eksemplarer";
+
+      const discsHtml = (c.discs || []).length
+        ? c.discs.map(d => {
+            const bonusHtml = (d.bonus_items || []).length
+              ? `<ul class="bonusList">${d.bonus_items.map(bi => `
+                  <li>${escapeHtml(bi.title)}${bi.item_type ? " (" + escapeHtml(bi.item_type) + ")" : ""}${
+                    formatRuntimeSeconds(bi.runtime_seconds) ? " – " + formatRuntimeSeconds(bi.runtime_seconds) : ""
+                  }</li>
+                `).join("")}</ul>`
+              : "";
+            return `
+              <div class="discRow">
+                <div>
+                  <div class="label">${escapeHtml(d.label || d.type_disc || "Plate")}</div>
+                  ${bonusHtml}
+                </div>
+                <div class="sub">${escapeHtml(d.format || "-")}${d.type_disc ? " · " + escapeHtml(d.type_disc) : ""}</div>
+              </div>
+            `;
+          }).join("")
+        : `<div class="emptyNote">Ingen plateinformasjon registrert.</div>`;
+
+      return `
+        <div class="collectionCard">
+          <div class="ccHead">
+            <span class="fmt">${escapeHtml(b.label)}</span>
+            <span class="meta">${escapeHtml(copyTxt)}</span>
+            ${c.barcode ? `<span class="meta">Strekkode: ${escapeHtml(c.barcode)}</span>` : ""}
+            ${c.box_set_barcode ? `<span class="meta">Boks-strekkode: ${escapeHtml(c.box_set_barcode)}</span>` : ""}
+          </div>
+          ${discsHtml}
+        </div>
+      `;
+    }).join("");
+  }
 
   // ---- Format-/kilde-badges: BD/DVD/4K UHD + Plex, kan vises samtidig ----
   function formatBadge(format){
@@ -325,9 +473,11 @@ declare(strict_types=1);
     }
 
     renderOwnershipBadges(item);
+    renderCollectionTab(item);
 
     detailStatus.style.display = "none";
     detailLayout.style.display = "grid";
+    tabSection.style.display = "block";
   }
 
   async function loadDetail(){
