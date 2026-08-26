@@ -150,8 +150,9 @@ bytte, tekstfiltrering), men databasetilgangen er flyttet ut av PHP:
     på et box-sett viser en liten tabell til høyre med alle filmene/
     platene i boksen (tittel, format, lagringsplass/`number_in_storage`),
     med gjeldende film uthevet. Klikk på et vanlig (ikke-box-sett)
-    eksemplar med flere plater (f.eks. film + bonusdisk) viser samme
-    type tabell, men med platene i dette eksemplaret i stedet.
+    eksemplar viser samme type tabell, men med platen(e) i dette
+    eksemplaret i stedet - vises også når det bare er én plate
+    registrert (viktig for å se lagringsplass).
   - **Kjøpsinformasjon** – viser foreløpig kun en tekst om at data
     mangler (krever egne felt for pris/kjøpsdato/butikk, finnes ikke
     ennå).

@@ -162,9 +162,9 @@ out of PHP:
     Blu-ray/DVD. Clicking a box set shows a small table to the right
     with all movies/discs in the box (title, format, storage slot /
     `number_in_storage`), with the current movie highlighted. Clicking
-    a regular (non-box-set) copy that has more than one disc (e.g. a
-    movie + a bonus disc) shows the same type of table, but with the
-    discs of that copy instead.
+    a regular (non-box-set) copy shows the same type of table, but with
+    the disc(s) of that copy instead - shown even when only one disc is
+    registered (important for seeing its storage slot).
   - **Purchase information** ("Kjøpsinformasjon") – currently shows
     only a note that data is missing (requires its own fields for
     price/purchase date/store, which don't exist yet).

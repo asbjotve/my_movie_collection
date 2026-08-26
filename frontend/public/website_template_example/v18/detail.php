@@ -391,8 +391,10 @@ declare(strict_types=1);
         ? c.disc_count + " plater"
         : c.disc_count === 1 ? "1 plate" : "Ukjent antall plater";
       const hasBoxItems = c.is_box_set && (c.box_set_items || []).length;
-      const hasMultiDisc = !c.is_box_set && (c.discs || []).length > 1;
-      const clickable = hasBoxItems || hasMultiDisc;
+      // Vis platetabellen for alle ikke-box-sett-eksemplarer med minst
+      // én registrert plate - også når det bare er én plate.
+      const hasDiscs = !c.is_box_set && (c.discs || []).length > 0;
+      const clickable = hasBoxItems || hasDiscs;
 
       return `
         <div class="copyRow${clickable ? " clickable" : ""}" ${clickable ? `data-copy-index="${i}"` : ""}>
@@ -402,7 +404,7 @@ declare(strict_types=1);
           ${c.barcode ? `<span class="meta">Strekkode: ${escapeHtml(c.barcode)}</span>` : ""}
           ${c.box_set_barcode ? `<span class="meta">Boks-strekkode: ${escapeHtml(c.box_set_barcode)}</span>` : ""}
           ${hasBoxItems ? `<span class="hint">Vis innhold i boksen &rarr;</span>` : ""}
-          ${hasMultiDisc ? `<span class="hint">Vis platene &rarr;</span>` : ""}
+          ${hasDiscs ? `<span class="hint">Vis platene &rarr;</span>` : ""}
         </div>
       `;
     }).join("");
