@@ -206,34 +206,35 @@ declare(strict_types=1);
     .tabPanel.active{ display:block; }
     .emptyNote{ color: var(--muted); font-size:13px; }
 
-    .collectionCard{
+    /* Samlingsopplysninger: flat liste - ett eksemplar = én rad,
+       uansett om det er enkeltplate eller box-sett med flere plater. */
+    .copyList{
       background: var(--panel);
       border:1px solid var(--line);
       border-radius: 12px;
-      padding:14px 16px;
-      margin-bottom:14px;
+      overflow:hidden;
     }
-    .collectionCard:last-child{ margin-bottom:0; }
-    .collectionCard .ccHead{
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-      margin-bottom:10px;
-    }
-    .collectionCard .ccHead .fmt{
-      font-size:12px; font-weight:700; letter-spacing:.02em;
-      padding:4px 10px; border-radius:999px;
-      background: rgba(111,141,255,.15); border:1px solid rgba(111,141,255,.5);
-    }
-    .collectionCard .ccHead .meta{ color: var(--muted); font-size:12px; }
-    .discRow{
-      display:flex; justify-content:space-between; align-items:center; gap:10px;
-      padding:8px 0;
+    .copyRow{
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+      padding:12px 16px;
       border-bottom:1px solid var(--line);
       font-size:13px;
     }
-    .discRow:last-child{ border-bottom:none; }
-    .discRow .label{ font-weight:600; }
-    .discRow .sub{ color: var(--muted); font-size:12px; }
-    .bonusList{ margin:6px 0 0 0; padding-left:18px; color: var(--muted); font-size:12px; }
+    .copyRow:last-child{ border-bottom:none; }
+    .copyRow .fmt{
+      font-size:12px; font-weight:700; letter-spacing:.02em;
+      padding:4px 10px; border-radius:999px;
+      background: rgba(111,141,255,.15); border:1px solid rgba(111,141,255,.5);
+      white-space:nowrap;
+    }
+    .copyRow .boxTag{
+      font-size:11px; font-weight:700; letter-spacing:.02em;
+      padding:3px 8px; border-radius:999px;
+      background: rgba(255,196,76,.14); border:1px solid rgba(255,196,76,.5);
+      color:#ffe2ab;
+      white-space:nowrap;
+    }
+    .copyRow .meta{ color: var(--muted); font-size:12px; }
 
     #detailStatus{ color: var(--muted); font-size:13px; }
   </style>
@@ -342,62 +343,37 @@ declare(strict_types=1);
     });
   });
 
-  function formatRuntimeSeconds(sec){
-    if (!sec) return null;
-    const m = Math.round(sec / 60);
-    return m + " min";
-  }
-
-  // ---- "Samlingsopplysninger": kun for eksemplarer registrert som
-  // fysisk medie (Blu-ray/DVD), med plate- og bonusmateriale-detaljer. ----
+  // ---- "Samlingsopplysninger": flat liste over fysiske eksemplarer.
+  // Ett eksemplar (physical_copy) = én rad, uansett om det er en
+  // enkeltplate eller et box-sett med flere plater - box-settet vises
+  // altså bare som én oppføring, ikke én rad pr. plate. ----
   function renderCollectionTab(item){
     const panel = document.getElementById("collectionPanel");
-    const collections = item.collections || [];
+    const copies = item.physical_copies || [];
 
-    if (!collections.length){
+    if (!copies.length){
       panel.innerHTML = `<div class="emptyNote">Ikke registrert i fysisk samling (ingen Blu-ray/DVD-eksemplar for denne tittelen).</div>`;
       return;
     }
 
-    panel.innerHTML = collections.map(c => {
+    const rows = copies.map(c => {
       const b = formatBadge(c.format);
-      const copyTxt = c.copy_count
-        ? c.copy_count + " eksemplar" + (c.copy_count === 1 ? "" : "er")
-        : "Ukjent antall eksemplarer";
-
-      const discsHtml = (c.discs || []).length
-        ? c.discs.map(d => {
-            const bonusHtml = (d.bonus_items || []).length
-              ? `<ul class="bonusList">${d.bonus_items.map(bi => `
-                  <li>${escapeHtml(bi.title)}${bi.item_type ? " (" + escapeHtml(bi.item_type) + ")" : ""}${
-                    formatRuntimeSeconds(bi.runtime_seconds) ? " – " + formatRuntimeSeconds(bi.runtime_seconds) : ""
-                  }</li>
-                `).join("")}</ul>`
-              : "";
-            return `
-              <div class="discRow">
-                <div>
-                  <div class="label">${escapeHtml(d.label || d.type_disc || "Plate")}</div>
-                  ${bonusHtml}
-                </div>
-                <div class="sub">${escapeHtml(d.format || "-")}${d.type_disc ? " · " + escapeHtml(d.type_disc) : ""}</div>
-              </div>
-            `;
-          }).join("")
-        : `<div class="emptyNote">Ingen plateinformasjon registrert.</div>`;
+      const discTxt = c.disc_count > 1
+        ? c.disc_count + " plater"
+        : c.disc_count === 1 ? "1 plate" : "Ukjent antall plater";
 
       return `
-        <div class="collectionCard">
-          <div class="ccHead">
-            <span class="fmt">${escapeHtml(b.label)}</span>
-            <span class="meta">${escapeHtml(copyTxt)}</span>
-            ${c.barcode ? `<span class="meta">Strekkode: ${escapeHtml(c.barcode)}</span>` : ""}
-            ${c.box_set_barcode ? `<span class="meta">Boks-strekkode: ${escapeHtml(c.box_set_barcode)}</span>` : ""}
-          </div>
-          ${discsHtml}
+        <div class="copyRow">
+          <span class="fmt">${escapeHtml(b.label)}</span>
+          ${c.is_box_set ? `<span class="boxTag">Box-sett</span>` : ""}
+          <span class="meta">${escapeHtml(discTxt)}</span>
+          ${c.barcode ? `<span class="meta">Strekkode: ${escapeHtml(c.barcode)}</span>` : ""}
+          ${c.box_set_barcode ? `<span class="meta">Boks-strekkode: ${escapeHtml(c.box_set_barcode)}</span>` : ""}
         </div>
       `;
     }).join("");
+
+    panel.innerHTML = `<div class="copyList">${rows}</div>`;
   }
 
   // ---- Format-/kilde-badges: BD/DVD/4K UHD + Plex, kan vises samtidig ----

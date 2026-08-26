@@ -22,42 +22,40 @@ def _parse_hex_id(content_id: str) -> bytes:
     return uuid.UUID(hex=content_id).bytes
 
 
-def _attach_collection_details(
+def _load_physical_copies(
     db: Session, collections: list[dict], raw_collection_ids: list[bytes]
-) -> None:
-    """Fyller inn plate-/eksemplar-detaljer ("Samlingsopplysninger") på
-    hvert element i `collections` (i-place): antall fysiske eksemplarer
-    og en liste plater (disc) med ev. bonusmateriale pr. plate.
+) -> list[dict]:
+    """Bygger en flat liste over fysiske eksemplarer ("Samlingsopplysninger")
+    for en films samlinger: ett `physical_copy` = ett eksemplar = én
+    oppføring i listen, uavhengig av om det er en enkeltplate eller et
+    fleir-plate box-sett (box-settet vises da bare som ett eksemplar med
+    flere plater, ikke som én oppføring pr. plate).
 
-    Brukes kun av detaljsiden (get_content_by_id) - listevisningen
+    Brukes kun av get_content_by_id (detaljsiden) - listevisningen
     trenger ikke dette dybdenivået.
     """
 
     if not raw_collection_ids:
-        return
+        return []
 
-    by_id = {c["collection_id"]: c for c in collections}
-    for c in collections:
-        c["copy_count"] = 0
-        c["discs"] = []
+    collection_by_hex = {c["collection_id"]: c for c in collections}
 
-    # SQLAlchemy `text()` med IN-lister trenger `expanding=True`.
-    copy_stmt = text(
-        """
-        SELECT collection_id, COUNT(*) AS copy_count
-        FROM physical_copy
-        WHERE collection_id IN :ids
-        GROUP BY collection_id
-        """
-    ).bindparams(bindparam("ids", expanding=True))
-    for row in db.execute(copy_stmt, {"ids": raw_collection_ids}).fetchall():
-        key = _hex_id(row.collection_id)
-        if key in by_id:
-            by_id[key]["copy_count"] = row.copy_count
+    copy_rows = db.execute(
+        text(
+            """
+            SELECT copy_id, collection_id
+            FROM physical_copy
+            WHERE collection_id IN :ids
+            ORDER BY collection_id, copy_id
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": raw_collection_ids},
+    ).fetchall()
 
     disc_stmt = text(
         """
-        SELECT DISTINCT
+        SELECT
+            di.copy_id AS copy_id,
             di.collection_id AS collection_id,
             di.disc_id AS disc_id,
             di.box_set_disc_order AS box_set_disc_order,
@@ -67,18 +65,18 @@ def _attach_collection_details(
         FROM disc_in di
         JOIN disc d ON d.disc_id = di.disc_id
         WHERE di.collection_id IN :ids
-        ORDER BY di.collection_id, di.box_set_disc_order
+        ORDER BY di.collection_id, di.copy_id, di.box_set_disc_order
         """
     ).bindparams(bindparam("ids", expanding=True))
     disc_rows = db.execute(disc_stmt, {"ids": raw_collection_ids}).fetchall()
 
     disc_id_by_hex: dict[str, bytes] = {}
-    discs_by_collection: dict[str, list[dict]] = {}
+    discs_by_copy: dict[tuple[str, int], list[dict]] = {}
     for row in disc_rows:
         ck = _hex_id(row.collection_id)
         dk = _hex_id(row.disc_id)
         disc_id_by_hex[dk] = row.disc_id
-        discs_by_collection.setdefault(ck, []).append(
+        discs_by_copy.setdefault((ck, row.copy_id), []).append(
             {
                 "disc_id": dk,
                 "box_set_disc_order": row.box_set_disc_order,
@@ -114,13 +112,29 @@ def _attach_collection_details(
                 }
             )
 
-        for ck, discs in discs_by_collection.items():
+        for discs in discs_by_copy.values():
             for d in discs:
                 d["bonus_items"] = bonus_by_disc.get(d["disc_id"], [])
 
-    for ck, discs in discs_by_collection.items():
-        if ck in by_id:
-            by_id[ck]["discs"] = discs
+    physical_copies: list[dict] = []
+    for row in copy_rows:
+        ck = _hex_id(row.collection_id)
+        collection = collection_by_hex.get(ck, {})
+        discs = discs_by_copy.get((ck, row.copy_id), [])
+        physical_copies.append(
+            {
+                "collection_id": ck,
+                "copy_id": row.copy_id,
+                "format": collection.get("format"),
+                "barcode": collection.get("barcode"),
+                "box_set_barcode": collection.get("box_set_barcode"),
+                "is_box_set": bool(collection.get("box_set_barcode")),
+                "disc_count": len(discs),
+                "discs": discs,
+            }
+        )
+
+    return physical_copies
 
 
 def list_content(db: Session) -> list[dict]:
@@ -300,7 +314,9 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         }
         for r in collection_rows
     ]
-    _attach_collection_details(db, collections, [r.collection_id for r in collection_rows])
+    physical_copies = _load_physical_copies(
+        db, collections, [r.collection_id for r in collection_rows]
+    )
 
     return {
         "content_id": _hex_id(row.content_id),
@@ -316,6 +332,7 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         "content_type": row.content_type,
         "imdb_id": row.imdb_id,
         "collections": collections,
+        "physical_copies": physical_copies,
         "sources": [
             {
                 "source": r.source,

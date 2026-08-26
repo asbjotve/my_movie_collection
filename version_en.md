@@ -153,18 +153,21 @@ out of PHP:
   - **Cast & Crew** ("Rollebesetning") – currently shows only a note
     that data is missing (requires its own cast/crew table, which
     doesn't exist yet).
-  - **Collection details** ("Samlingsopplysninger") – real data for
-    titles that exist in the physical collection: format, barcode(s),
-    number of copies owned, and a disc list (with bonus material if
-    registered). Only shown for titles actually registered on
+  - **Collection details** ("Samlingsopplysninger") – shown as a flat
+    list of physical copies (`physical_copies`): one row per copy
+    owned, regardless of whether it's a single disc or a multi-disc
+    box set (a box set is therefore shown as a single entry, not one
+    row per disc). Shows format, a "Box set" tag when applicable, disc
+    count, and barcode(s). Only shown for titles actually registered on
     Blu-ray/DVD.
   - **Purchase information** ("Kjøpsinformasjon") – currently shows
     only a note that data is missing (requires its own fields for
     price/purchase date/store, which don't exist yet).
-- Backend extension: `get_content_by_id()` now also fetches the number
-  of physical copies and disc-/bonus-material details per collection
-  (`physical_copy`, `disc_in`, `disc`, `disc_bonus_item`), for single-item
-  lookups only (the list view doesn't need this level of detail).
+- Backend extension: `get_content_by_id()` now also returns
+  `physical_copies` - one row per `physical_copy`, with its disc
+  details (`disc_in`, `disc`, `disc_bonus_item`) grouped per copy
+  (not per collection), for single-item lookups only (the list view
+  doesn't need this level of detail).
 - Production company and TVDB/TMDB linking are still not built – they
   require dedicated tables (see chat discussion), planned as a
   separate future step.

@@ -141,17 +141,20 @@ bytte, tekstfiltrering), men databasetilgangen er flyttet ut av PHP:
 - Detaljsiden har tre faner under hovedinnholdet:
   - **Rollebesetning** – viser foreløpig kun en tekst om at data
     mangler (krever egen skuespiller/crew-tabell, finnes ikke ennå).
-  - **Samlingsopplysninger** – ekte data for filmer som finnes i fysisk
-    samling: format, strekkode(r), antall eksemplarer og plateliste
-    (med bonusmateriale hvis registrert). Vises kun for det som faktisk
-    er registrert på Blu-ray/DVD.
+  - **Samlingsopplysninger** – vises som en flat liste over fysiske
+    eksemplarer (`physical_copies`): én rad pr. eksemplar, uansett om
+    det er en enkeltplate eller et box-sett med flere plater (box-sett
+    vises altså som kun én oppføring, ikke én rad pr. plate). Viser
+    format, evt. "Box-sett"-merke, antall plater og strekkode(r).
+    Vises kun for det som faktisk er registrert på Blu-ray/DVD.
   - **Kjøpsinformasjon** – viser foreløpig kun en tekst om at data
     mangler (krever egne felt for pris/kjøpsdato/butikk, finnes ikke
     ennå).
-- Backend-utvidelse: `get_content_by_id()` henter nå også antall
-  fysiske eksemplarer og plate-/bonusmateriale-detaljer pr. samling
-  (`physical_copy`, `disc_in`, `disc`, `disc_bonus_item`), kun for
-  enkelt-oppslag (listevisningen trenger ikke dette dybdenivået).
+- Backend-utvidelse: `get_content_by_id()` returnerer nå også
+  `physical_copies` - én rad pr. `physical_copy`, med tilhørende
+  plateinformasjon (`disc_in`, `disc`, `disc_bonus_item`) gruppert pr.
+  eksemplar (ikke pr. samling), kun for enkelt-oppslag (listevisningen
+  trenger ikke dette dybdenivået).
 - Produksjonsselskap og TVDB/TMDB-kobling er fortsatt ikke bygget –
   krever egne tabeller (se diskusjon i chatten), planlagt som eget
   steg senere.
