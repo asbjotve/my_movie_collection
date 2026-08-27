@@ -3,8 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.media_db import get_media_db
 from app.schemas.physical_collection_import import (
-    SinglesImportPayload,
-    BoxSetsBulkImportPayload,
+    PhysicalCollectionImportPayload,
 )
 from app.services.add_data.physical_collection_import import (
     import_physical_collection_payload,
@@ -18,7 +17,7 @@ router = APIRouter(
 
 @router.post("/physical-collection")
 def import_physical_collection(
-    payload: SinglesImportPayload | BoxSetsBulkImportPayload,
+    payload: PhysicalCollectionImportPayload,
     db: Session = Depends(get_media_db),
 ):
     try:

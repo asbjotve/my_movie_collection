@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional, Union
+from typing import Annotated, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -72,7 +72,7 @@ class BoxSetsBulkImportPayload(BaseModel):
     box_sets: List[BoxSetPayload] = Field(default_factory=list)
 
 
-PhysicalCollectionImportPayload = Union[
-    SinglesImportPayload,
-    BoxSetsBulkImportPayload,
+PhysicalCollectionImportPayload = Annotated[
+    Union[SinglesImportPayload, BoxSetsBulkImportPayload],
+    Field(discriminator="kind"),
 ]
