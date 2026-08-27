@@ -135,3 +135,11 @@ foregående revisjonen. `v1` er beskrevet som utgangspunktet.
   utkast.
 - Etter at en box-set-disk legges til, nullstilles lagringsplassnummer og
   avkrysningsfelt før neste disk registreres.
+
+## v14 – lettere mørkt grensesnitt og ekte API-innsending
+
+- Ny separat `v14`-mappe med mørk stil inspirert av `website_template_example/v18`.
+- Bootstrap-avhengigheten ble fjernet til fordel for lettere egen CSS, faner og modaler.
+- Singles og box-set beholder samme payload-form og feltnavn som i `v13`, inkludert `storage_id`, diskfelt og `bonus_items`.
+- JSON-forhåndsvisning er beholdt, men skjemaet kan nå også sende payload direkte til `/import/physical-collection` via en ny PHP-proxy.
+- TMDB-søk, språkstøtte (`nb`/`en`), lokalt lagrede utkast, lim-inn-liste for box-set og disc-/bonusredigering er videreført i den nye visningen.
