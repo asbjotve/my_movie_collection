@@ -21,7 +21,7 @@ $solutions = [
             'v4' => 'v4/index.php', 'v5' => 'v5/index.php', 'v6' => 'v6/index.php',
             'v7' => 'v7/index.php', 'v8' => 'v8/index.php', 'v9' => 'v9/index.php',
             'v10' => 'v10/index.php', 'v11' => 'v11/index.php', 'v12' => 'v12/index.php',
-            'v13' => 'v13/index.php',
+            'v13' => 'v13/index.php', 'v14' => 'v14/index.php',
         ],
     ],
     'custom_list_manager' => [
