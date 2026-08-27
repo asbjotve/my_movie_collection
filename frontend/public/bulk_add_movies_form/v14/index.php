@@ -165,7 +165,7 @@ function h(string $s): string
     .span-6{ grid-column:span 6; }
     .span-8{ grid-column:span 8; }
     .span-12{ grid-column:span 12; }
-    input[type="text"], input[type="number"], select, textarea{
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea{
       width:100%;
       background:var(--panel2);
       border:1px solid var(--line);
