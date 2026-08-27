@@ -22,7 +22,7 @@ class SingleDiscPayload(BaseModel):
 class SingleRowPayload(BaseModel):
     title: str
     format: str
-    barcode: Optional[str] = None
+    barcode: Optional[str] = Field(default=None, max_length=13)
     imdb_id: Optional[str] = None
     tmdb_id: Optional[str] = None
     discs: List[SingleDiscPayload] = Field(default_factory=list)
@@ -60,7 +60,7 @@ class BoxSetPayload(BaseModel):
     box_set_index: int = Field(ge=1)
     storage_id: Optional[str] = None
     format: str
-    box_set_barcode: Optional[str] = None
+    box_set_barcode: Optional[str] = Field(default=None, max_length=13)
     copy_count: int = Field(ge=1)
     movies: List[BoxSetMoviePayload] = Field(default_factory=list)
     discs: List[BoxSetDiscPayload] = Field(default_factory=list)

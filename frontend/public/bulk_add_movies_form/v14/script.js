@@ -134,6 +134,26 @@ function setStatus(kind, text, payload) {
   apiStatusPre.textContent = JSON.stringify(payload ?? {}, null, 2);
 }
 
+/**
+ * Pydantic 422-feil kommer som en liste av objekter (loc/msg/type), ikke en
+ * enkel streng - gjør dem lesbare i stedet for at UI viser "[object Object]".
+ */
+function formatErrorDetail(data) {
+  if (!data) return null;
+  if (typeof data.detail === 'string') return data.detail;
+  if (Array.isArray(data.detail)) {
+    return data.detail
+      .map(item => {
+        const field = Array.isArray(item.loc) ? item.loc.filter(p => typeof p !== 'number').join(' → ') : '';
+        return field ? `${field}: ${item.msg}` : item.msg;
+      })
+      .join('\n');
+  }
+  if (typeof data.error === 'string') return data.error;
+  if (typeof data.raw === 'string') return data.raw;
+  return null;
+}
+
 async function submitPayload(payload, submitButton) {
   const previousLabel = submitButton.textContent;
   submitButton.disabled = true;
@@ -155,7 +175,7 @@ async function submitPayload(payload, submitButton) {
     }
 
     if (!response.ok) {
-      const message = data?.detail || data?.error || `${fmt('status.error')} (${response.status})`;
+      const message = formatErrorDetail(data) || `${fmt('status.error')} (${response.status})`;
       setStatus('error', message, data);
       return;
     }
