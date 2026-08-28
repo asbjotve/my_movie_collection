@@ -8,8 +8,8 @@
 
 const TVDB_API_ENDPOINT = '../../tvdb_live_search/v4/tvdb_api.php';
 
-const I18N_COMMON = window.CLM_I18N?.common ?? {};
-const I18N_TVDB = window.CLM_I18N?.tvdb ?? {};
+const TVDB_I18N_COMMON = window.CLM_I18N?.common ?? {};
+const TVDB_I18N_TVDB = window.CLM_I18N?.tvdb ?? {};
 
 // Simple sprintf-style formatter, supports %s and %d placeholders.
 function clmFormat(template, ...args) {
@@ -75,7 +75,7 @@ tvdbSearchInput.addEventListener('input', (e) => {
   }
 
   if (query.length < 2) {
-    tvdbSearchStatus.textContent = I18N_COMMON.min_chars_hint;
+    tvdbSearchStatus.textContent = TVDB_I18N_COMMON.min_chars_hint;
     tvdbSearchStatus.classList.remove('text-danger');
     tvdbDropdownResults.classList.remove('show');
     tvdbDropdownResults.innerHTML = '';
@@ -105,7 +105,7 @@ async function searchTvdb(query, type) {
 
   try {
     tvdbLoadingSpinner.style.display = 'block';
-    tvdbSearchStatus.textContent = I18N_COMMON.searching;
+    tvdbSearchStatus.textContent = TVDB_I18N_COMMON.searching;
     tvdbSearchStatus.classList.remove('text-danger');
     tvdbDropdownResults.innerHTML = '';
     tvdbSelectedItemContainer.innerHTML = '';
@@ -118,7 +118,7 @@ async function searchTvdb(query, type) {
 
     if (!response.ok) {
       const text = await response.text();
-      let msg = I18N_TVDB.search_error_generic;
+      let msg = TVDB_I18N_TVDB.search_error_generic;
       try {
         const data = JSON.parse(text);
         msg = data.error || msg;
@@ -135,7 +135,7 @@ async function searchTvdb(query, type) {
     tvdbLoadingSpinner.style.display = 'none';
 
     if (data.status !== 'success') {
-      tvdbSearchStatus.textContent = clmFormat(I18N_TVDB.status_prefix, data.status || I18N_TVDB.unknown_status);
+      tvdbSearchStatus.textContent = clmFormat(TVDB_I18N_TVDB.status_prefix, data.status || TVDB_I18N_TVDB.unknown_status);
       tvdbDropdownResults.classList.remove('show');
       return;
     }
@@ -143,18 +143,18 @@ async function searchTvdb(query, type) {
     const items = Array.isArray(data.data) ? data.data : [];
 
     if (items.length === 0) {
-      tvdbSearchStatus.textContent = I18N_COMMON.no_results;
+      tvdbSearchStatus.textContent = TVDB_I18N_COMMON.no_results;
       tvdbDropdownResults.classList.remove('show');
       return;
     }
 
-    tvdbSearchStatus.textContent = clmFormat(I18N_COMMON.found_results, items.length);
+    tvdbSearchStatus.textContent = clmFormat(TVDB_I18N_COMMON.found_results, items.length);
     displayTvdbDropdown(items, type);
   } catch (error) {
     if (requestId !== tvdbSearchRequestId) return;
     console.error('Error:', error);
     tvdbLoadingSpinner.style.display = 'none';
-    tvdbSearchStatus.textContent = clmFormat(I18N_COMMON.error_prefix, error.message);
+    tvdbSearchStatus.textContent = clmFormat(TVDB_I18N_COMMON.error_prefix, error.message);
     tvdbSearchStatus.classList.add('text-danger');
   }
 }
@@ -175,19 +175,19 @@ function createTvdbDropdownItem(item, forcedType) {
   div.className = 'dropdown-item-custom';
 
   const type = item.type || forcedType || 'series';
-  const name = item.name || item.title || item.slug || clmFormat(I18N_COMMON.no_title_fallback, item.tvdb_id || item.id || '?');
+  const name = item.name || item.title || item.slug || clmFormat(TVDB_I18N_COMMON.no_title_fallback, item.tvdb_id || item.id || '?');
   const year = item.year || '';
   const id = item.tvdb_id || item.id || '';
 
   const posterUrl = item.image_url || item.poster || item.thumbnail || null;
-  const mediaType = type === 'series' ? I18N_COMMON.media_tv : I18N_COMMON.media_movie;
+  const mediaType = type === 'series' ? TVDB_I18N_COMMON.media_tv : TVDB_I18N_COMMON.media_movie;
   const badgeClass = type === 'series' ? 'badge-tv' : 'badge-movie';
 
   div.innerHTML = `
     ${
       posterUrl
         ? `<img src="${posterUrl}" class="dropdown-poster" alt="${escapeHtml(name)}">`
-        : `<div class="dropdown-no-poster">${escapeHtml(I18N_COMMON.no_poster_small)}</div>`
+        : `<div class="dropdown-no-poster">${escapeHtml(TVDB_I18N_COMMON.no_poster_small)}</div>`
     }
     <div class="dropdown-info">
       <div class="dropdown-title">
@@ -195,7 +195,7 @@ function createTvdbDropdownItem(item, forcedType) {
         <span class="media-badge ${badgeClass}">${mediaType}</span>
       </div>
       <div class="dropdown-meta">
-        📅 ${escapeHtml(year || I18N_COMMON.unknown_year)} | ${escapeHtml(I18N_TVDB.id_label)} ${escapeHtml(id.toString())}
+        📅 ${escapeHtml(year || TVDB_I18N_COMMON.unknown_year)} | ${escapeHtml(TVDB_I18N_TVDB.id_label)} ${escapeHtml(id.toString())}
       </div>
     </div>
   `;
@@ -211,7 +211,7 @@ function createTvdbDropdownItem(item, forcedType) {
 
 async function fetchTvdbDetails(type, tvdbId, fallbackName) {
   try {
-    tvdbSearchStatus.textContent = I18N_COMMON.fetching_details;
+    tvdbSearchStatus.textContent = TVDB_I18N_COMMON.fetching_details;
     tvdbSearchStatus.classList.remove('text-danger');
 
     const url = `${TVDB_API_ENDPOINT}?action=details&type=${encodeURIComponent(type)}&id=${encodeURIComponent(tvdbId)}`;
@@ -219,7 +219,7 @@ async function fetchTvdbDetails(type, tvdbId, fallbackName) {
 
     if (!response.ok) {
       const text = await response.text();
-      let msg = I18N_TVDB.details_error_generic;
+      let msg = TVDB_I18N_TVDB.details_error_generic;
       try {
         const data = JSON.parse(text);
         msg = data.error || msg;
@@ -232,7 +232,7 @@ async function fetchTvdbDetails(type, tvdbId, fallbackName) {
     const data = await response.json();
 
     if (data.status !== 'success') {
-      tvdbSearchStatus.textContent = clmFormat(I18N_TVDB.status_prefix, data.status || I18N_TVDB.unknown_status);
+      tvdbSearchStatus.textContent = clmFormat(TVDB_I18N_TVDB.status_prefix, data.status || TVDB_I18N_TVDB.unknown_status);
       tvdbSearchStatus.classList.add('text-danger');
       return;
     }
@@ -241,7 +241,7 @@ async function fetchTvdbDetails(type, tvdbId, fallbackName) {
     displayTvdbInfoPage(data.data || {}, type, tvdbId, fallbackName);
   } catch (error) {
     console.error('Error:', error);
-    tvdbSearchStatus.textContent = clmFormat(I18N_COMMON.details_error_prefix, error.message);
+    tvdbSearchStatus.textContent = clmFormat(TVDB_I18N_COMMON.details_error_prefix, error.message);
     tvdbSearchStatus.classList.add('text-danger');
   }
 }
@@ -275,7 +275,7 @@ function displayTvdbInfoPage(rec, type, tvdbId, fallbackName) {
     tvdbId: tvdbId ? tvdbId.toString() : '',
   };
 
-  const mediaType = isSeries ? I18N_COMMON.media_tv : I18N_COMMON.media_movie;
+  const mediaType = isSeries ? TVDB_I18N_COMMON.media_tv : TVDB_I18N_COMMON.media_movie;
 
   tvdbSelectedItemContainer.innerHTML = `
     <div class="selected-item mt-3">
@@ -283,7 +283,7 @@ function displayTvdbInfoPage(rec, type, tvdbId, fallbackName) {
         ${
           posterUrl
             ? `<img src="${posterUrl}" class="selected-poster" style="max-width: 200px; border-radius: 10px;" alt="${escapeHtml(title)}">`
-            : `<div class="alert alert-secondary d-inline-block">${escapeHtml(I18N_COMMON.no_poster_large)}</div>`
+            : `<div class="alert alert-secondary d-inline-block">${escapeHtml(TVDB_I18N_COMMON.no_poster_large)}</div>`
         }
       </div>
 
@@ -291,25 +291,25 @@ function displayTvdbInfoPage(rec, type, tvdbId, fallbackName) {
 
       <p class="mb-2">
         <span class="badge ${isSeries ? 'bg-purple' : 'bg-primary'}">${escapeHtml(mediaType)}</span>
-        <span class="ms-2">📅 ${escapeHtml(year || I18N_COMMON.unknown_year)}</span>
+        <span class="ms-2">📅 ${escapeHtml(year || TVDB_I18N_COMMON.unknown_year)}</span>
       </p>
 
-      <p class="mb-1"><strong>${escapeHtml(I18N_TVDB.id_label)}</strong> <code>${escapeHtml(tvdbId.toString())}</code></p>
+      <p class="mb-1"><strong>${escapeHtml(TVDB_I18N_TVDB.id_label)}</strong> <code>${escapeHtml(tvdbId.toString())}</code></p>
 
       <p class="mb-2">
-        <strong>${escapeHtml(I18N_COMMON.imdb_label)}</strong> ${
+        <strong>${escapeHtml(TVDB_I18N_COMMON.imdb_label)}</strong> ${
           imdbId
-            ? `<code>${escapeHtml(imdbId)}</code> <a class="imdb-link ms-1" href="https://www.imdb.com/title/${encodeURIComponent(imdbId)}/" target="_blank" rel="noopener">${escapeHtml(I18N_COMMON.imdb_open_link)}</a>`
-            : escapeHtml(I18N_COMMON.imdb_not_available)
+            ? `<code>${escapeHtml(imdbId)}</code> <a class="imdb-link ms-1" href="https://www.imdb.com/title/${encodeURIComponent(imdbId)}/" target="_blank" rel="noopener">${escapeHtml(TVDB_I18N_COMMON.imdb_open_link)}</a>`
+            : escapeHtml(TVDB_I18N_COMMON.imdb_not_available)
         }
       </p>
 
       <hr>
-      <p class="small">${escapeHtml(overview || I18N_COMMON.no_overview)}</p>
+      <p class="small">${escapeHtml(overview || TVDB_I18N_COMMON.no_overview)}</p>
 
       <div class="mt-3 text-end">
         <button type="button" class="btn btn-success" id="applyTvdbDetailsBtn">
-          ${escapeHtml(I18N_COMMON.apply_button)}
+          ${escapeHtml(TVDB_I18N_COMMON.apply_button)}
         </button>
       </div>
     </div>
@@ -342,7 +342,7 @@ function applyTvdbDetailsToForm(payload) {
     fields.tvdb_id.value = payload.tvdbId;
   }
 
-  tvdbSearchStatus.textContent = I18N_COMMON.applied_message;
+  tvdbSearchStatus.textContent = TVDB_I18N_COMMON.applied_message;
   tvdbSearchStatus.classList.remove('text-danger');
 
   const modalInstance = bootstrap.Modal.getInstance(tvdbSearchModal);
