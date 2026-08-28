@@ -128,26 +128,19 @@ function handleDetails(): void
 
 /**
  * Utfører GET-kall mot TVDB v4.
+ *
+ * Bruker den cachede tokenen først. Hvis TVDB svarer 401 (token utløpt/
+ * ugyldig av en eller annen grunn), hentes en helt ny token med tvunget
+ * refresh, og kallet gjøres på nytt én gang - dette gjør at en utdatert
+ * cache aldri fører til en synlig feil for brukeren.
  */
 function tvdbRequest(string $url): array
 {
-    $token = TVDB_TOKEN;
+    [$response, $httpCode, $err] = doTvdbRequest($url, getTvdbToken());
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTPHEADER     => [
-            'Authorization: Bearer ' . $token,
-            'Accept: application/json',
-        ],
-        CURLOPT_TIMEOUT        => 10,
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err      = curl_error($ch);
+    if ($httpCode === 401) {
+        [$response, $httpCode, $err] = doTvdbRequest($url, getTvdbToken(forceRefresh: true));
+    }
 
     if ($response === false) {
         throw new RuntimeException('cURL-feil mot TVDB: ' . $err);
@@ -165,5 +158,32 @@ function tvdbRequest(string $url): array
     }
 
     return $data;
+}
+
+/**
+ * Utfører selve HTTP-kallet mot TVDB med en gitt token. Returnerer
+ * [response, httpCode, curlError] - kastes ikke her, siden vi vil kunne
+ * prøve på nytt med en frisk token ved 401 (se tvdbRequest()).
+ */
+function doTvdbRequest(string $url, string $token): array
+{
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $token,
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT        => 10,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err      = curl_error($ch);
+    curl_close($ch);
+
+    return [$response, $httpCode, $err];
 }
 ?>

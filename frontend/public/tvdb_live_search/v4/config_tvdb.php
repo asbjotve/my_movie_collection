@@ -18,15 +18,42 @@ if (!$pin) {
 
 define('TVDB_BASE_URL', 'https://api4.thetvdb.com/v4');
 
+// Filbasert cache for TVDB-token på tvers av forespørsler. TVDB v4-tokens er
+// gyldige i ca. 1 måned, så det er unødvendig (og tregt) å logge inn på nytt
+// for hvert eneste søk/detalj-kall. Uten denne cachen gjorde hvert eneste
+// TVDB-kall (search/details) en full ekstra login-runde til TVDB først,
+// noe som nesten doblet responstiden og gjorde søk i f.eks.
+// custom_list_manager føles trege/upålitelige.
+const TVDB_TOKEN_CACHE_FILE = '/tmp/mmc_tvdb_v4_token_cache.json'; // webroot er ikke skrivbar for www-data
+const TVDB_TOKEN_CACHE_TTL_SECONDS = 20 * 60 * 60; // 20 timer - god margin under TVDBs ~1 måneds levetid.
+
 /**
  * Logger inn mot TVDB og returnerer bearer-token.
- * Kalles typisk én gang per request (caches i static-variabel).
+ *
+ * Cacher token i en fil på tvers av requests (se TVDB_TOKEN_CACHE_FILE).
+ * Sett $forceRefresh=true for å ignorere cachen og hente en helt ny token
+ * (brukes som fallback dersom et kall mot TVDB feiler med 401, altså at den
+ * cachede tokenen har blitt ugyldig av en eller annen grunn).
  */
-function getTvdbToken(): string
+function getTvdbToken(bool $forceRefresh = false): string
 {
     static $cachedToken = null;
-    if ($cachedToken !== null) {
+
+    if (!$forceRefresh && $cachedToken !== null) {
         return $cachedToken;
+    }
+
+    if (!$forceRefresh && is_file(TVDB_TOKEN_CACHE_FILE)) {
+        $cached = json_decode((string) file_get_contents(TVDB_TOKEN_CACHE_FILE), true);
+        if (
+            is_array($cached)
+            && !empty($cached['token'])
+            && !empty($cached['expires_at'])
+            && (int) $cached['expires_at'] > time()
+        ) {
+            $cachedToken = (string) $cached['token'];
+            return $cachedToken;
+        }
     }
 
     $apiKey = $_ENV['TVDB_API_KEY'] ?? '';
@@ -86,6 +113,16 @@ function getTvdbToken(): string
     }
 
     $cachedToken = $token;
+
+    @file_put_contents(
+        TVDB_TOKEN_CACHE_FILE,
+        json_encode([
+            'token'      => $token,
+            'expires_at' => time() + TVDB_TOKEN_CACHE_TTL_SECONDS,
+        ], JSON_UNESCAPED_UNICODE),
+        LOCK_EX
+    );
+
     return $token;
 }
 

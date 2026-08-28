@@ -95,7 +95,14 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// Teller opp for hvert nye søk, slik at et sent svar fra et eldre søk
+// (TVDB-kall kan ta 0.5-0.8s) ikke overskriver resultatet fra et nyere søk
+// hvis brukeren rekker å skrive videre før forrige kall er ferdig.
+let tvdbSearchRequestId = 0;
+
 async function searchTvdb(query, type) {
+  const requestId = ++tvdbSearchRequestId;
+
   try {
     tvdbLoadingSpinner.style.display = 'block';
     tvdbSearchStatus.textContent = I18N_COMMON.searching;
@@ -105,6 +112,9 @@ async function searchTvdb(query, type) {
 
     const url = `${TVDB_API_ENDPOINT}?action=search&query=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}`;
     const response = await fetch(url);
+
+    // Et nyere søk er startet i mellomtiden - forkast dette svaret.
+    if (requestId !== tvdbSearchRequestId) return;
 
     if (!response.ok) {
       const text = await response.text();
@@ -119,6 +129,8 @@ async function searchTvdb(query, type) {
     }
 
     const data = await response.json();
+
+    if (requestId !== tvdbSearchRequestId) return;
 
     tvdbLoadingSpinner.style.display = 'none';
 
@@ -139,6 +151,7 @@ async function searchTvdb(query, type) {
     tvdbSearchStatus.textContent = clmFormat(I18N_COMMON.found_results, items.length);
     displayTvdbDropdown(items, type);
   } catch (error) {
+    if (requestId !== tvdbSearchRequestId) return;
     console.error('Error:', error);
     tvdbLoadingSpinner.style.display = 'none';
     tvdbSearchStatus.textContent = clmFormat(I18N_COMMON.error_prefix, error.message);
