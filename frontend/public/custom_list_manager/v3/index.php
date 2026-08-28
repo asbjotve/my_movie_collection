@@ -165,18 +165,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'add_ite
 }
 
 // Fetch existing lists for the dropdown (always excludes "Wishlist" — handled separately).
+//
+// Backend (FastAPI/uvicorn) is occasionally restarted (e.g. after a deploy),
+// and the very first request against it right after a restart can hit a
+// short window where it isn't listening yet ("connection refused") or is
+// still warming up its DB connection pool. Without a retry, that transient
+// failure showed up to the user as "list data didn't load" until they
+// manually refreshed the page. Retry a couple of times with a short delay
+// before giving up and showing the error notice.
+function fetchListsWithRetry(string $url, int $maxAttempts = 3, int $delayMs = 400): array
+{
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        // Success, or a definitive (non-transient) HTTP error from the API
+        // itself - no point retrying either of those.
+        $isTransportFailure = $response === false || $curlError !== '';
+        $isServerError = $response !== false && $httpCode >= 500;
+
+        if (!$isTransportFailure && !$isServerError) {
+            return [$response, $curlError, $httpCode];
+        }
+
+        if ($attempt < $maxAttempts) {
+            usleep($delayMs * 1000);
+        }
+    }
+
+    return [$response, $curlError, $httpCode];
+}
+
 $availableLists = [];
 $listsFetchError = null;
 
-$ch = curl_init($listsEndpoint);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 10,
-]);
-$listsResponse = curl_exec($ch);
-$listsHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$listsCurlError = curl_error($ch);
-curl_close($ch);
+[$listsResponse, $listsCurlError, $listsHttpCode] = fetchListsWithRetry($listsEndpoint);
 
 if ($listsResponse === false || $listsCurlError) {
     $listsFetchError = t('clm.messages.lists_fetch_failed', $listsCurlError);
