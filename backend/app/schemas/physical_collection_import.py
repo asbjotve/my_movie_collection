@@ -25,6 +25,7 @@ class SingleRowPayload(BaseModel):
     barcode: Optional[str] = Field(default=None, max_length=13)
     imdb_id: Optional[str] = None
     tmdb_id: Optional[str] = None
+    tvdb_id: Optional[str] = None
     discs: List[SingleDiscPayload] = Field(default_factory=list)
 
 
@@ -40,6 +41,7 @@ class BoxSetMoviePayload(BaseModel):
     title: str
     imdb_id: Optional[str] = None
     tmdb_id: Optional[str] = None
+    tvdb_id: Optional[str] = None
     inner_case_ean: Optional[str] = None
     treat_as_single: bool = False
 

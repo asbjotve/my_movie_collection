@@ -1,10 +1,19 @@
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.services.external_apis import (
+    ExternalApiError,
+    fetch_tmdb_details,
+    fetch_tvdb_details,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _new_uuid_bytes() -> bytes:
@@ -46,11 +55,40 @@ def _get_content_by_imdb_id(db: Session, imdb_id: Optional[str]) -> Optional[byt
     return row[0] if row else None
 
 
+def _fetch_external_source_payload(source: str, external_id: str) -> tuple[dict, Optional[datetime]]:
+    """Henter fulle detaljer fra TMDB/TVDB for en ekstern id oppgitt ved
+    import, samme funksjoner som brukes av "oppdater fra kilde"-
+    endepunktet (update_content_external_source).
+
+    Feiler bevisst IKKE hele importen hvis kallet mot TMDB/TVDB
+    mislykkes (f.eks. API nede, feil id) - faller da tilbake til en
+    enkel id-ekko slik det alltid har blitt lagret, og logger en
+    advarsel. En importfeil pga. et eksternt API er ikke noe brukeren
+    bør miste hele den fysiske importen sin på.
+    """
+
+    try:
+        if source == "tmdb":
+            data = fetch_tmdb_details(external_id, "movie")
+        else:
+            data = fetch_tvdb_details(external_id, "movie")
+        return data, datetime.utcnow()
+    except ExternalApiError as e:
+        logger.warning(
+            "Kunne ikke hente fulle %s-detaljer for external_id=%s ved import: %s",
+            source,
+            external_id,
+            e,
+        )
+        return {f"{source}_id": external_id}, None
+
+
 def _create_content(
     db: Session,
     title: str,
     imdb_id: Optional[str],
     tmdb_id: Optional[str],
+    tvdb_id: Optional[str] = None,
     temporary_flag: int = 0,
 ) -> bytes:
     content_id = _new_uuid_bytes()
@@ -62,6 +100,7 @@ def _create_content(
                 title,
                 content_type,
                 imdb_id,
+                overview,
                 watched_flag,
                 temporary_flag
             )
@@ -70,6 +109,7 @@ def _create_content(
                 :title,
                 :content_type,
                 :imdb_id,
+                :overview,
                 :watched_flag,
                 :temporary_flag
             )
@@ -79,6 +119,7 @@ def _create_content(
             "title": title,
             "content_type": "movie",
             "imdb_id": imdb_id,
+            "overview": "",
             "watched_flag": 0,
             "temporary_flag": temporary_flag,
         },
@@ -112,6 +153,7 @@ def _create_content(
         )
 
     if tmdb_id:
+        tmdb_data, tmdb_fetched_at = _fetch_external_source_payload("tmdb", tmdb_id)
         db.execute(
             text("""
                 INSERT INTO content_external_source (
@@ -133,8 +175,36 @@ def _create_content(
                 "source": "tmdb",
                 "content_id": content_id,
                 "external_id": tmdb_id,
-                "data_json": json.dumps({"tmdb_id": tmdb_id}),
-                "fetched_at": datetime.utcnow(),
+                "data_json": json.dumps(tmdb_data),
+                "fetched_at": tmdb_fetched_at,
+            },
+        )
+
+    if tvdb_id:
+        tvdb_data, tvdb_fetched_at = _fetch_external_source_payload("tvdb", tvdb_id)
+        db.execute(
+            text("""
+                INSERT INTO content_external_source (
+                    source,
+                    content_id,
+                    external_id,
+                    data_json,
+                    fetched_at
+                )
+                VALUES (
+                    :source,
+                    :content_id,
+                    :external_id,
+                    :data_json,
+                    :fetched_at
+                )
+            """),
+            {
+                "source": "tvdb",
+                "content_id": content_id,
+                "external_id": tvdb_id,
+                "data_json": json.dumps(tvdb_data),
+                "fetched_at": tvdb_fetched_at,
             },
         )
 
@@ -146,6 +216,7 @@ def _get_or_create_content(
     title: str,
     imdb_id: Optional[str],
     tmdb_id: Optional[str],
+    tvdb_id: Optional[str] = None,
 ) -> tuple[bytes, bool]:
     if imdb_id:
         existing_content_id = _get_content_by_imdb_id(db, imdb_id)
@@ -157,6 +228,7 @@ def _get_or_create_content(
             title=title,
             imdb_id=imdb_id,
             tmdb_id=tmdb_id,
+            tvdb_id=tvdb_id,
             temporary_flag=0,
         ), True
 
@@ -165,6 +237,7 @@ def _get_or_create_content(
         title=title,
         imdb_id=None,
         tmdb_id=tmdb_id,
+        tvdb_id=tvdb_id,
         temporary_flag=1,
     ), True
 
@@ -520,6 +593,7 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
         barcode = row.get("barcode")
         imdb_id = row.get("imdb_id")
         tmdb_id = row.get("tmdb_id")
+        tvdb_id = row.get("tvdb_id")
         discs = row.get("discs", [])
 
         existing_collection_id = _find_physical_collection_by_barcode(
@@ -535,6 +609,7 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
             title=title,
             imdb_id=imdb_id,
             tmdb_id=tmdb_id,
+            tvdb_id=tvdb_id,
         )
         if was_created:
             created_contents += 1
@@ -687,6 +762,7 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
             title = movie["title"]
             imdb_id = movie.get("imdb_id")
             tmdb_id = movie.get("tmdb_id")
+            tvdb_id = movie.get("tvdb_id")
             inner_case_ean = movie.get("inner_case_ean")
             treat_as_single = movie.get("treat_as_single", False)
 
@@ -695,6 +771,7 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
                 title=title,
                 imdb_id=imdb_id,
                 tmdb_id=tmdb_id,
+                tvdb_id=tvdb_id,
             )
             if was_created:
                 created_contents += 1
