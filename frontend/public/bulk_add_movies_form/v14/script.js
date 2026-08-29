@@ -336,7 +336,7 @@ function openDiscModalForSingleRow(singleRow) {
   openModal('discModal');
 }
 
-function addSingleRow({ title = '', format = null, barcode = '', imdb = '', tmdb = '' } = {}) {
+function addSingleRow({ title = '', format = null, barcode = '', imdb = '', tmdb = '', tvdb = '' } = {}) {
   const defaultFormat = format || document.getElementById('singleFormat').value;
 
   const row = el(`
@@ -355,6 +355,7 @@ function addSingleRow({ title = '', format = null, barcode = '', imdb = '', tmdb
           <input name="imdb" placeholder="${escapeHtml(fmt('ph.imdb'))}" value="${escapeHtml(imdb)}">
           <button class="btn btnPrimary btnIcon" type="button" data-action="open-search" title="${escapeHtml(fmt('btn.search_tmdb'))}">🔍</button>
         </div>
+        <input name="tvdb_id" placeholder="${escapeHtml(fmt('ph.tvdb'))}" value="${escapeHtml(tvdb)}">
         <input type="hidden" name="tmdb_id" value="${escapeHtml(tmdb)}">
       </td>
       <td><button class="btn btnTiny" type="button" data-action="edit-discs">${escapeHtml(fmt('btn.discs'))}</button></td>
@@ -387,8 +388,9 @@ function readSinglesForm() {
     const barcode = tr.querySelector('input[name="barcode"]').value.trim();
     const imdb = tr.querySelector('input[name="imdb"]').value.trim();
     const tmdb = tr.querySelector('input[name="tmdb_id"]').value.trim();
+    const tvdb = tr.querySelector('input[name="tvdb_id"]').value.trim();
     const discs = getJsonAttr(tr, 'data-discs', []);
-    return { title, format, barcode, imdb_id: imdb || null, tmdb_id: tmdb || null, discs };
+    return { title, format, barcode, imdb_id: imdb || null, tmdb_id: tmdb || null, tvdb_id: tvdb || null, discs };
   });
 
   return {
@@ -461,7 +463,7 @@ function refreshBoxRelatedDropdown(boxSetRoot) {
   refreshBoxDiscRelatedLabels(boxSetRoot);
 }
 
-function addBoxTitleRow(boxSetRoot, { title = '', imdb = '', tmdb = '', inner_ean = '', treat_as_single = null } = {}) {
+function addBoxTitleRow(boxSetRoot, { title = '', imdb = '', tmdb = '', tvdb = '', inner_ean = '', treat_as_single = null } = {}) {
   if (treat_as_single === null) treat_as_single = Boolean(inner_ean && inner_ean.trim());
 
   const tbody = boxSetRoot.querySelector('tbody[data-role="movies"]');
@@ -474,6 +476,7 @@ function addBoxTitleRow(boxSetRoot, { title = '', imdb = '', tmdb = '', inner_ea
           <input name="imdb" placeholder="${escapeHtml(fmt('ph.imdb'))}" value="${escapeHtml(imdb)}">
           <button class="btn btnPrimary btnIcon" type="button" data-action="open-search" title="${escapeHtml(fmt('btn.search_tmdb'))}">🔍</button>
         </div>
+        <input name="tvdb_id" placeholder="${escapeHtml(fmt('ph.tvdb'))}" value="${escapeHtml(tvdb)}">
         <input type="hidden" name="tmdb_id" value="${escapeHtml(tmdb)}">
       </td>
       <td><input name="inner_ean" placeholder="${escapeHtml(fmt('ph.ean13'))}" value="${escapeHtml(inner_ean)}"></td>
@@ -809,6 +812,7 @@ function readAllBoxSets() {
       const title = tr.querySelector('input[name="title"]').value.trim();
       const imdb = tr.querySelector('input[name="imdb"]').value.trim();
       const tmdb = tr.querySelector('input[name="tmdb_id"]').value.trim();
+      const tvdb = tr.querySelector('input[name="tvdb_id"]').value.trim();
       const innerEan = tr.querySelector('input[name="inner_ean"]').value.trim();
       const treatAsSingle = tr.querySelector('input[name="treat_as_single"]').checked;
       return {
@@ -816,6 +820,7 @@ function readAllBoxSets() {
         title,
         imdb_id: imdb || null,
         tmdb_id: tmdb || null,
+        tvdb_id: tvdb || null,
         inner_case_ean: innerEan || null,
         treat_as_single: treatAsSingle,
       };
@@ -871,6 +876,7 @@ function serializeState() {
       barcode: tr.querySelector('input[name="barcode"]')?.value ?? '',
       imdb: tr.querySelector('input[name="imdb"]')?.value ?? '',
       tmdb: tr.querySelector('input[name="tmdb_id"]')?.value ?? '',
+      tvdb: tr.querySelector('input[name="tvdb_id"]')?.value ?? '',
       discs: getJsonAttr(tr, 'data-discs', []),
     })),
   };
@@ -880,6 +886,7 @@ function serializeState() {
       title: tr.querySelector('input[name="title"]')?.value ?? '',
       imdb: tr.querySelector('input[name="imdb"]')?.value ?? '',
       tmdb: tr.querySelector('input[name="tmdb_id"]')?.value ?? '',
+      tvdb: tr.querySelector('input[name="tvdb_id"]')?.value ?? '',
       inner_ean: tr.querySelector('input[name="inner_ean"]')?.value ?? '',
       treat_as_single: !!tr.querySelector('input[name="treat_as_single"]')?.checked,
     }));
@@ -923,7 +930,7 @@ function restoreState(state) {
 
   singleTbody.innerHTML = '';
   (state.singles?.rows || []).forEach(row => {
-    addSingleRow({ title: row.title, format: row.format, barcode: row.barcode, imdb: row.imdb, tmdb: row.tmdb });
+    addSingleRow({ title: row.title, format: row.format, barcode: row.barcode, imdb: row.imdb, tmdb: row.tmdb, tvdb: row.tvdb });
     const trEl = singleTbody.lastElementChild;
     if (trEl) {
       setJsonAttr(trEl, 'data-discs', Array.isArray(row.discs) ? row.discs : []);

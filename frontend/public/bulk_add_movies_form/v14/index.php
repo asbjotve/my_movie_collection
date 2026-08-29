@@ -237,6 +237,7 @@ function h(string $s): string
       align-items:stretch;
     }
     .inlineInput input{ flex:1; }
+    input[name="tvdb_id"]{ margin-top:6px; }
     .stack{ display:grid; gap:14px; }
     .boxSetCard{ padding:18px; }
     .boxSetHeader{
