@@ -1,4 +1,4 @@
-"""Read-only tjenester for media-katalogen (content + tilhørende tabeller).
+"""Tjenester for media-katalogen (content + tilhørende tabeller).
 
 Dette er starten på et API-lag som etter hvert skal erstatte den
 direkte MySQL-tilgangen som website_template_example v15/v17 bruker
@@ -6,12 +6,25 @@ fra PHP (se app/media_db.py for tilkoblingen). Holdes bevisst enkelt
 i første omgang - én spørring for content, én for fysiske utgaver, én
 for eksterne kilder - og kan utvides med paginering/filtrering/sortering
 senere etter hvert som mer av frontend flyttes over hit.
+
+Stort sett lesende (read-only), men update_content_external_source()
+er et unntak - se den funksjonen for begrunnelse.
 """
 
+import json
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
+
+
+class ContentExternalSourceError(ValueError):
+    """Feil ved oppdatering av en content_external_source-rad."""
+
+    def __init__(self, message: str, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def _hex_id(raw: bytes) -> str:
@@ -513,4 +526,95 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
             }
             for r in source_rows
         ],
+    }
+
+
+def update_content_external_source(
+    db: Session,
+    content_id: str,
+    source: str,
+    external_id: str | None,
+    data_json: dict | None,
+) -> dict:
+    """Oppdaterer en *eksisterende* content_external_source-rad
+    (external_id og/eller data_json), for en gitt content_id + source.
+
+    Oppretter bevisst IKKE en ny rad hvis den ikke finnes fra før - hvis
+    (content_id, source) ikke matcher noen rad, kastes det en feil i
+    stedet. Begrunnelse: en manglende rad her betyr enten at content_id
+    er feil, eller at kilden (tmdb/tvdb/imdb) aldri har blitt koblet på
+    denne content-raden i utgangspunktet - i begge tilfeller er en
+    stille "opprett den da" en dårligere løsning enn å varsle brukeren,
+    siden det kan skjule en feil i innsendt data. Automatisk oppretting
+    kan legges til senere hvis det viser seg å være ønskelig.
+    """
+
+    try:
+        parsed_content_id = _parse_hex_id(content_id)
+    except ValueError as e:
+        raise ContentExternalSourceError(
+            f"Ugyldig content_id: {content_id}", status_code=422
+        ) from e
+
+    existing = db.execute(
+        text(
+            """
+            SELECT source
+            FROM content_external_source
+            WHERE content_id = :content_id AND source = :source
+            """
+        ),
+        {"content_id": parsed_content_id, "source": source},
+    ).fetchone()
+
+    if existing is None:
+        raise ContentExternalSourceError(
+            f"Fant ingen content_external_source-rad for content_id="
+            f"{content_id} og source={source!r}. Denne må finnes fra før - "
+            "dette endepunktet oppretter ikke nye rader.",
+            status_code=404,
+        )
+
+    fields_sql = []
+    params: dict = {"content_id": parsed_content_id, "source": source}
+
+    if external_id is not None:
+        fields_sql.append("external_id = :external_id")
+        params["external_id"] = external_id
+
+    if data_json is not None:
+        fields_sql.append("data_json = :data_json")
+        params["data_json"] = json.dumps(data_json, ensure_ascii=False)
+
+    fields_sql.append("fetched_at = :fetched_at")
+    params["fetched_at"] = datetime.now(timezone.utc)
+
+    db.execute(
+        text(
+            f"""
+            UPDATE content_external_source
+            SET {", ".join(fields_sql)}
+            WHERE content_id = :content_id AND source = :source
+            """
+        ),
+        params,
+    )
+    db.commit()
+
+    row = db.execute(
+        text(
+            """
+            SELECT source, external_id, fetched_at
+            FROM content_external_source
+            WHERE content_id = :content_id AND source = :source
+            """
+        ),
+        {"content_id": parsed_content_id, "source": source},
+    ).fetchone()
+
+    return {
+        "content_id": content_id,
+        "source": row.source,
+        "external_id": row.external_id,
+        "fetched_at": str(row.fetched_at)[:19] if row.fetched_at is not None else None,
     }
