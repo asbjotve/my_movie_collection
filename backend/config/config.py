@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     MEDIA_DB_PORT: int = Field(default=3306)
     MEDIA_DB_NAME: str | None = None
 
+    TMDB_API_KEY: str | None = None
+    TVDB_API_KEY: str | None = None
+    TVDB_PIN: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=str(ACTIVE_ENV_FILE),
         env_file_encoding="utf-8",

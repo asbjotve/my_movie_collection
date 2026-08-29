@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.media_db import get_media_db
-from app.schemas.media_catalog import ContentExternalSourceUpdatePayload
 from app.services.media_catalog import (
     ContentExternalSourceError,
     get_content_by_id,
@@ -40,16 +39,20 @@ def get_content_detail(content_id: str, db: Session = Depends(get_media_db)):
     return item
 
 
-@router.patch("/content/{content_id}/external-source/{source}")
+@router.patch("/external-source/{source}/{external_id}")
 def patch_content_external_source(
-    content_id: str,
     source: str,
-    payload: ContentExternalSourceUpdatePayload,
+    external_id: str,
     db: Session = Depends(get_media_db),
 ):
-    """Oppdaterer external_id og/eller data_json for en eksisterende
-    content_external_source-rad (content_id + source, f.eks. 'tmdb',
-    'tvdb' eller 'imdb').
+    """Oppdaterer data_json for en eksisterende content_external_source-rad,
+    identifisert kun via source ('tmdb' eller 'tvdb') og external_id -
+    ingen content_id og ingen body trengs.
+
+    Henter selv de fulle detaljene fra TMDB/TVDB (server-side) og
+    lagrer dem som data_json - ingen payload sendes fra klienten, siden
+    en full TMDB/TVDB-respons kan bli for stor til å sende via request
+    body.
 
     Raden må finnes fra før - hvis ikke, returneres 404. Dette
     endepunktet oppretter bevisst ikke nye rader ennå (se
@@ -58,10 +61,8 @@ def patch_content_external_source(
     try:
         return update_content_external_source(
             db,
-            content_id=content_id,
             source=source,
-            external_id=payload.external_id,
-            data_json=payload.data_json,
+            external_id=external_id,
         )
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))

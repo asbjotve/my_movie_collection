@@ -18,6 +18,12 @@ from datetime import datetime, timezone
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
+from app.services.external_apis import (
+    ExternalApiError,
+    fetch_tmdb_details,
+    fetch_tvdb_details,
+)
+
 
 class ContentExternalSourceError(ValueError):
     """Feil ved oppdatering av en content_external_source-rad."""
@@ -535,12 +541,15 @@ def update_content_external_source(
     db: Session,
     source: str,
     external_id: str,
-    data_json: dict,
 ) -> dict:
     """Oppdaterer data_json (+ fetched_at) på en *eksisterende*
     content_external_source-rad, funnet via source + external_id (f.eks.
     source='tmdb', external_id='137867') - ingen content_id trengs fra
     den som kaller endepunktet.
+
+    Henter selv de fulle detaljene fra TMDB/TVDB (server-side) i stedet
+    for å motta dem som payload - en full TMDB/TVDB-respons kan bli for
+    stor/tungvint å sende via request body fra frontend.
 
     Oppretter bevisst IKKE en ny rad hvis (source, external_id) ikke
     matcher noen rad fra før - kaster en feil i stedet. Begrunnelse: en
@@ -552,12 +561,20 @@ def update_content_external_source(
     hvis det viser seg å være ønskelig.
     """
 
+    if source not in ("tmdb", "tvdb"):
+        raise ContentExternalSourceError(
+            f"Oppdatering fra kilde er ikke støttet for source={source!r}. "
+            "Kun 'tmdb' og 'tvdb' kan hentes på nytt her.",
+            status_code=400,
+        )
+
     existing = db.execute(
         text(
             """
-            SELECT content_id
-            FROM content_external_source
-            WHERE source = :source AND external_id = :external_id
+            SELECT ces.content_id, c.content_type
+            FROM content_external_source ces
+            JOIN content c ON c.content_id = ces.content_id
+            WHERE ces.source = :source AND ces.external_id = :external_id
             """
         ),
         {"source": source, "external_id": external_id},
@@ -570,6 +587,16 @@ def update_content_external_source(
             "dette endepunktet oppretter ikke nye rader.",
             status_code=404,
         )
+
+    content_type = existing.content_type or "movie"
+
+    try:
+        if source == "tmdb":
+            data_json = fetch_tmdb_details(external_id, content_type)
+        else:
+            data_json = fetch_tvdb_details(external_id, content_type)
+    except ExternalApiError as e:
+        raise ContentExternalSourceError(str(e), status_code=e.status_code) from e
 
     db.execute(
         text(
