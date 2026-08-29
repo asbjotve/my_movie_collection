@@ -452,7 +452,8 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
                 watched_flag,
                 temporary_flag,
                 content_type,
-                imdb_id
+                imdb_id,
+                overview
             FROM content
             WHERE content_id = :content_id
             """
@@ -516,6 +517,7 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         "temporary_flag": bool(row.temporary_flag),
         "content_type": row.content_type,
         "imdb_id": row.imdb_id,
+        "overview": row.overview,
         "collections": collections,
         "physical_copies": physical_copies,
         "sources": [
@@ -531,90 +533,76 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
 
 def update_content_external_source(
     db: Session,
-    content_id: str,
     source: str,
-    external_id: str | None,
-    data_json: dict | None,
+    external_id: str,
+    data_json: dict,
 ) -> dict:
-    """Oppdaterer en *eksisterende* content_external_source-rad
-    (external_id og/eller data_json), for en gitt content_id + source.
+    """Oppdaterer data_json (+ fetched_at) på en *eksisterende*
+    content_external_source-rad, funnet via source + external_id (f.eks.
+    source='tmdb', external_id='137867') - ingen content_id trengs fra
+    den som kaller endepunktet.
 
-    Oppretter bevisst IKKE en ny rad hvis den ikke finnes fra før - hvis
-    (content_id, source) ikke matcher noen rad, kastes det en feil i
-    stedet. Begrunnelse: en manglende rad her betyr enten at content_id
-    er feil, eller at kilden (tmdb/tvdb/imdb) aldri har blitt koblet på
-    denne content-raden i utgangspunktet - i begge tilfeller er en
-    stille "opprett den da" en dårligere løsning enn å varsle brukeren,
-    siden det kan skjule en feil i innsendt data. Automatisk oppretting
-    kan legges til senere hvis det viser seg å være ønskelig.
+    Oppretter bevisst IKKE en ny rad hvis (source, external_id) ikke
+    matcher noen rad fra før - kaster en feil i stedet. Begrunnelse: en
+    manglende rad her betyr enten at external_id/source er feil, eller
+    at denne kilden aldri har blitt koblet på noen content-rad i
+    utgangspunktet - i begge tilfeller er en stille "opprett den da" en
+    dårligere løsning enn å varsle brukeren, siden det kan skjule en
+    feil i innsendt data. Automatisk oppretting kan legges til senere
+    hvis det viser seg å være ønskelig.
     """
-
-    try:
-        parsed_content_id = _parse_hex_id(content_id)
-    except ValueError as e:
-        raise ContentExternalSourceError(
-            f"Ugyldig content_id: {content_id}", status_code=422
-        ) from e
 
     existing = db.execute(
         text(
             """
-            SELECT source
+            SELECT content_id
             FROM content_external_source
-            WHERE content_id = :content_id AND source = :source
+            WHERE source = :source AND external_id = :external_id
             """
         ),
-        {"content_id": parsed_content_id, "source": source},
+        {"source": source, "external_id": external_id},
     ).fetchone()
 
     if existing is None:
         raise ContentExternalSourceError(
-            f"Fant ingen content_external_source-rad for content_id="
-            f"{content_id} og source={source!r}. Denne må finnes fra før - "
+            f"Fant ingen content_external_source-rad for source={source!r} "
+            f"og external_id={external_id!r}. Denne må finnes fra før - "
             "dette endepunktet oppretter ikke nye rader.",
             status_code=404,
         )
 
-    fields_sql = []
-    params: dict = {"content_id": parsed_content_id, "source": source}
-
-    if external_id is not None:
-        fields_sql.append("external_id = :external_id")
-        params["external_id"] = external_id
-
-    if data_json is not None:
-        fields_sql.append("data_json = :data_json")
-        params["data_json"] = json.dumps(data_json, ensure_ascii=False)
-
-    fields_sql.append("fetched_at = :fetched_at")
-    params["fetched_at"] = datetime.now(timezone.utc)
-
     db.execute(
         text(
-            f"""
+            """
             UPDATE content_external_source
-            SET {", ".join(fields_sql)}
-            WHERE content_id = :content_id AND source = :source
+            SET data_json = :data_json, fetched_at = :fetched_at
+            WHERE source = :source AND external_id = :external_id
             """
         ),
-        params,
+        {
+            "source": source,
+            "external_id": external_id,
+            "data_json": json.dumps(data_json, ensure_ascii=False),
+            "fetched_at": datetime.now(timezone.utc),
+        },
     )
     db.commit()
 
     row = db.execute(
         text(
             """
-            SELECT source, external_id, fetched_at
+            SELECT content_id, source, external_id, fetched_at
             FROM content_external_source
-            WHERE content_id = :content_id AND source = :source
+            WHERE source = :source AND external_id = :external_id
             """
         ),
-        {"content_id": parsed_content_id, "source": source},
+        {"source": source, "external_id": external_id},
     ).fetchone()
 
     return {
-        "content_id": content_id,
+        "content_id": _hex_id(row.content_id),
         "source": row.source,
         "external_id": row.external_id,
         "fetched_at": str(row.fetched_at)[:19] if row.fetched_at is not None else None,
     }
+

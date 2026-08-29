@@ -174,15 +174,6 @@ declare(strict_types=1);
       padding:14px;
     }
     .sourcesBox h3{ margin:0 0 10px; font-size:13px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-    .sourceRow{
-      display:flex; justify-content:space-between; align-items:center; gap:10px;
-      padding:8px 0;
-      border-bottom:1px solid var(--line);
-      font-size:13px;
-    }
-    .sourceRow:last-child{ border-bottom:none; }
-    .sourceRow a{ color: var(--accent); text-decoration:none; }
-    .sourceRow a:hover{ text-decoration:underline; }
 
     /* ---- Faner: Rollebesetning / Samlingsopplysninger / Kjøpsinformasjon ---- */
     .tabSection{ margin-top:26px; }
@@ -314,8 +305,8 @@ declare(strict_types=1);
       </div>
 
       <div class="sourcesBox">
-        <h3>Eksterne kilder</h3>
-        <div id="sourcesList"><div style="color:var(--muted); font-size:13px;">Ingen registrert.</div></div>
+        <h3>Sammendrag</h3>
+        <div id="overviewText" style="color:var(--muted); font-size:13px; line-height:1.5;">Ingen sammendrag registrert.</div>
       </div>
     </div>
   </div>
@@ -549,14 +540,13 @@ declare(strict_types=1);
     document.getElementById("fTmdb").textContent = tmdbSource?.external_id || "-";
     document.getElementById("fTvdb").textContent = tvdbSource?.external_id || "-";
 
-    const sourcesList = document.getElementById("sourcesList");
-    if ((item.sources || []).length){
-      sourcesList.innerHTML = item.sources.map(s => `
-        <div class="sourceRow">
-          <strong>${escapeHtml(s.source)}</strong>
-          <span>${escapeHtml(s.external_id || "-")}</span>
-        </div>
-      `).join("");
+    const overviewText = document.getElementById("overviewText");
+    if (item.overview){
+      overviewText.textContent = item.overview;
+      overviewText.style.color = "var(--text)";
+    } else {
+      overviewText.textContent = "Ingen sammendrag registrert.";
+      overviewText.style.color = "var(--muted)";
     }
 
     renderOwnershipBadges(item);
