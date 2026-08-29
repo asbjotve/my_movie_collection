@@ -299,13 +299,18 @@ declare(strict_types=1);
         <div class="originalTitle" id="dOriginalTitle"></div>
       </div>
 
+      <div class="factsGrid" id="idsGrid">
+        <div class="factCard"><div class="k">IMDb</div><div class="v" id="fImdb">-</div></div>
+        <div class="factCard"><div class="k">TMDB</div><div class="v" id="fTmdb">-</div></div>
+        <div class="factCard"><div class="k">TVDB</div><div class="v" id="fTvdb">-</div></div>
+      </div>
+
       <div class="factsGrid">
         <div class="factCard"><div class="k">Utgitt</div><div class="v" id="fRelease">-</div></div>
         <div class="factCard"><div class="k">Spilletid</div><div class="v" id="fRuntime">-</div></div>
         <div class="factCard"><div class="k">Aldersgrense</div><div class="v" id="fAge">-</div></div>
         <div class="factCard"><div class="k">Type</div><div class="v" id="fType">-</div></div>
         <div class="factCard"><div class="k">Produksjonsselskap</div><div class="v" id="fProdCompany">-</div></div>
-        <div class="factCard"><div class="k">IMDb</div><div class="v" id="fImdb">-</div></div>
       </div>
 
       <div class="sourcesBox">
@@ -533,6 +538,16 @@ declare(strict_types=1);
     } else {
       fImdb.textContent = "-";
     }
+
+    // tmdb_id/tvdb_id er (ennå) ikke egne kolonner på content - de må
+    // hentes ut fra "sources"-listen (content_external_source-radene).
+    const findSource = (name) => (item.sources || []).find(
+      s => (s.source || "").toLowerCase() === name
+    );
+    const tmdbSource = findSource("tmdb");
+    const tvdbSource = findSource("tvdb");
+    document.getElementById("fTmdb").textContent = tmdbSource?.external_id || "-";
+    document.getElementById("fTvdb").textContent = tvdbSource?.external_id || "-";
 
     const sourcesList = document.getElementById("sourcesList");
     if ((item.sources || []).length){
