@@ -688,6 +688,10 @@ function h(string $s): string
           <input type="text" id="tvdbSearchInput" placeholder="<?= h(tr($t, 'ph.search_tvdb')) ?>" autocomplete="off" />
           <span id="tvdbLoadingSpinner" class="muted hidden"><?= h(tr($t, 'status.search_loading')) ?></span>
         </div>
+        <div class="checkLine" style="gap:16px;">
+          <label><input type="radio" name="tvdbSearchType" value="movie" checked> <?= h(tr($t, 'text.search_movie')) ?></label>
+          <label><input type="radio" name="tvdbSearchType" value="series"> <?= h(tr($t, 'text.search_tv')) ?></label>
+        </div>
         <div class="muted" id="tvdbSearchStatus"><?= h(tr($t, 'status.search_short')) ?></div>
         <div class="searchResults" id="tvdbDropdownResults"></div>
       </div>

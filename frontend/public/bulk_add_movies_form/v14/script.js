@@ -127,6 +127,8 @@ function closeModal(modalOrId) {
     tvdbDropdownResults.innerHTML = '';
     tvdbSearchStatus.textContent = fmt('status.search_short');
     tvdbLoadingSpinner.classList.add('hidden');
+    const movieRadio = document.querySelector('input[name="tvdbSearchType"][value="movie"]');
+    if (movieRadio) movieRadio.checked = true;
   }
 }
 
@@ -1088,7 +1090,9 @@ function searchTvdbMovies(query) {
   tvdbSearchStatus.textContent = fmt('status.search_loading');
   tvdbDropdownResults.innerHTML = '';
 
-  fetch(`${API_ENDPOINT}?action=search_tvdb&query=${encodeURIComponent(query)}`)
+  const tvdbType = document.querySelector('input[name="tvdbSearchType"]:checked')?.value || 'movie';
+
+  fetch(`${API_ENDPOINT}?action=search_tvdb&query=${encodeURIComponent(query)}&type=${encodeURIComponent(tvdbType)}`)
     .then(async response => {
       const text = await response.text();
       let data;
@@ -1436,6 +1440,13 @@ tvdbSearchInput.addEventListener('input', event => {
   }
 
   tvdbSearchTimeout = setTimeout(() => searchTvdbMovies(query), 350);
+});
+
+document.querySelectorAll('input[name="tvdbSearchType"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const query = tvdbSearchInput.value.trim();
+    if (query.length >= 2) searchTvdbMovies(query);
+  });
 });
 
 autoInit();

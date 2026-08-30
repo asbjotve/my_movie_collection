@@ -90,9 +90,14 @@ try {
             exit;
         }
 
+        $tvdbType = $_GET['type'] ?? 'movie';
+        if (!in_array($tvdbType, ['movie', 'series'], true)) {
+            $tvdbType = 'movie';
+        }
+
         $tvdbUrl = TVDB_BASE_URL . '/search?' . http_build_query([
             'query' => $tvdbQuery,
-            'type'  => 'movie', // bulk_add_movies_form håndterer kun filmer
+            'type'  => $tvdbType, // bulk_add_movies_form oppretter kun filmer, men lar brukeren søke i begge typer for å lettere treffe riktig
             'limit' => 50,
         ]);
 
