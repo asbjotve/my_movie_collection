@@ -6,6 +6,7 @@ from app.services.media_catalog import (
     ContentExternalSourceError,
     get_content_by_id,
     list_content,
+    merge_content_from_source,
     update_content_external_source,
 )
 
@@ -64,5 +65,28 @@ def patch_content_external_source(
             source=source,
             external_id=external_id,
         )
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/external-source/{source}/{external_id}/merge")
+def merge_external_source(
+    source: str,
+    external_id: str,
+    db: Session = Depends(get_media_db),
+):
+    """Fletter sist lagrede data_json for (source, external_id) inn i
+    tilhørende content-rad (title, overview, runtime osv.), med mindre
+    feltet står i content.locked_fields.
+
+    Leser IKKE på nytt fra TMDB/TVDB - bruk PATCH
+    /external-source/{source}/{external_id} for å hente ferske data
+    først. Oppdaterer alltid last_merged_source/last_merged_at ved
+    vellykket kall, selv om ingen felt faktisk ble endret (f.eks. hvis
+    alt er låst), slik at det er synlig hvilken kilde/tidspunkt som sist
+    ble forsøkt flettet inn.
+    """
+    try:
+        return merge_content_from_source(db, source=source, external_id=external_id)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))

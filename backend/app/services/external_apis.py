@@ -108,7 +108,7 @@ def fetch_tvdb_details(external_id: str, content_type: str) -> dict:
     try:
         response = requests.get(
             url,
-            params={"short": "true"},
+            params={"short": "true", "meta": "translations"},
             headers={"Authorization": f"Bearer {token}"},
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
