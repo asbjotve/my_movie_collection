@@ -673,6 +673,27 @@ function h(string $s): string
     </div>
   </div>
 
+  <div class="modal" id="tvdbSearchModal" aria-hidden="true">
+    <div class="modalDialog modalNarrow">
+      <div class="modalHead">
+        <div class="modalTitleBlock">
+          <h3><?= h(tr($t, 'modal.search_tvdb.title')) ?></h3>
+          <p><?= h(tr($t, 'hint.search_tvdb')) ?></p>
+        </div>
+        <button class="closeBtn" type="button" data-modal-close aria-label="<?= h(tr($t, 'aria.close_modal')) ?>">×</button>
+      </div>
+      <div class="modalBody searchShell">
+        <div class="searchBar">
+          <span>🔍</span>
+          <input type="text" id="tvdbSearchInput" placeholder="<?= h(tr($t, 'ph.search_tvdb')) ?>" autocomplete="off" />
+          <span id="tvdbLoadingSpinner" class="muted hidden"><?= h(tr($t, 'status.search_loading')) ?></span>
+        </div>
+        <div class="muted" id="tvdbSearchStatus"><?= h(tr($t, 'status.search_short')) ?></div>
+        <div class="searchResults" id="tvdbDropdownResults"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     window.BAMF_I18N = <?= json_encode(bamf_flatten_for_js($t), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     window.BAMF_DEFAULT_STORAGE_ID = '564a3999-5d00-11f1-9526-bab3c527eb51';

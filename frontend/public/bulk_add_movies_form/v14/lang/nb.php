@@ -37,6 +37,7 @@ return [
             'discs' => 'Discer',
             'discs_count' => 'Discer ({n})',
             'search_tmdb' => 'Søk i TMDB',
+            'search_tvdb' => 'Søk i TVDB',
             'paste_list' => 'Lim inn liste',
             'remove_boxset' => 'Fjern boks-sett',
             'show_help' => 'Vis hjelp',
@@ -108,6 +109,7 @@ return [
             'quick_add_title' => 'f.eks. Hidalgo',
             'box_barcode' => '13 siffer',
             'search' => 'Søk etter film eller TV-serie…',
+            'search_tvdb' => 'Søk etter film i TVDB…',
         ],
         'hint' => [
             'storage_id' => 'Brukes for alle discer som har «Legg til i lagringsplass» aktivert.',
@@ -118,6 +120,7 @@ return [
             'related_movie' => 'Tomt felt betyr at discen tilhører hele boksen.',
             'send_api' => 'Forhåndsvisning viser nøyaktig JSON-form. «Send til API» poster samme payload til backend.',
             'search' => 'Tips: ta med årstall, for eksempel «Titanic 1997».',
+            'search_tvdb' => 'Velg riktig treff for å fylle inn TVDB-ID automatisk.',
         ],
         'help' => [
             'li1_html' => '<strong>Enkeltutgivelser:</strong> raske rader med egen disc-redigering.',
@@ -149,6 +152,9 @@ return [
             ],
             'search' => [
                 'title' => 'Søk i TMDB',
+            ],
+            'search_tvdb' => [
+                'title' => 'Søk i TVDB',
             ],
         ],
         'fmt' => [

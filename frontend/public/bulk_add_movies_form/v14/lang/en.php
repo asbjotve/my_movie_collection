@@ -37,6 +37,7 @@ return [
             'discs' => 'Discs',
             'discs_count' => 'Discs ({n})',
             'search_tmdb' => 'Search TMDB',
+            'search_tvdb' => 'Search TVDB',
             'paste_list' => 'Paste list',
             'remove_boxset' => 'Remove box set',
             'show_help' => 'Show help',
@@ -108,6 +109,7 @@ return [
             'quick_add_title' => 'e.g. Hidalgo',
             'box_barcode' => '13 digits',
             'search' => 'Search movies or TV shows…',
+            'search_tvdb' => 'Search for a movie in TVDB…',
         ],
         'hint' => [
             'storage_id' => 'Used for every disc with “Add to storage” enabled.',
@@ -118,6 +120,7 @@ return [
             'related_movie' => 'Empty means that the disc belongs to the whole box set.',
             'send_api' => 'Preview keeps the exact JSON shape. Send posts the same payload to the backend API.',
             'search' => 'Tip: include a year, for example “Titanic 1997”.',
+            'search_tvdb' => 'Pick the correct match to fill in the TVDB ID automatically.',
         ],
         'help' => [
             'li1_html' => '<strong>Singles:</strong> quick rows with separate disc editing.',
@@ -149,6 +152,9 @@ return [
             ],
             'search' => [
                 'title' => 'Search TMDB',
+            ],
+            'search_tvdb' => [
+                'title' => 'Search TVDB',
             ],
         ],
         'fmt' => [

@@ -5,6 +5,7 @@ const DEFAULT_STORAGE_ID = window.BAMF_DEFAULT_STORAGE_ID || '';
 const STORAGE_KEY = 'bulkAddState_v14';
 
 let searchTimeout;
+let tvdbSearchTimeout;
 let saveTimer = null;
 let bonusTarget = null;
 let discModalTargetSingleRow = null;
@@ -13,6 +14,7 @@ let boxSetSeq = 0;
 
 window.__bulkActiveImdbInput = window.__bulkActiveImdbInput || null;
 window.__bulkActiveTmdbInput = window.__bulkActiveTmdbInput || null;
+window.__bulkActiveTvdbInput = window.__bulkActiveTvdbInput || null;
 
 const boxSetsContainer = document.getElementById('boxSetsContainer');
 const singleTbody = document.querySelector('#singleTable tbody');
@@ -31,6 +33,11 @@ const loadingSpinner = document.getElementById('loadingSpinner');
 const searchStatus = document.getElementById('searchStatus');
 const searchModal = document.getElementById('searchModal');
 const selectedItemContainer = document.getElementById('selectedItem');
+const tvdbSearchInput = document.getElementById('tvdbSearchInput');
+const tvdbDropdownResults = document.getElementById('tvdbDropdownResults');
+const tvdbLoadingSpinner = document.getElementById('tvdbLoadingSpinner');
+const tvdbSearchStatus = document.getElementById('tvdbSearchStatus');
+const tvdbSearchModal = document.getElementById('tvdbSearchModal');
 
 function el(html) {
   const template = document.createElement('template');
@@ -97,6 +104,9 @@ function openModal(id) {
   if (id === 'searchModal') {
     setTimeout(() => searchInput.focus(), 0);
   }
+  if (id === 'tvdbSearchModal') {
+    setTimeout(() => tvdbSearchInput.focus(), 0);
+  }
 }
 
 function closeModal(modalOrId) {
@@ -111,6 +121,12 @@ function closeModal(modalOrId) {
     selectedItemContainer.innerHTML = '';
     searchStatus.textContent = fmt('status.search_short');
     loadingSpinner.classList.add('hidden');
+  }
+  if (modal.id === 'tvdbSearchModal') {
+    tvdbSearchInput.value = '';
+    tvdbDropdownResults.innerHTML = '';
+    tvdbSearchStatus.textContent = fmt('status.search_short');
+    tvdbLoadingSpinner.classList.add('hidden');
   }
 }
 
@@ -355,7 +371,10 @@ function addSingleRow({ title = '', format = null, barcode = '', imdb = '', tmdb
           <input name="imdb" placeholder="${escapeHtml(fmt('ph.imdb'))}" value="${escapeHtml(imdb)}">
           <button class="btn btnPrimary btnIcon" type="button" data-action="open-search" title="${escapeHtml(fmt('btn.search_tmdb'))}">🔍</button>
         </div>
-        <input name="tvdb_id" placeholder="${escapeHtml(fmt('ph.tvdb'))}" value="${escapeHtml(tvdb)}">
+        <div class="inlineInput">
+          <input name="tvdb_id" placeholder="${escapeHtml(fmt('ph.tvdb'))}" value="${escapeHtml(tvdb)}">
+          <button class="btn btnPrimary btnIcon" type="button" data-action="open-search-tvdb" title="${escapeHtml(fmt('btn.search_tvdb'))}">🔍</button>
+        </div>
         <input type="hidden" name="tmdb_id" value="${escapeHtml(tmdb)}">
       </td>
       <td><button class="btn btnTiny" type="button" data-action="edit-discs">${escapeHtml(fmt('btn.discs'))}</button></td>
@@ -374,6 +393,10 @@ function addSingleRow({ title = '', format = null, barcode = '', imdb = '', tmdb
     window.__bulkActiveImdbInput = row.querySelector('input[name="imdb"]');
     window.__bulkActiveTmdbInput = row.querySelector('input[name="tmdb_id"]');
     openModal('searchModal');
+  });
+  row.querySelector('button[data-action="open-search-tvdb"]').addEventListener('click', () => {
+    window.__bulkActiveTvdbInput = row.querySelector('input[name="tvdb_id"]');
+    openModal('tvdbSearchModal');
   });
 
   singleTbody.appendChild(row);
@@ -476,7 +499,10 @@ function addBoxTitleRow(boxSetRoot, { title = '', imdb = '', tmdb = '', tvdb = '
           <input name="imdb" placeholder="${escapeHtml(fmt('ph.imdb'))}" value="${escapeHtml(imdb)}">
           <button class="btn btnPrimary btnIcon" type="button" data-action="open-search" title="${escapeHtml(fmt('btn.search_tmdb'))}">🔍</button>
         </div>
-        <input name="tvdb_id" placeholder="${escapeHtml(fmt('ph.tvdb'))}" value="${escapeHtml(tvdb)}">
+        <div class="inlineInput">
+          <input name="tvdb_id" placeholder="${escapeHtml(fmt('ph.tvdb'))}" value="${escapeHtml(tvdb)}">
+          <button class="btn btnPrimary btnIcon" type="button" data-action="open-search-tvdb" title="${escapeHtml(fmt('btn.search_tvdb'))}">🔍</button>
+        </div>
         <input type="hidden" name="tmdb_id" value="${escapeHtml(tmdb)}">
       </td>
       <td><input name="inner_ean" placeholder="${escapeHtml(fmt('ph.ean13'))}" value="${escapeHtml(inner_ean)}"></td>
@@ -488,6 +514,7 @@ function addBoxTitleRow(boxSetRoot, { title = '', imdb = '', tmdb = '', tvdb = '
   const titleInput = row.querySelector('input[name="title"]');
   const imdbInput = row.querySelector('input[name="imdb"]');
   const tmdbInput = row.querySelector('input[name="tmdb_id"]');
+  const tvdbInput = row.querySelector('input[name="tvdb_id"]');
   const innerEanInput = row.querySelector('input[name="inner_ean"]');
   const treatCb = row.querySelector('input[name="treat_as_single"]');
 
@@ -495,6 +522,10 @@ function addBoxTitleRow(boxSetRoot, { title = '', imdb = '', tmdb = '', tvdb = '
     window.__bulkActiveImdbInput = imdbInput;
     window.__bulkActiveTmdbInput = tmdbInput;
     openModal('searchModal');
+  });
+  row.querySelector('button[data-action="open-search-tvdb"]').addEventListener('click', () => {
+    window.__bulkActiveTvdbInput = tvdbInput;
+    openModal('tvdbSearchModal');
   });
 
   row.querySelector('button[aria-label]').addEventListener('click', () => {
@@ -1052,6 +1083,72 @@ function createDropdownItem(item) {
   return div;
 }
 
+function searchTvdbMovies(query) {
+  tvdbLoadingSpinner.classList.remove('hidden');
+  tvdbSearchStatus.textContent = fmt('status.search_loading');
+  tvdbDropdownResults.innerHTML = '';
+
+  fetch(`${API_ENDPOINT}?action=search_tvdb&query=${encodeURIComponent(query)}`)
+    .then(async response => {
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || fmt('status.error'));
+      }
+      if (!response.ok) {
+        throw new Error(data.error || data.message || fmt('status.error'));
+      }
+      return data;
+    })
+    .then(data => {
+      tvdbLoadingSpinner.classList.add('hidden');
+      const results = data.data || [];
+      if (results.length === 0) {
+        tvdbSearchStatus.textContent = fmt('status.search_no_results');
+        return;
+      }
+      tvdbSearchStatus.textContent = fmt('status.search_results', { n: results.length });
+      tvdbDropdownResults.innerHTML = '';
+      results.forEach(item => tvdbDropdownResults.appendChild(createTvdbDropdownItem(item)));
+    })
+    .catch(error => {
+      tvdbLoadingSpinner.classList.add('hidden');
+      tvdbSearchStatus.textContent = `${fmt('status.error')} ${error.message}`;
+    });
+}
+
+function createTvdbDropdownItem(item) {
+  const div = document.createElement('div');
+  div.className = 'searchItem';
+
+  const tvdbId = item.tvdb_id ?? item.id;
+  const title = item.name || item.title || '';
+  const posterUrl = item.image_url || item.poster || item.thumbnail || null;
+  const year = item.year || '—';
+
+  div.innerHTML = `
+    ${posterUrl
+      ? `<img src="${escapeAttr(posterUrl)}" class="searchPoster" alt="${escapeHtml(title)}">`
+      : `<div class="searchNoPoster">${escapeHtml(fmt('text.search_no_poster'))}</div>`}
+    <div>
+      <div><strong>${escapeHtml(title)}</strong></div>
+      <div class="searchMeta">📅 ${escapeHtml(year)} · TVDB ID: ${escapeHtml(String(tvdbId))}</div>
+    </div>
+  `;
+
+  div.addEventListener('click', () => {
+    if (window.__bulkActiveTvdbInput) {
+      window.__bulkActiveTvdbInput.value = String(tvdbId);
+      window.__bulkActiveTvdbInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    closeModal('tvdbSearchModal');
+  });
+
+  return div;
+}
+
 function showDetails(item) {
   searchStatus.textContent = fmt('status.search_details');
 
@@ -1326,6 +1423,19 @@ searchInput.addEventListener('input', event => {
   }
 
   searchTimeout = setTimeout(() => searchMovies(query), 350);
+});
+
+tvdbSearchInput.addEventListener('input', event => {
+  const query = event.target.value.trim();
+  clearTimeout(tvdbSearchTimeout);
+
+  if (query.length < 2) {
+    tvdbDropdownResults.innerHTML = '';
+    tvdbSearchStatus.textContent = fmt('status.search_short');
+    return;
+  }
+
+  tvdbSearchTimeout = setTimeout(() => searchTvdbMovies(query), 350);
 });
 
 autoInit();
