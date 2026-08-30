@@ -25,6 +25,45 @@ header('Content-Type: application/json; charset=utf-8');
 // Intern adresse til FastAPI/uvicorn (samme vert som resten av prosjektet bruker).
 const MEDIA_API_BASE_URL = 'http://172.19.0.1:9500';
 
+// POST ?action=refresh_external_source&source=tmdb|tvdb&external_id=...
+// Brukes av "Bytt data fra kilde"-knappene på detail.php. Gjør en
+// server-side PATCH mot backend, som selv henter fulle detaljer fra
+// TMDB/TVDB og lagrer dem i content_external_source.data_json - se
+// PATCH /media/external-source/{source}/{external_id} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refresh_external_source') {
+    $source = (string)($_GET['source'] ?? '');
+    $externalId = (string)($_GET['external_id'] ?? '');
+
+    if (!in_array($source, ['tmdb', 'tvdb'], true) || $externalId === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler eller ugyldig source/external_id-parameter']);
+        exit;
+    }
+
+    $patchUrl = MEDIA_API_BASE_URL . '/media/external-source/' . rawurlencode($source) . '/' . rawurlencode($externalId);
+
+    $ch = curl_init($patchUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_TIMEOUT => 20, // henting fra TMDB/TVDB kan ta noen sekunder
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Uten ?id=... hentes hele listen (GET /media/content), som før.
 // Med ?id=<hex content_id> hentes én enkelt rad for detaljsiden
 // (GET /media/content/{id}), brukt av detail.php.

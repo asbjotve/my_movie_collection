@@ -152,6 +152,23 @@ declare(strict_types=1);
     .titleBlock h1{ margin:0 0 4px; font-size:24px; }
     .titleBlock .originalTitle{ color: var(--muted); font-size:14px; margin-bottom:14px; }
 
+    /* ---- "Bytt data fra kilde"-knapper ---- */
+    .refreshButtons{ display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .refreshBtn{
+      appearance:none; cursor:pointer;
+      font-size:12px; font-weight:700;
+      padding:7px 12px;
+      border-radius: 999px;
+      border:1px solid var(--line);
+      background: rgba(111,141,255,.10);
+      color: var(--text);
+    }
+    .refreshBtn:hover:not(:disabled){ background: rgba(111,141,255,.22); border-color: rgba(111,141,255,.55); }
+    .refreshBtn:disabled{ opacity:.4; cursor:not-allowed; }
+    .refreshStatus{ font-size:12px; color: var(--muted); }
+    .refreshStatus.error{ color: var(--danger); }
+    .refreshStatus.success{ color: var(--accent2); }
+
     .factsGrid{
       display:grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -288,6 +305,11 @@ declare(strict_types=1);
       <div class="titleBlock">
         <h1 id="dTitle"></h1>
         <div class="originalTitle" id="dOriginalTitle"></div>
+        <div class="refreshButtons">
+          <button class="refreshBtn" id="btnRefreshTmdb" type="button" disabled>🔄 TMDB</button>
+          <button class="refreshBtn" id="btnRefreshTvdb" type="button" disabled>🔄 TVDB</button>
+          <span class="refreshStatus" id="refreshStatus"></span>
+        </div>
       </div>
 
       <div class="factsGrid" id="idsGrid">
@@ -540,6 +562,16 @@ declare(strict_types=1);
     document.getElementById("fTmdb").textContent = tmdbSource?.external_id || "-";
     document.getElementById("fTvdb").textContent = tvdbSource?.external_id || "-";
 
+    // Knappene for å bytte data fra TMDB/TVDB er bare aktive når kilden
+    // finnes fra før (content_external_source-raden må allerede finnes -
+    // se update_content_external_source() i backend).
+    const btnTmdb = document.getElementById("btnRefreshTmdb");
+    const btnTvdb = document.getElementById("btnRefreshTvdb");
+    btnTmdb.disabled = !tmdbSource?.external_id;
+    btnTmdb.dataset.externalId = tmdbSource?.external_id || "";
+    btnTvdb.disabled = !tvdbSource?.external_id;
+    btnTvdb.dataset.externalId = tvdbSource?.external_id || "";
+
     const overviewText = document.getElementById("overviewText");
     if (item.overview){
       overviewText.textContent = item.overview;
@@ -573,6 +605,45 @@ declare(strict_types=1);
       detailStatus.style.color = "var(--danger)";
     }
   }
+
+  // "Bytt data fra kilde"-knappene: ber backend hente fulle detaljer på
+  // nytt fra TMDB/TVDB (server-side) og lagre dem i
+  // content_external_source.data_json, deretter laster vi siden på nytt
+  // (loadDetail) slik at ev. endringer i overview/tittel osv. vises.
+  // NB: selve visningen (renderDetail) leser fortsatt kun fra content-
+  // tabellen, ikke fra data_json direkte - denne knappen henter/lagrer
+  // bare oppdatert kildedata, den "flettes" ikke inn i content ennå.
+  async function refreshSource(source, button){
+    const externalId = button.dataset.externalId;
+    const statusEl = document.getElementById("refreshStatus");
+    if (!externalId) return;
+
+    const allButtons = [document.getElementById("btnRefreshTmdb"), document.getElementById("btnRefreshTvdb")];
+    allButtons.forEach(b => b.disabled = true);
+    statusEl.className = "refreshStatus";
+    statusEl.textContent = `Henter fra ${source.toUpperCase()}…`;
+
+    try {
+      const res = await fetch(
+        "api.php?action=refresh_external_source&source=" + encodeURIComponent(source) +
+          "&external_id=" + encodeURIComponent(externalId),
+        { method: "POST" }
+      );
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
+
+      statusEl.className = "refreshStatus success";
+      statusEl.textContent = `${source.toUpperCase()} oppdatert (${json.fetched_at || "nå"}).`;
+      await loadDetail();
+    } catch (err) {
+      statusEl.className = "refreshStatus error";
+      statusEl.textContent = `Klarte ikke å oppdatere fra ${source.toUpperCase()}: ${err.message}`;
+      allButtons.forEach(b => b.disabled = false);
+    }
+  }
+
+  document.getElementById("btnRefreshTmdb").addEventListener("click", (e) => refreshSource("tmdb", e.currentTarget));
+  document.getElementById("btnRefreshTvdb").addEventListener("click", (e) => refreshSource("tvdb", e.currentTarget));
 
   loadDetail();
 </script>
