@@ -459,7 +459,9 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
                 temporary_flag,
                 content_type,
                 imdb_id,
-                overview
+                overview,
+                last_merged_source,
+                last_merged_at
             FROM content
             WHERE content_id = :content_id
             """
@@ -524,6 +526,10 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         "content_type": row.content_type,
         "imdb_id": row.imdb_id,
         "overview": row.overview,
+        "last_merged_source": row.last_merged_source,
+        "last_merged_at": (
+            str(row.last_merged_at)[:19] if row.last_merged_at is not None else None
+        ),
         "collections": collections,
         "physical_copies": physical_copies,
         "sources": [

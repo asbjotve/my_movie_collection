@@ -310,6 +310,7 @@ declare(strict_types=1);
           <button class="refreshBtn" id="btnRefreshTvdb" type="button" disabled>🔄 TVDB</button>
           <span class="refreshStatus" id="refreshStatus"></span>
         </div>
+        <div class="refreshStatus" id="lastMergedInfo"></div>
       </div>
 
       <div class="factsGrid" id="idsGrid">
@@ -572,6 +573,20 @@ declare(strict_types=1);
     btnTvdb.disabled = !tvdbSource?.external_id;
     btnTvdb.dataset.externalId = tvdbSource?.external_id || "";
 
+    // Viser hvilken kilde/tidspunkt content-dataene sist ble flettet
+    // inn fra, slik at det alltid er synlig - siden content-tabellen
+    // viser "gjeldende" data uansett kilde (se last_merged_source/
+    // last_merged_at i content-tabellen).
+    const lastMergedInfo = document.getElementById("lastMergedInfo");
+    if (item.last_merged_source && item.last_merged_at){
+      const [datePart, timePart] = item.last_merged_at.split(" ");
+      const formattedDate = datePart ? datePart.split("-").reverse().join(".") : item.last_merged_at;
+      lastMergedInfo.textContent =
+        `Data sist hentet fra ${item.last_merged_source.toUpperCase()} (${formattedDate}${timePart ? " " + timePart.slice(0, 5) : ""}).`;
+    } else {
+      lastMergedInfo.textContent = "Data er ikke flettet inn fra TMDB/TVDB ennå.";
+    }
+
     const overviewText = document.getElementById("overviewText");
     if (item.overview){
       overviewText.textContent = item.overview;
@@ -607,12 +622,11 @@ declare(strict_types=1);
   }
 
   // "Bytt data fra kilde"-knappene: ber backend hente fulle detaljer på
-  // nytt fra TMDB/TVDB (server-side) og lagre dem i
-  // content_external_source.data_json, deretter laster vi siden på nytt
-  // (loadDetail) slik at ev. endringer i overview/tittel osv. vises.
-  // NB: selve visningen (renderDetail) leser fortsatt kun fra content-
-  // tabellen, ikke fra data_json direkte - denne knappen henter/lagrer
-  // bare oppdatert kildedata, den "flettes" ikke inn i content ennå.
+  // nytt fra TMDB/TVDB (server-side), lagre dem i
+  // content_external_source.data_json, og deretter flette dem inn i
+  // content-tabellen (title/overview/runtime osv. - med mindre feltet
+  // er låst via content.locked_fields). Til slutt lastes siden på nytt
+  // (loadDetail) slik at endringene vises.
   async function refreshSource(source, button){
     const externalId = button.dataset.externalId;
     const statusEl = document.getElementById("refreshStatus");
@@ -624,16 +638,40 @@ declare(strict_types=1);
     statusEl.textContent = `Henter fra ${source.toUpperCase()}…`;
 
     try {
-      const res = await fetch(
+      const refreshRes = await fetch(
         "api.php?action=refresh_external_source&source=" + encodeURIComponent(source) +
           "&external_id=" + encodeURIComponent(externalId),
         { method: "POST" }
       );
-      const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
+      const refreshJson = await refreshRes.json();
+      if (!refreshRes.ok || refreshJson.error) {
+        throw new Error(refreshJson.error || refreshJson.detail || ("HTTP " + refreshRes.status));
+      }
+
+      statusEl.textContent = `Fletter inn fra ${source.toUpperCase()}…`;
+
+      const mergeRes = await fetch(
+        "api.php?action=merge_external_source&source=" + encodeURIComponent(source) +
+          "&external_id=" + encodeURIComponent(externalId),
+        { method: "POST" }
+      );
+      const mergeJson = await mergeRes.json();
+      if (!mergeRes.ok || mergeJson.error) {
+        throw new Error(mergeJson.error || mergeJson.detail || ("HTTP " + mergeRes.status));
+      }
+
+      const mergedFields = mergeJson.merged_fields || [];
+      const skippedFields = mergeJson.skipped_locked_fields || [];
+      let message = `${source.toUpperCase()} oppdatert (${refreshJson.fetched_at || "nå"}).`;
+      message += mergedFields.length
+        ? ` Flettet inn: ${mergedFields.join(", ")}.`
+        : " Ingen felt ble endret.";
+      if (skippedFields.length){
+        message += ` Låst (hoppet over): ${skippedFields.join(", ")}.`;
+      }
 
       statusEl.className = "refreshStatus success";
-      statusEl.textContent = `${source.toUpperCase()} oppdatert (${json.fetched_at || "nå"}).`;
+      statusEl.textContent = message;
       await loadDetail();
     } catch (err) {
       statusEl.className = "refreshStatus error";

@@ -64,6 +64,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
     exit;
 }
 
+// POST ?action=merge_external_source&source=tmdb|tvdb&external_id=...
+// Brukes rett etter refresh_external_source over: fletter sist lagrede
+// data_json for kilden inn i content-tabellen (title/overview/runtime
+// osv., med mindre feltet er låst via content.locked_fields) - se
+// POST /media/external-source/{source}/{external_id}/merge i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_external_source') {
+    $source = (string)($_GET['source'] ?? '');
+    $externalId = (string)($_GET['external_id'] ?? '');
+
+    if (!in_array($source, ['tmdb', 'tvdb'], true) || $externalId === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler eller ugyldig source/external_id-parameter']);
+        exit;
+    }
+
+    $mergeUrl = MEDIA_API_BASE_URL . '/media/external-source/' . rawurlencode($source) . '/' . rawurlencode($externalId) . '/merge';
+
+    $ch = curl_init($mergeUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Uten ?id=... hentes hele listen (GET /media/content), som før.
 // Med ?id=<hex content_id> hentes én enkelt rad for detaljsiden
 // (GET /media/content/{id}), brukt av detail.php.
