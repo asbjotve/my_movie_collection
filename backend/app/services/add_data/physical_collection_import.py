@@ -845,13 +845,16 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
                         f"Disc order {disc_payload['order']} has invalid related_index={related_index}"
                     )
 
-                target_collection_id = inner_case_collection_ids[related_index]
-                if target_collection_id is None:
-                    raise ValueError(
-                        f"Disc order {disc_payload['order']} points to movie index {related_index}, "
-                        "but that movie has no inner-case physical collection"
-                    )
-
+                # Filmen kan ha sin egen innerkasse (treat_as_single/
+                # inner_case_ean) - da havner discen der. Hvis ikke,
+                # ligger discen direkte i boks-samlingen (helt vanlig
+                # for boks-sett uten egne innerkasser), men beholder
+                # likevel koblingen til riktig film via
+                # related_content_id.
+                inner_collection_id = inner_case_collection_ids[related_index]
+                target_collection_id = (
+                    inner_collection_id if inner_collection_id is not None else box_collection_id
+                )
                 related_content_id = movie_content_ids[related_index]
 
             if not label:
