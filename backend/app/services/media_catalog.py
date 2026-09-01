@@ -42,7 +42,10 @@ def _parse_hex_id(content_id: str) -> bytes:
 
 
 def _load_physical_copies(
-    db: Session, collections: list[dict], raw_collection_ids: list[bytes]
+    db: Session,
+    collections: list[dict],
+    raw_collection_ids: list[bytes],
+    raw_content_id: bytes,
 ) -> list[dict]:
     """Bygger en flat liste over fysiske eksemplarer ("Samlingsopplysninger")
     for en films samlinger: ett `physical_copy` = ett eksemplar = én
@@ -103,6 +106,7 @@ def _load_physical_copies(
             di.collection_id AS collection_id,
             di.disc_id AS disc_id,
             di.box_set_disc_order AS box_set_disc_order,
+            di.related_content_id AS related_content_id,
             d.type_disc AS type_disc,
             d.format AS format,
             d.label AS label
@@ -115,11 +119,14 @@ def _load_physical_copies(
     disc_rows = db.execute(disc_stmt, {"ids": raw_collection_ids}).fetchall()
 
     disc_id_by_hex: dict[str, bytes] = {}
+    disc_legacy_related: dict[str, bytes] = {}
     discs_by_copy: dict[tuple[str, int], list[dict]] = {}
     for row in disc_rows:
         ck = _hex_id(row.collection_id)
         dk = _hex_id(row.disc_id)
         disc_id_by_hex[dk] = row.disc_id
+        if row.related_content_id is not None:
+            disc_legacy_related[dk] = row.related_content_id
         discs_by_copy.setdefault((ck, row.copy_id), []).append(
             {
                 "disc_id": dk,
@@ -176,6 +183,42 @@ def _load_physical_copies(
         for discs in discs_by_copy.values():
             for d in discs:
                 d["number_in_storage"] = storage_by_disc_hex.get(d["disc_id"])
+
+    # En delt boks-samling (content_in_physical_collection med flere
+    # titler) inneholder platene til ALLE filmene i boksen. Uten
+    # filtrering her ville f.eks. Wallace & Gromit (4 filmer, 2 plater
+    # a 2 filmer) vist begge platene på alle 4 filmenes detaljside.
+    # disc_related_content sier hvilke(n) film(er) hver plate faktisk
+    # tilhører - plater uten noen rader der regnes som "hele boksen"
+    # (f.eks. en ekstramaterialeplate) og vises for alle titler.
+    related_content_by_disc: dict[str, set[str]] = {}
+    if disc_id_by_hex:
+        related_stmt = text(
+            """
+            SELECT disc_id, content_id
+            FROM disc_related_content
+            WHERE disc_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True))
+        related_rows = db.execute(
+            related_stmt, {"ids": list(disc_id_by_hex.values())}
+        ).fetchall()
+        for row in related_rows:
+            dk = _hex_id(row.disc_id)
+            related_content_by_disc.setdefault(dk, set()).add(_hex_id(row.content_id))
+
+    content_id_hex = _hex_id(raw_content_id)
+    for key, discs in discs_by_copy.items():
+        kept = []
+        for d in discs:
+            dk = d["disc_id"]
+            related = related_content_by_disc.get(dk)
+            if related is None and dk in disc_legacy_related:
+                related = {_hex_id(disc_legacy_related[dk])}
+
+            if not related or content_id_hex in related:
+                kept.append(d)
+        discs_by_copy[key] = kept
 
     physical_copies: list[dict] = []
     for row in copy_rows:
@@ -281,6 +324,7 @@ def _load_box_set_items(db: Session, box_set_barcode: str) -> list[dict]:
             SELECT
                 di.collection_id AS collection_id,
                 di.disc_id AS disc_id,
+                di.related_content_id AS related_content_id,
                 d.format AS format,
                 d.label AS label
             FROM disc_in di
@@ -290,7 +334,9 @@ def _load_box_set_items(db: Session, box_set_barcode: str) -> list[dict]:
         ).bindparams(bindparam("ids", expanding=True)),
         {"ids": item_ids},
     ).fetchall()
-    disc_by_collection = {row.collection_id: row for row in disc_rows}
+    discs_by_collection: dict[bytes, list] = {}
+    for row in disc_rows:
+        discs_by_collection.setdefault(row.collection_id, []).append(row)
 
     storage_ids = [row.disc_id for row in disc_rows]
     storage_by_disc: dict[bytes, int] = {}
@@ -307,10 +353,43 @@ def _load_box_set_items(db: Session, box_set_barcode: str) -> list[dict]:
         ).fetchall()
         storage_by_disc = {row.disc_id: row.number_in_storage for row in storage_rows}
 
+    # Når flere titler deler samme collection_id (samme fysiske boks
+    # uten egne innerkasser, f.eks. Wallace & Gromit), holder det ikke
+    # å slå opp disc rett fra collection_id alene - da får alle
+    # filmene i boksen den samme (tilfeldige) platen. disc_related_content
+    # sier hvilken plate som faktisk tilhører hvilken film.
+    related_content_by_disc: dict[bytes, set[bytes]] = {}
+    if storage_ids:
+        related_rows = db.execute(
+            text(
+                """
+                SELECT disc_id, content_id
+                FROM disc_related_content
+                WHERE disc_id IN :ids
+                """
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": storage_ids},
+        ).fetchall()
+        for row in related_rows:
+            related_content_by_disc.setdefault(row.disc_id, set()).add(row.content_id)
+
+    def _pick_disc(collection_id: bytes, content_id: bytes):
+        for candidate in discs_by_collection.get(collection_id, []):
+            related = related_content_by_disc.get(candidate.disc_id)
+            if related is None and candidate.related_content_id is not None:
+                related = {candidate.related_content_id}
+            if not related or content_id in related:
+                return candidate
+        return None
+
     items = []
     for row in title_rows:
         item_collection_id = item_collection_by_content.get(row.content_id)
-        disc = disc_by_collection.get(item_collection_id) if item_collection_id else None
+        disc = (
+            _pick_disc(item_collection_id, row.content_id)
+            if item_collection_id
+            else None
+        )
         items.append(
             {
                 "content_id": _hex_id(row.content_id),
@@ -509,7 +588,7 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         for r in collection_rows
     ]
     physical_copies = _load_physical_copies(
-        db, collections, [r.collection_id for r in collection_rows]
+        db, collections, [r.collection_id for r in collection_rows], raw_id
     )
 
     return {
