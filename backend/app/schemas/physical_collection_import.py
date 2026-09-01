@@ -54,6 +54,7 @@ class BoxSetDiscPayload(BaseModel):
     storage_slot_no: Optional[int] = Field(default=None, ge=1)
     add_to_storage: bool = False
     related_index: Optional[int] = Field(default=None, ge=0)
+    related_indexes: Optional[List[int]] = Field(default=None)
     related_title: Optional[str] = None
     bonus_items: List[BonusItemPayload] = Field(default_factory=list)
 

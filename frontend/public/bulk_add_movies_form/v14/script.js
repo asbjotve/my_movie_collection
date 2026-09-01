@@ -458,18 +458,41 @@ function renumberBoxDiscOrders(boxSetRoot) {
   });
 }
 
+// Leser data-related-index som en liste med indekser. Støtter også det
+// gamle formatet (enkelt tall eller tom streng) fra tidligere lagrede
+// skjema-tilstander (localStorage), slik at ingenting går tapt.
+function getRelatedIndexes(tr) {
+  const raw = tr.getAttribute('data-related-index');
+  if (raw === null || raw === '') return [];
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  if (Array.isArray(parsed)) return parsed.filter(v => Number.isFinite(v));
+  if (Number.isFinite(parsed)) return [parsed];
+  return [];
+}
+
+function setRelatedIndexes(tr, indexes) {
+  setJsonAttr(tr, 'data-related-index', indexes || []);
+}
+
 function refreshBoxDiscRelatedLabels(boxSetRoot) {
   const movieRows = [...boxSetRoot.querySelectorAll('tbody[data-role="movies"] tr')];
 
   [...boxSetRoot.querySelectorAll('tbody[data-role="discs"] tr')].forEach(tr => {
-    const raw = tr.getAttribute('data-related-index');
-    let label = '';
-
-    if (raw !== null && raw !== '') {
-      const idx = Number(raw);
-      const movieRow = movieRows[idx];
-      label = movieRow ? movieRow.querySelector('input[name="title"]').value.trim() : '';
-    }
+    const indexes = getRelatedIndexes(tr);
+    const label = indexes
+      .map(idx => {
+        const movieRow = movieRows[idx];
+        return movieRow ? movieRow.querySelector('input[name="title"]').value.trim() : '';
+      })
+      .filter(Boolean)
+      .join(' + ');
 
     const cell = tr.querySelector('[data-role="disc-related"]');
     if (cell) cell.textContent = label;
@@ -481,9 +504,12 @@ function refreshBoxRelatedDropdown(boxSetRoot) {
     .map(tr => tr.querySelector('input[name="title"]').value.trim());
 
   const select = boxSetRoot.querySelector('select[name="disc_related"]');
+  const previouslySelected = new Set([...select.selectedOptions].map(o => o.value));
   select.innerHTML =
-    `<option value="">${escapeHtml(fmt('word.whole_box'))}</option>` +
     titles.map((title, i) => `<option value="${i}">${escapeHtml(title || fmt('fmt.untitled_n', { n: i + 1 }))}</option>`).join('');
+  [...select.options].forEach(opt => {
+    opt.selected = previouslySelected.has(opt.value);
+  });
 
   refreshBoxDiscRelatedLabels(boxSetRoot);
 }
@@ -535,20 +561,11 @@ function addBoxTitleRow(boxSetRoot, { title = '', imdb = '', tmdb = '', tvdb = '
     row.remove();
 
     [...boxSetRoot.querySelectorAll('tbody[data-role="discs"] tr')].forEach(discTr => {
-      const raw = discTr.getAttribute('data-related-index');
-      if (raw === null || raw === '') return;
-
-      let idx = Number(raw);
-      if (!Number.isFinite(idx)) {
-        discTr.setAttribute('data-related-index', '');
-        return;
-      }
-
-      if (idx === removedIndex) {
-        discTr.setAttribute('data-related-index', '');
-      } else if (idx > removedIndex) {
-        discTr.setAttribute('data-related-index', String(idx - 1));
-      }
+      const indexes = getRelatedIndexes(discTr);
+      const updated = indexes
+        .filter(idx => idx !== removedIndex)
+        .map(idx => (idx > removedIndex ? idx - 1 : idx));
+      setRelatedIndexes(discTr, updated);
     });
 
     renumberBoxOrders(tbody);
@@ -579,7 +596,7 @@ function addBoxDiscRow(boxSetRoot, {
   typeDisc = 'feature',
   format = 'BD',
   label = '',
-  relatedIndex = '',
+  relatedIndexes = [],
   relatedTitle = '',
   bonus_items = [],
   storage_slot_no = '',
@@ -591,7 +608,7 @@ function addBoxDiscRow(boxSetRoot, {
   const order = tbody.querySelectorAll('tr').length + 1;
 
   const row = el(`
-    <tr data-bonus-items="[]" data-related-index="${escapeHtml(relatedIndex)}" data-storage-slot-no="${escapeHtml(safeStorageSlotNo)}" data-add-to-storage="${add_to_storage ? '1' : '0'}">
+    <tr data-bonus-items="[]" data-storage-slot-no="${escapeHtml(safeStorageSlotNo)}" data-add-to-storage="${add_to_storage ? '1' : '0'}">
       <td class="muted">${order}</td>
       <td><span class="tag ${typeDisc === 'bonus' ? 'warn' : ''}" data-role="disc-type">${escapeHtml(typeDisc)}</span></td>
       <td data-role="disc-format">${escapeHtml(format)}</td>
@@ -604,6 +621,7 @@ function addBoxDiscRow(boxSetRoot, {
     </tr>
   `);
 
+  setRelatedIndexes(row, relatedIndexes);
   setJsonAttr(row, 'data-bonus-items', bonus_items || []);
 
   row.querySelector('button[aria-label]').addEventListener('click', () => {
@@ -739,9 +757,7 @@ function createBoxSetCard() {
           </div>
           <div class="field span-6">
             <label>${escapeHtml(fmt('label.related_movie'))}</label>
-            <select name="disc_related">
-              <option value="">${escapeHtml(fmt('word.whole_box'))}</option>
-            </select>
+            <select name="disc_related" multiple size="4"></select>
             <small>${escapeHtml(fmt('hint.related_movie'))}</small>
           </div>
           <div class="field span-3">
@@ -786,23 +802,26 @@ function createBoxSetCard() {
     const format = root.querySelector('select[name="disc_format"]').value;
     let label = root.querySelector('input[name="disc_label"]').value.trim();
     if (label === 'null' || label === 'NULL') label = '';
-    const relatedIdx = root.querySelector('select[name="disc_related"]').value;
+    const relatedSelect = root.querySelector('select[name="disc_related"]');
+    const relatedIndexes = [...relatedSelect.selectedOptions].map(o => Number(o.value));
     const storageSlotRaw = root.querySelector('input[name="disc_storage_slot_no"]').value.trim();
     const storage_slot_no = storageSlotRaw === '' ? null : Number(storageSlotRaw);
     const add_to_storage = root.querySelector('input[name="disc_add_to_storage"]').checked;
 
-    let relatedTitle = '';
-    if (relatedIdx !== '') {
-      const rows = root.querySelectorAll('tbody[data-role="movies"] tr');
-      const tr = rows[Number(relatedIdx)];
-      relatedTitle = tr ? tr.querySelector('input[name="title"]').value.trim() : '';
-    }
+    const rows = root.querySelectorAll('tbody[data-role="movies"] tr');
+    const relatedTitle = relatedIndexes
+      .map(idx => {
+        const tr = rows[idx];
+        return tr ? tr.querySelector('input[name="title"]').value.trim() : '';
+      })
+      .filter(Boolean)
+      .join(' + ');
 
     addBoxDiscRow(root, {
       typeDisc,
       format,
       label,
-      relatedIndex: relatedIdx,
+      relatedIndexes,
       relatedTitle,
       storage_slot_no,
       add_to_storage,
@@ -865,8 +884,7 @@ function readAllBoxSets() {
       const labelRaw = tr.querySelector('[data-role="disc-label"]')?.textContent ?? '';
       const label = labelRaw.trim() || null;
       const related_title = tr.querySelector('[data-role="disc-related"]')?.textContent?.trim() || null;
-      const relatedIndexRaw = tr.getAttribute('data-related-index');
-      const related_index = relatedIndexRaw === '' || relatedIndexRaw == null ? null : Number(relatedIndexRaw);
+      const related_indexes = getRelatedIndexes(tr);
       const bonus_items = getJsonAttr(tr, 'data-bonus-items', []);
       const storageSlotRaw = tr.getAttribute('data-storage-slot-no');
       const storage_slot_no = storageSlotRaw === '' || storageSlotRaw == null ? null : Number(storageSlotRaw);
@@ -879,7 +897,7 @@ function readAllBoxSets() {
         label,
         storage_slot_no,
         add_to_storage,
-        related_index,
+        related_indexes,
         related_title: related_title || null,
         bonus_items,
       };
@@ -928,7 +946,7 @@ function serializeState() {
       typeDisc: tr.querySelector('[data-role="disc-type"]')?.textContent?.trim() ?? 'feature',
       format: tr.querySelector('[data-role="disc-format"]')?.textContent?.trim() ?? 'BD',
       label: tr.querySelector('[data-role="disc-label"]')?.textContent?.trim() ?? '',
-      relatedIndex: tr.getAttribute('data-related-index') ?? '',
+      relatedIndexes: getRelatedIndexes(tr),
       relatedTitle: tr.querySelector('[data-role="disc-related"]')?.textContent?.trim() ?? '',
       storage_slot_no: tr.getAttribute('data-storage-slot-no') ?? '',
       add_to_storage: tr.getAttribute('data-add-to-storage') === '1',
@@ -994,7 +1012,11 @@ function restoreState(state) {
       typeDisc: disc.typeDisc,
       format: disc.format,
       label: disc.label ?? '',
-      relatedIndex: disc.relatedIndex ?? '',
+      relatedIndexes: Array.isArray(disc.relatedIndexes)
+        ? disc.relatedIndexes
+        : (disc.relatedIndex !== undefined && disc.relatedIndex !== '' && disc.relatedIndex !== null
+          ? [Number(disc.relatedIndex)]
+          : []),
       relatedTitle: disc.relatedTitle ?? '',
       storage_slot_no: disc.storage_slot_no ?? '',
       add_to_storage: !!disc.add_to_storage,
