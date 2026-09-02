@@ -13,6 +13,7 @@ er et unntak - se den funksjonen for begrunnelse.
 
 import json
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -992,5 +993,117 @@ def merge_content_from_source(db: Session, source: str, external_id: str) -> dic
         "merged_from_source": source,
         "merged_fields": sorted(fields_to_update.keys()),
         "skipped_locked_fields": skipped_locked_fields,
+    }
+
+
+# --- Massiv etterutfylling av cover_image fra TMDB ---------------------
+
+TMDB_MAX_REQUESTS_PER_SECOND = 35
+
+
+def backfill_tmdb_cover_images(db: Session) -> dict:
+    """Går gjennom alle content_external_source-rader med source='tmdb'
+    der tilhørende content-rad mangler cover_image (NULL), henter fulle
+    detaljer fra TMDB for hver og setter cover_image til posterbildet
+    hvis TMDB faktisk har en poster_path.
+
+    Rader der content allerede har cover_image hoppes over uten noe
+    TMDB-kall (billig/rask filtrering i selve spørringen). Rader der
+    'cover_image' står i content.locked_fields hoppes også over, av
+    samme grunn som i merge_content_from_source().
+
+    Overholder TMDB sin rate-grense (offisielt ~40 forespørsler/sekund)
+    ved å strupe til maks TMDB_MAX_REQUESTS_PER_SECOND forespørsler pr.
+    sekund (35, med litt margin), i enkle sekund-vise bolker.
+
+    Commiter én rad om gangen (ikke én stor transaksjon til slutt) -
+    ved en lang kjøring med mange rader vil da alt som er unnagjort
+    fram til et evt. avbrudd/API-feil bli stående, i stedet for å gå
+    tapt.
+    """
+
+    candidates = db.execute(
+        text(
+            """
+            SELECT
+                ces.content_id AS content_id,
+                ces.external_id AS external_id,
+                c.content_type AS content_type,
+                c.locked_fields AS locked_fields
+            FROM content_external_source ces
+            JOIN content c ON c.content_id = ces.content_id
+            WHERE ces.source = 'tmdb'
+              AND c.cover_image IS NULL
+            """
+        )
+    ).fetchall()
+
+    total_candidates = len(candidates)
+    updated = 0
+    skipped_locked = 0
+    skipped_no_poster = 0
+    errors: list[dict] = []
+
+    batch_start = time.monotonic()
+    requests_in_batch = 0
+
+    for row in candidates:
+        locked_fields = set(
+            json.loads(row.locked_fields) if row.locked_fields else []
+        )
+        if "cover_image" in locked_fields:
+            skipped_locked += 1
+            continue
+
+        if requests_in_batch >= TMDB_MAX_REQUESTS_PER_SECOND:
+            elapsed = time.monotonic() - batch_start
+            if elapsed < 1.0:
+                time.sleep(1.0 - elapsed)
+            batch_start = time.monotonic()
+            requests_in_batch = 0
+
+        content_id_hex = _hex_id(row.content_id)
+        try:
+            data = fetch_tmdb_details(row.external_id, row.content_type or "movie")
+        except ExternalApiError as e:
+            errors.append(
+                {
+                    "content_id": content_id_hex,
+                    "external_id": row.external_id,
+                    "error": str(e),
+                }
+            )
+            requests_in_batch += 1
+            continue
+
+        requests_in_batch += 1
+
+        poster_path = data.get("poster_path")
+        if not poster_path:
+            skipped_no_poster += 1
+            continue
+
+        cover_image = f"{TMDB_IMAGE_BASE_URL}{poster_path}"
+
+        db.execute(
+            text(
+                """
+                UPDATE content
+                SET cover_image = :cover_image
+                WHERE content_id = :content_id AND cover_image IS NULL
+                """
+            ),
+            {"cover_image": cover_image, "content_id": row.content_id},
+        )
+        db.commit()
+        updated += 1
+
+    return {
+        "status": "ok",
+        "total_candidates": total_candidates,
+        "updated": updated,
+        "skipped_locked": skipped_locked,
+        "skipped_no_poster": skipped_no_poster,
+        "errors": errors,
     }
 

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.media_db import get_media_db
 from app.services.media_catalog import (
     ContentExternalSourceError,
+    backfill_tmdb_cover_images,
     get_content_by_id,
     list_content,
     merge_content_from_source,
@@ -90,3 +91,20 @@ def merge_external_source(
         return merge_content_from_source(db, source=source, external_id=external_id)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/backfill/tmdb-covers")
+def backfill_tmdb_covers(db: Session = Depends(get_media_db)):
+    """Henter cover_image (posterbilde) fra TMDB for alle content-rader
+    som har en source='tmdb'-kobling i content_external_source, men som
+    ennå mangler cover_image (NULL) i content-tabellen.
+
+    Rader som allerede har cover_image, eller der 'cover_image' står i
+    content.locked_fields, hoppes over uten TMDB-kall. Overholder TMDB
+    sin rate-grense (strupet til 35 forespørsler/sekund).
+
+    Dette er en engangs-/etterutfyllingsjobb, ikke en del av den vanlige
+    "hent/flett fra kilde"-flyten per film - kjøres manuelt ved behov
+    (f.eks. etter en stor bulk-import).
+    """
+    return backfill_tmdb_cover_images(db)
