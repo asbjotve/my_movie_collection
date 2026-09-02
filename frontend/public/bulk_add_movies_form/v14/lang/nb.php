@@ -117,7 +117,7 @@ return [
             'quick_add' => 'Oppretter en ny single-rad med tittelen ferdig utfylt.',
             'discs_html' => 'Hver enkeltutgivelse må ha minst én <strong>feature</strong>-disc før innsending.',
             'boxsets' => 'Legg til ett eller flere boks-sett og send dem samlet som én payload.',
-            'related_movie' => 'Tomt felt betyr at discen tilhører hele boksen.',
+            'related_movie' => 'Velg én eller flere titler (ctrl/cmd+klikk for flere). Ingen valgt betyr at discen tilhører hele boksen.',
             'send_api' => 'Forhåndsvisning viser nøyaktig JSON-form. «Send til API» poster samme payload til backend.',
             'search' => 'Tips: ta med årstall, for eksempel «Titanic 1997».',
             'search_tvdb' => 'Velg riktig treff for å fylle inn TVDB-ID automatisk.',

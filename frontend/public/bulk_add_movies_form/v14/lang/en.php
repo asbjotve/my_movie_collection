@@ -117,7 +117,7 @@ return [
             'quick_add' => 'Creates a new single row with the title prefilled.',
             'discs_html' => 'Each single release must contain at least one <strong>feature</strong> disc before sending.',
             'boxsets' => 'Add one or more box sets and send them together as one payload.',
-            'related_movie' => 'Empty means that the disc belongs to the whole box set.',
+            'related_movie' => 'Select one or more titles (ctrl/cmd+click for several). None selected means the disc belongs to the whole box set.',
             'send_api' => 'Preview keeps the exact JSON shape. Send posts the same payload to the backend API.',
             'search' => 'Tip: include a year, for example “Titanic 1997”.',
             'search_tvdb' => 'Pick the correct match to fill in the TVDB ID automatically.',

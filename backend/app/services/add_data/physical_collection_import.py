@@ -464,6 +464,21 @@ def _create_disc_in(
     )
 
 
+def _set_disc_related_content(
+    db: Session,
+    disc_id: bytes,
+    content_ids: list[bytes],
+) -> None:
+    for content_id in content_ids:
+        db.execute(
+            text("""
+                INSERT INTO disc_related_content (disc_id, content_id)
+                VALUES (:disc_id, :content_id)
+            """),
+            {"disc_id": disc_id, "content_id": content_id},
+        )
+
+
 def _create_bonus_items(
     db: Session,
     disc_id: bytes,
@@ -662,6 +677,12 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
                     related_content_id=content_id,
                 )
 
+                _set_disc_related_content(
+                    db=db,
+                    disc_id=disc_id,
+                    content_ids=[content_id],
+                )
+
                 created_bonus_items += _create_bonus_items(
                     db=db,
                     disc_id=disc_id,
@@ -827,35 +848,46 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
         ordered_discs = sorted(discs, key=lambda d: d["order"])
 
         for disc_payload in ordered_discs:
-            related_index = disc_payload.get("related_index")
+            # related_indexes (liste) er ny og gjeldende form; related_index
+            # (enkelttall) er den gamle formen og støttes fortsatt for
+            # bakoverkompatibilitet med tidligere lagrede payloads.
+            related_indexes_raw = disc_payload.get("related_indexes")
+            if related_indexes_raw is None:
+                legacy_related_index = disc_payload.get("related_index")
+                related_indexes = [legacy_related_index] if legacy_related_index is not None else []
+            else:
+                related_indexes = list(related_indexes_raw)
+
             related_title = disc_payload.get("related_title")
             label = _normalize_label(disc_payload.get("label"))
             add_to_storage = bool(disc_payload.get("add_to_storage", False))
             storage_slot_no = disc_payload.get("storage_slot_no")
 
-            target_collection_id: bytes
-            related_content_id: Optional[bytes]
-
-            if related_index is None:
-                target_collection_id = box_collection_id
-                related_content_id = None
-            else:
-                if related_index < 0 or related_index >= len(movie_content_ids):
+            for idx in related_indexes:
+                if idx < 0 or idx >= len(movie_content_ids):
                     raise ValueError(
-                        f"Disc order {disc_payload['order']} has invalid related_index={related_index}"
+                        f"Disc order {disc_payload['order']} has invalid related index={idx}"
                     )
 
-                # Filmen kan ha sin egen innerkasse (treat_as_single/
-                # inner_case_ean) - da havner discen der. Hvis ikke,
-                # ligger discen direkte i boks-samlingen (helt vanlig
-                # for boks-sett uten egne innerkasser), men beholder
-                # likevel koblingen til riktig film via
-                # related_content_id.
-                inner_collection_id = inner_case_collection_ids[related_index]
-                target_collection_id = (
-                    inner_collection_id if inner_collection_id is not None else box_collection_id
-                )
-                related_content_id = movie_content_ids[related_index]
+            if not related_indexes:
+                target_collection_id = box_collection_id
+                related_content_ids: list[bytes] = []
+            else:
+                # Hvis (minst) én av de relaterte filmene har sin egen
+                # innerkasse (treat_as_single/inner_case_ean), havner
+                # discen der. Hvis ikke, ligger discen direkte i
+                # boks-samlingen (helt vanlig for boks-sett uten egne
+                # innerkasser, eller for plater som deles av flere
+                # filmer), men beholder likevel koblingen til riktig
+                # film/filmer via disc_related_content.
+                target_collection_id = box_collection_id
+                for idx in related_indexes:
+                    inner_collection_id = inner_case_collection_ids[idx]
+                    if inner_collection_id is not None:
+                        target_collection_id = inner_collection_id
+                        break
+
+                related_content_ids = [movie_content_ids[idx] for idx in related_indexes]
 
             if not label:
                 label = _default_box_disc_label(
@@ -879,8 +911,15 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
                     copy_id=copy_id,
                     disc_id=disc_id,
                     box_set_disc_order=disc_payload["order"],
-                    related_content_id=related_content_id,
+                    related_content_id=related_content_ids[0] if related_content_ids else None,
                 )
+
+                if related_content_ids:
+                    _set_disc_related_content(
+                        db=db,
+                        disc_id=disc_id,
+                        content_ids=related_content_ids,
+                    )
 
                 created_bonus_items += _create_bonus_items(
                     db=db,
