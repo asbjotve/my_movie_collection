@@ -649,6 +649,130 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
     }
 
 
+def list_content_covers(db: Session, content_id: str) -> dict | None:
+    """Lister alle tilgjengelige TMDB-postere for en content-rad, hentet
+    fra den sist lagrede content_external_source.data_json (source='tmdb').
+
+    Krever ingen nye TMDB-kall - fetch_tmdb_details() ber allerede om
+    append_to_response=images, så data_json inneholder som regel et
+    images.posters-array med flere posterbilder (ikke bare det ene som
+    ligger i content.cover_image).
+
+    Returnerer None hvis content_id ikke finnes. Returnerer en tom
+    posters-liste (ikke None) hvis content finnes, men enten mangler en
+    tmdb-kobling eller data_json ikke har noen postere.
+    """
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        return None
+
+    content_row = db.execute(
+        text("SELECT content_id, cover_image FROM content WHERE content_id = :content_id"),
+        {"content_id": raw_id},
+    ).fetchone()
+
+    if content_row is None:
+        return None
+
+    source_row = db.execute(
+        text(
+            """
+            SELECT data_json
+            FROM content_external_source
+            WHERE content_id = :content_id AND source = 'tmdb'
+            """
+        ),
+        {"content_id": raw_id},
+    ).fetchone()
+
+    current_cover = _to_proxied_cover_image(content_row.cover_image)
+
+    posters: list[dict] = []
+    if source_row is not None and source_row.data_json is not None:
+        data = json.loads(source_row.data_json)
+        for poster in data.get("images", {}).get("posters", []):
+            file_path = poster.get("file_path")
+            if not file_path:
+                continue
+            proxied = _to_proxied_cover_image(f"{TMDB_IMAGE_BASE_URL}{file_path}")
+            posters.append(
+                {
+                    "file_path": file_path,
+                    "cover_image": proxied,
+                    "width": poster.get("width"),
+                    "height": poster.get("height"),
+                    "language": poster.get("iso_639_1"),
+                    "is_current": proxied == current_cover,
+                }
+            )
+
+    return {
+        "content_id": content_id,
+        "current_cover_image": current_cover,
+        "posters": posters,
+    }
+
+
+def set_content_cover_image(db: Session, content_id: str, file_path: str) -> dict:
+    """Setter content.cover_image til et av posterbildene fra
+    list_content_covers() (identifisert via TMDB sin file_path, f.eks.
+    '/abc123.jpg'), og legger 'cover_image' til i content.locked_fields
+    slik at senere merge/backfill fra TMDB ikke overskriver det manuelle
+    valget.
+
+    Kaster ContentExternalSourceError (404) hvis content ikke finnes.
+    """
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        raise ContentExternalSourceError("Ugyldig content_id", status_code=404)
+
+    content_row = db.execute(
+        text("SELECT content_id, locked_fields FROM content WHERE content_id = :content_id"),
+        {"content_id": raw_id},
+    ).fetchone()
+
+    if content_row is None:
+        raise ContentExternalSourceError(
+            "Fant ikke content med denne IDen", status_code=404
+        )
+
+    if not file_path.startswith("/"):
+        file_path = f"/{file_path}"
+
+    cover_image = f"{TMDB_IMAGE_BASE_URL}{file_path}"
+
+    locked_fields = set(
+        json.loads(content_row.locked_fields) if content_row.locked_fields else []
+    )
+    locked_fields.add("cover_image")
+
+    db.execute(
+        text(
+            """
+            UPDATE content
+            SET cover_image = :cover_image, locked_fields = :locked_fields
+            WHERE content_id = :content_id
+            """
+        ),
+        {
+            "cover_image": cover_image,
+            "locked_fields": json.dumps(sorted(locked_fields)),
+            "content_id": raw_id,
+        },
+    )
+    db.commit()
+
+    return {
+        "status": "ok",
+        "content_id": content_id,
+        "cover_image": _to_proxied_cover_image(cover_image),
+    }
+
+
 def update_content_external_source(
     db: Session,
     source: str,

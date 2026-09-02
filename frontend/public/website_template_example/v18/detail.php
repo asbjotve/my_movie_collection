@@ -298,6 +298,7 @@ declare(strict_types=1);
       <div class="poster" id="posterBox">
         <div class="coverBadge" id="posterBadge"></div>
       </div>
+      <button class="refreshBtn" id="btnChooseCover" type="button" style="margin-top:8px; width:100%;" disabled>🖼️ Bytt cover</button>
       <div class="ownershipBadges" id="ownershipBadges"></div>
     </div>
 
@@ -362,6 +363,47 @@ declare(strict_types=1);
     </div>
   </div>
 </main>
+
+<!--
+  "Bytt cover"-modal: NB - foreløpig uten noen tilgangssperre. Ekte
+  brukerroller/innlogging finnes ikke ennå i appen (se "Administrering"
+  🔒 i menyen over), så dette endepunktet/knappen er tilgjengelig for
+  alle inntil videre. Flytt/lås dette bak ekte admin-tilgang når
+  brukerroller er på plass.
+-->
+<div id="coverModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox">
+    <div class="modalHeader">
+      <h3>Velg cover</h3>
+      <button type="button" id="btnCloseCoverModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <div id="coverModalStatus" class="refreshStatus"></div>
+    <div id="coverModalGrid" class="coverGrid"></div>
+  </div>
+</div>
+
+<style>
+  .modalOverlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .modalBox {
+    background: var(--panel, #1c1f26); border-radius: 10px; padding: 20px;
+    max-width: 820px; width: 92%; max-height: 82vh; overflow-y: auto;
+  }
+  .modalHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .modalCloseBtn { background: none; border: none; color: inherit; font-size: 22px; cursor: pointer; line-height: 1; }
+  .coverGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-top: 10px; }
+  .coverThumb {
+    cursor: pointer; border-radius: 6px; overflow: hidden; border: 2px solid transparent;
+    aspect-ratio: 2/3; background-size: cover; background-position: center; position: relative;
+  }
+  .coverThumb.current { border-color: var(--accent, #5b8def); }
+  .coverThumb .currentLabel {
+    position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.7);
+    color: #fff; font-size: 11px; text-align: center; padding: 2px 0;
+  }
+</style>
 
 <script>
   function escapeHtml(s){
@@ -608,6 +650,10 @@ declare(strict_types=1);
     renderOwnershipBadges(item);
     renderCollectionTab(item);
 
+    // "Bytt cover"-knappen krever bare at content finnes (contentId er
+    // allerede kjent fra URL-en) - ingen ekstra betingelse.
+    document.getElementById("btnChooseCover").disabled = false;
+
     detailStatus.style.display = "none";
     detailLayout.style.display = "grid";
     tabSection.style.display = "block";
@@ -691,6 +737,82 @@ declare(strict_types=1);
 
   document.getElementById("btnRefreshTmdb").addEventListener("click", (e) => refreshSource("tmdb", e.currentTarget));
   document.getElementById("btnRefreshTvdb").addEventListener("click", (e) => refreshSource("tvdb", e.currentTarget));
+
+  // "Bytt cover"-modal: henter alle tilgjengelige TMDB-postere for
+  // filmen (fra sist lagrede data_json - ingen nye TMDB-kall) og lar
+  // brukeren velge et av dem som nytt cover_image.
+  const coverModalOverlay = document.getElementById("coverModalOverlay");
+  const coverModalGrid = document.getElementById("coverModalGrid");
+  const coverModalStatus = document.getElementById("coverModalStatus");
+
+  function closeCoverModal(){
+    coverModalOverlay.style.display = "none";
+    coverModalGrid.innerHTML = "";
+    coverModalStatus.textContent = "";
+    coverModalStatus.className = "refreshStatus";
+  }
+
+  async function openCoverModal(){
+    coverModalOverlay.style.display = "flex";
+    coverModalGrid.innerHTML = "";
+    coverModalStatus.className = "refreshStatus";
+    coverModalStatus.textContent = "Laster postere…";
+
+    try {
+      const res = await fetch("api.php?action=list_covers&id=" + encodeURIComponent(contentId));
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
+
+      if (!json.posters || json.posters.length === 0){
+        coverModalStatus.textContent = "Ingen alternative postere funnet fra TMDB for denne filmen.";
+        return;
+      }
+
+      coverModalStatus.textContent = `${json.posters.length} postere tilgjengelig - klikk for å velge.`;
+      coverModalGrid.innerHTML = json.posters.map(p => `
+        <div class="coverThumb ${p.is_current ? "current" : ""}"
+             style="background-image:url('${p.cover_image.replace(/'/g, "%27")}')"
+             data-file-path="${escapeHtml(p.file_path)}">
+          ${p.is_current ? '<div class="currentLabel">Gjeldende</div>' : ""}
+        </div>
+      `).join("");
+
+      coverModalGrid.querySelectorAll(".coverThumb").forEach(el => {
+        el.addEventListener("click", () => setCover(el.dataset.filePath));
+      });
+    } catch (err) {
+      coverModalStatus.className = "refreshStatus error";
+      coverModalStatus.textContent = "Klarte ikke å hente postere: " + err.message;
+    }
+  }
+
+  async function setCover(filePath){
+    coverModalStatus.className = "refreshStatus";
+    coverModalStatus.textContent = "Setter nytt cover…";
+    try {
+      const res = await fetch("api.php?action=set_cover&id=" + encodeURIComponent(contentId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_path: filePath }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
+
+      coverModalStatus.className = "refreshStatus success";
+      coverModalStatus.textContent = "Cover oppdatert.";
+      await loadDetail();
+      closeCoverModal();
+    } catch (err) {
+      coverModalStatus.className = "refreshStatus error";
+      coverModalStatus.textContent = "Klarte ikke å sette cover: " + err.message;
+    }
+  }
+
+  document.getElementById("btnChooseCover").addEventListener("click", openCoverModal);
+  document.getElementById("btnCloseCoverModal").addEventListener("click", closeCoverModal);
+  coverModalOverlay.addEventListener("click", (e) => {
+    if (e.target === coverModalOverlay) closeCoverModal();
+  });
 
   loadDetail();
 </script>

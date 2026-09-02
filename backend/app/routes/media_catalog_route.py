@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.media_db import get_media_db
@@ -7,9 +8,16 @@ from app.services.media_catalog import (
     backfill_tmdb_cover_images,
     get_content_by_id,
     list_content,
+    list_content_covers,
     merge_content_from_source,
+    set_content_cover_image,
     update_content_external_source,
 )
+
+
+class SetCoverImagePayload(BaseModel):
+    file_path: str
+
 
 router = APIRouter(
     prefix="/media",
@@ -108,3 +116,32 @@ def backfill_tmdb_covers(db: Session = Depends(get_media_db)):
     (f.eks. etter en stor bulk-import).
     """
     return backfill_tmdb_cover_images(db)
+
+
+@router.get("/content/{content_id}/covers")
+def get_content_covers(content_id: str, db: Session = Depends(get_media_db)):
+    """Lister alle TMDB-postere som er tilgjengelige for en content-rad
+    (hentet fra sist lagrede data_json, ingen nye TMDB-kall gjøres),
+    slik at man kan velge et annet cover enn det som er satt automatisk.
+    """
+    result = list_content_covers(db, content_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Fant ikke content med denne IDen")
+    return result
+
+
+@router.post("/content/{content_id}/cover")
+def set_content_cover(
+    content_id: str,
+    payload: SetCoverImagePayload,
+    db: Session = Depends(get_media_db),
+):
+    """Setter cover_image for en content-rad til et av posterbildene fra
+    GET /content/{content_id}/covers (identifisert via TMDB sin
+    file_path). Låser samtidig 'cover_image' i content.locked_fields,
+    slik at senere merge/backfill fra TMDB ikke overskriver valget.
+    """
+    try:
+        return set_content_cover_image(db, content_id, payload.file_path)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
