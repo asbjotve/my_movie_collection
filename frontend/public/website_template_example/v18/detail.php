@@ -529,6 +529,15 @@ declare(strict_types=1);
   function renderDetail(item){
     document.title = item.title + " – Media-katalog (v18)";
 
+    const posterBox = document.getElementById("posterBox");
+    if (item.cover_image){
+      posterBox.style.backgroundImage = `url('${item.cover_image.replace(/'/g, "%27")}')`;
+      posterBox.style.backgroundSize = "cover";
+      posterBox.style.backgroundPosition = "center";
+    } else {
+      posterBox.style.backgroundImage = "";
+    }
+
     document.getElementById("posterBadge").textContent = (item.content_type || "").toUpperCase();
     document.getElementById("dTitle").textContent = item.title || "(uten tittel)";
 

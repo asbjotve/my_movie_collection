@@ -442,7 +442,7 @@ $sectionAccess = [
   function renderMineFilmerGrid(items){
     mineFilmerGrid.innerHTML = items.map(item => `
       <div class="card" data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
-        <div class="cover">
+        <div class="cover" ${item.cover_image ? `style="background-image:url('${escapeHtml(item.cover_image)}');background-size:cover;background-position:center;"` : ""}>
           <div class="coverBadge">${escapeHtml((item.content_type || "").toUpperCase())}</div>
         </div>
         <div class="meta">

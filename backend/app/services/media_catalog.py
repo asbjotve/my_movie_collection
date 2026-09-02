@@ -12,6 +12,7 @@ er et unntak - se den funksjonen for begrunnelse.
 """
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -39,6 +40,27 @@ def _hex_id(raw: bytes) -> str:
 
 def _parse_hex_id(content_id: str) -> bytes:
     return uuid.UUID(hex=content_id).bytes
+
+
+# Egen selvhostet cache-/proxy-tjeneste (se ~/program_packs/tmdb-cache)
+# foran image.tmdb.org - forsinker/skjuler direkte avhengighet av TMDB
+# sin bilde-CDN og cacher lokalt. Kun TMDB-bilder rutes om her; TVDB sin
+# cover_image (data["image"]) er allerede en direkte, fullstendig URL og
+# proxies ikke.
+TMDB_IMAGE_HOST_PATTERN = re.compile(r"^https://image\.tmdb\.org/t/p/([^/]+)/(.+)$")
+TMDB_IMAGE_PROXY_BASE_URL = "https://tmdb.media.plexcity.net/poster"
+
+
+def _to_proxied_cover_image(cover_image: str | None) -> str | None:
+    if not cover_image:
+        return cover_image
+
+    match = TMDB_IMAGE_HOST_PATTERN.match(cover_image)
+    if not match:
+        return cover_image
+
+    size, file_name = match.groups()
+    return f"{TMDB_IMAGE_PROXY_BASE_URL}/{size}/{file_name}"
 
 
 def _load_physical_copies(
@@ -425,7 +447,8 @@ def list_content(db: Session) -> list[dict]:
                 watched_flag,
                 temporary_flag,
                 content_type,
-                imdb_id
+                imdb_id,
+                cover_image
             FROM content
             ORDER BY title ASC
             """
@@ -502,6 +525,7 @@ def list_content(db: Session) -> list[dict]:
                 "temporary_flag": bool(row.temporary_flag),
                 "content_type": row.content_type,
                 "imdb_id": row.imdb_id,
+                "cover_image": _to_proxied_cover_image(row.cover_image),
                 "collections": collections_by_content.get(content_id, []),
                 "sources": sources_by_content.get(content_id, []),
             }
@@ -539,6 +563,7 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
                 content_type,
                 imdb_id,
                 overview,
+                cover_image,
                 last_merged_source,
                 last_merged_at
             FROM content
@@ -605,6 +630,7 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         "content_type": row.content_type,
         "imdb_id": row.imdb_id,
         "overview": row.overview,
+        "cover_image": _to_proxied_cover_image(row.cover_image),
         "last_merged_source": row.last_merged_source,
         "last_merged_at": (
             str(row.last_merged_at)[:19] if row.last_merged_at is not None else None
