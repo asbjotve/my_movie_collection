@@ -23,18 +23,17 @@ declare(strict_types=1);
  *  endres mye - bare api.php sitt endepunkt-navn/felter.
  * ============================================================
  *
- *  FREMTIDIG INNLOGGING – HVOR SKAL DEN KOBLES INN?
- *  Når prosjektet får ekte innlogging, er dette stedet å legge inn en
- *  sjekk, f.eks.:
+ *  INNLOGGING – NÅ IMPLEMENTERT (for "Administrering")
+ *  auth.php gir is_logged_in()/current_username(), backet av en ekte
+ *  JWT+2FA-innlogging mot backend (se
+ *  backend/app/routes/auth_route.py) og en vanlig PHP-sesjon
+ *  (login.php/logout.php). "Administrering" bruker nå
+ *  $sectionAccess['administrering'] = !$isLoggedIn - altså faktisk
+ *  ulåst når noen er innlogget, ikke bare et visuelt hengelås-ikon.
  *
- *      require_once __DIR__ . '/auth.php';
- *      $currentUser = require_login(); // redirect til /login.php hvis ikke innlogget
- *
- *  Menypunktene "Andre lister" og "Administrering" er de mest naturlige
- *  kandidatene til å kreve innlogging (evt. skjules helt for
- *  ikke-innloggede brukere i stedet for bare å vises som "låst" slik de
- *  gjør nå). "Mine filmer" og "Ønskeliste" kan trolig forbli åpne,
- *  avhengig av om løsningen skal være hel-privat eller delvis offentlig.
+ *  "Andre lister" og "Ønskeliste" er fortsatt kun visuelt låst
+ *  (plassholder) - kan kobles til samme is_logged_in()-sjekk senere på
+ *  samme måte som Administrering, hvis/når de får ekte innhold.
  * ============================================================
  *
  *  KONFIGURERBAR TILGANG PER MENYPUNKT
@@ -47,13 +46,15 @@ declare(strict_types=1);
  * ============================================================
  */
 
-$isLoggedIn = false; // Plassholder – finnes ingen ekte innloggingsløsning ennå.
+require_once __DIR__ . '/auth.php';
+
+$isLoggedIn = is_logged_in();
 
 $sectionAccess = [
     'mine_filmer'    => false, // åpen
     'onskeliste'     => true,  // låst (konfigurerbar – kan settes til false)
     'andre_lister'   => true,  // låst
-    'administrering' => true,  // låst
+    'administrering' => !$isLoggedIn, // låst helt til noen faktisk er innlogget
 ];
 ?>
 <!doctype html>
@@ -311,7 +312,12 @@ $sectionAccess = [
   </nav>
   <div class="authState">
     <span class="dot"></span>
-    <?= $isLoggedIn ? 'Innlogget' : 'Ikke innlogget (kommer senere)' ?>
+    <?php if ($isLoggedIn): ?>
+      Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>
+      · <a href="/website_template_example/v18/logout.php" style="color:inherit;">Logg ut</a>
+    <?php else: ?>
+      Ikke innlogget · <a href="/website_template_example/v18/login.php" style="color:inherit;">Logg inn</a>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -379,34 +385,40 @@ $sectionAccess = [
   <!-- ============ ADMINISTRERING ============ -->
   <section class="panel" id="panel-administrering">
     <h2 class="pageTitle">Administrering</h2>
-    <p class="pageHint">Plassholder – handlinger er deaktivert inntil innlogging finnes.</p>
+    <?php if ($isLoggedIn): ?>
+      <p class="pageHint">Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>. Handlingene under er fortsatt plassholdere i denne malen (selve funksjonene finnes andre steder i prosjektet ennå), men panelet er nå faktisk ulåst for deg.</p>
+    <?php else: ?>
+      <p class="pageHint">Krever innlogging. <a href="/website_template_example/v18/login.php" style="color:var(--accent);">Logg inn</a> for å få tilgang.</p>
+    <?php endif; ?>
     <div class="adminGrid">
       <div class="adminCard">
-        <span class="lockedBadge">Låst</span>
+        <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
         <h3>Legg til film</h3>
         <p>Manuell registrering av nye filmer/serier i katalogen.</p>
       </div>
       <div class="adminCard">
-        <span class="lockedBadge">Låst</span>
+        <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
         <h3>Rediger lister</h3>
         <p>Opprett, endre eller slett egendefinerte lister.</p>
       </div>
       <div class="adminCard">
-        <span class="lockedBadge">Låst</span>
+        <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
         <h3>Brukere</h3>
         <p>Administrer hvem som har tilgang til løsningen.</p>
       </div>
       <div class="adminCard">
-        <span class="lockedBadge">Låst</span>
+        <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
         <h3>Systemstatus</h3>
         <p>Enkel oversikt over database/API-tilkobling.</p>
       </div>
     </div>
+    <?php if (!$isLoggedIn): ?>
     <div class="noteBox">
       🔒 <strong>Vurdering:</strong> "Administrering" bør nesten helt sikkert kreve
       innlogging – dette er stedet hvor data kan endres/slettes, i motsetning til
       "Mine filmer"/"Ønskeliste" som trolig bare viser data.
     </div>
+    <?php endif; ?>
   </section>
 
 </main>
