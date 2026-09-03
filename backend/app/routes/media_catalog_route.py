@@ -2,7 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api_key import require_api_key
+from app.db import User
 from app.media_db import get_media_db
+from app.security import get_current_user
 from app.services.media_catalog import (
     ContentExternalSourceError,
     backfill_tmdb_cover_images,
@@ -25,7 +28,7 @@ router = APIRouter(
 )
 
 
-@router.get("/content")
+@router.get("/content", dependencies=[Depends(require_api_key)])
 def get_content(db: Session = Depends(get_media_db)):
     """Alle content-rader (media-katalogen), med fysiske utgaver og
     eksterne kilder gruppert inn per rad.
@@ -37,7 +40,7 @@ def get_content(db: Session = Depends(get_media_db)):
     return list_content(db)
 
 
-@router.get("/content/{content_id}")
+@router.get("/content/{content_id}", dependencies=[Depends(require_api_key)])
 def get_content_detail(content_id: str, db: Session = Depends(get_media_db)):
     """Én content-rad (detaljvisning), med fysiske utgaver og eksterne
     kilder. content_id er 32-tegns hex (samme form som feltet i
@@ -54,6 +57,7 @@ def patch_content_external_source(
     source: str,
     external_id: str,
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Oppdaterer data_json for en eksisterende content_external_source-rad,
     identifisert kun via source ('tmdb' eller 'tvdb') og external_id -
@@ -83,6 +87,7 @@ def merge_external_source(
     source: str,
     external_id: str,
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Fletter sist lagrede data_json for (source, external_id) inn i
     tilhørende content-rad (title, overview, runtime osv.), med mindre
@@ -102,7 +107,10 @@ def merge_external_source(
 
 
 @router.post("/backfill/tmdb-covers")
-def backfill_tmdb_covers(db: Session = Depends(get_media_db)):
+def backfill_tmdb_covers(
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
     """Henter cover_image (posterbilde) fra TMDB for alle content-rader
     som har en source='tmdb'-kobling i content_external_source, men som
     ennå mangler cover_image (NULL) i content-tabellen.
@@ -118,7 +126,7 @@ def backfill_tmdb_covers(db: Session = Depends(get_media_db)):
     return backfill_tmdb_cover_images(db)
 
 
-@router.get("/content/{content_id}/covers")
+@router.get("/content/{content_id}/covers", dependencies=[Depends(require_api_key)])
 def get_content_covers(content_id: str, db: Session = Depends(get_media_db)):
     """Lister alle TMDB-postere som er tilgjengelige for en content-rad
     (hentet fra sist lagrede data_json, ingen nye TMDB-kall gjøres),
@@ -135,6 +143,7 @@ def set_content_cover(
     content_id: str,
     payload: SetCoverImagePayload,
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Setter cover_image for en content-rad til et av posterbildene fra
     GET /content/{content_id}/covers (identifisert via TMDB sin

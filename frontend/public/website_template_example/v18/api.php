@@ -25,6 +25,29 @@ header('Content-Type: application/json; charset=utf-8');
 // Intern adresse til FastAPI/uvicorn (samme vert som resten av prosjektet bruker).
 const MEDIA_API_BASE_URL = 'http://172.19.0.1:9500';
 
+// Last inn frontend/.env (samme mønster som v15/config.php) - kun for
+// å hente INTERNAL_API_KEY, som må matche backend sin INTERNAL_API_KEY
+// (se backend/config/.env) for å nå lese-endepunktene under.
+require_once __DIR__ . '/../../../vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../');
+$dotenv->load();
+
+define('INTERNAL_API_KEY', $_ENV['INTERNAL_API_KEY'] ?? '');
+if (!INTERNAL_API_KEY) {
+    throw new Exception('INTERNAL_API_KEY er ikke satt i .env-filen');
+}
+
+/**
+ * Legger til X-API-Key-headeren som backend krever på lese-
+ * endepunkter (se app/api_key.py). Brukes for alle GET-kall mot
+ * /media/*, /lists, /wishlist/movies.
+ */
+function with_api_key_header(array $curlHttpHeaders): array
+{
+    $curlHttpHeaders[] = 'X-API-Key: ' . INTERNAL_API_KEY;
+    return $curlHttpHeaders;
+}
+
 // POST ?action=refresh_external_source&source=tmdb|tvdb&external_id=...
 // Brukes av "Bytt data fra kilde"-knappene på detail.php. Gjør en
 // server-side PATCH mot backend, som selv henter fulle detaljer fra
@@ -121,6 +144,7 @@ if (($_GET['action'] ?? '') === 'list_covers') {
     $ch = curl_init($coversUrl);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
         CURLOPT_TIMEOUT => 10,
     ]);
     $response = curl_exec($ch);
@@ -202,6 +226,7 @@ $url = $contentId !== null
 $ch = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => with_api_key_header([]),
     CURLOPT_TIMEOUT => 10,
 ]);
 $response = curl_exec($ch);

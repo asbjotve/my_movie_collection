@@ -2,9 +2,16 @@
 
 declare(strict_types=1);
 
+// POST /import/physical-collection er et skrive-endepunkt og krever nå en
+// innlogget bruker (JWT) - se app/security.py::get_current_user. Bruker
+// samme PHP-sesjon som website_template_example/v18 (samme domene).
+require_once __DIR__ . '/../../website_template_example/v18/auth.php';
+
 $apiUrl = 'https://app.plexcity.net/import/physical-collection';
 
 header('Content-Type: application/json');
+
+require_login_or_json_401();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -42,6 +49,7 @@ curl_setopt_array($ch, [
     CURLOPT_HTTPHEADER => [
         'Content-Type: application/json',
         'Accept: application/json',
+        auth_bearer_header(),
     ],
     CURLOPT_POSTFIELDS => $rawBody,
     CURLOPT_TIMEOUT => 30,

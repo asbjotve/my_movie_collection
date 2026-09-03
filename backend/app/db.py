@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Boolean, Column, Integer, String, Text, create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from config.config import settings
@@ -16,7 +16,34 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    # Enkel rolle-infrastruktur - kun "admin" finnes/brukes i dag, men
+    # feltet + JWT-claim + require_role()-dependency (se security.py) er
+    # på plass i forkant, slik at flere roller kan legges til senere uten
+    # en ny runde med skjema-/login-endringer.
+    role = Column(String(32), nullable=False, default="admin")
+    # TOTP-basert 2FA (se app/auth.py for hjelpefunksjoner):
+    # - totp_secret: aktivt secret, satt først når 2FA er bekreftet/på.
+    # - totp_secret_pending: secret generert av /auth/2fa/setup, men ikke
+    #   bekreftet ennå - flyttes til totp_secret av /auth/2fa/enable.
+    # - totp_enabled: om innlogging krever en TOTP-kode i tillegg til passord.
+    # - recovery_codes_json: JSON-array med hashede (Argon2) engangskoder.
+    totp_secret = Column(String(64), nullable=True)
+    totp_secret_pending = Column(String(64), nullable=True)
+    totp_enabled = Column(Integer, default=0, nullable=False)
+    recovery_codes_json = Column(Text, nullable=True)
     is_active = Column(Integer, default=1)
+
+
+class SectionAccess(Base):
+    """Database-modell for om en "seksjon" på forsiden (v18/index.php)
+    krever innlogging. Erstatter det som tidligere var en hardkodet
+    $sectionAccess-array i index.php - nå styrbart via en liten
+    admin-side (admin_tilganger.php), uten kodeendring."""
+
+    __tablename__ = "section_access"
+
+    section_key = Column(String(64), primary_key=True)
+    requires_login = Column(Boolean, nullable=False, default=False)
 
 
 def init_db() -> None:

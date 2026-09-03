@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api_key import require_api_key
+from app.db import User
 from app.media_db import get_media_db
+from app.security import get_current_user
 from app.services.add_data.custom_list_manager import (
     add_item_to_custom_list,
     create_custom_list,
@@ -16,7 +19,7 @@ router = APIRouter(
 )
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_api_key)])
 async def get_custom_lists(
     include_wishlist: bool = False,
     db: Session = Depends(get_media_db),
@@ -29,6 +32,7 @@ async def get_custom_lists(
 async def post_custom_list(
     list_name: str = Form(...),
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return create_custom_list(db, list_name=list_name)
@@ -48,6 +52,7 @@ async def post_custom_list_item(
     season: str | None = Form(None),
     cover_image: UploadFile | None = File(None),
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         cover_bytes = await cover_image.read() if cover_image is not None else None

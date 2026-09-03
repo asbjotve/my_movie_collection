@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api_key import require_api_key
+from app.db import User
 from app.media_db import get_media_db
+from app.security import get_current_user
 from app.services.add_data.wishlist_movie_cover import (
     WishlistMovieUploadError,
     create_wishlist_movie_with_cover,
@@ -14,7 +17,7 @@ router = APIRouter(
 )
 
 
-@router.get("/movies")
+@router.get("/movies", dependencies=[Depends(require_api_key)])
 async def get_wishlist_movies(db: Session = Depends(get_media_db)):
     return list_wishlist_movies(db)
 
@@ -29,6 +32,7 @@ async def create_wishlist_movie(
     tvdb_id: str | None = Form(None),
     cover_image: UploadFile = File(...),
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         cover_bytes = await cover_image.read()
