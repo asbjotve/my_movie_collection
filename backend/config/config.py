@@ -15,6 +15,7 @@ ACTIVE_ENV_FILE = SCOPED_ENV_FILE if SCOPED_ENV_FILE.exists() else DEFAULT_ENV_F
 
 class Settings(BaseSettings):
     SECRET_KEY: str | None = None
+    INTERNAL_API_KEY: str | None = None
 
     DATABASE_URL: str | None = None
     DB_USER: str | None = None

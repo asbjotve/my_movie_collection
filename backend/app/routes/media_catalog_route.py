@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api_key import require_api_key
 from app.media_db import get_media_db
 from app.services.media_catalog import (
     ContentExternalSourceError,
@@ -25,7 +26,7 @@ router = APIRouter(
 )
 
 
-@router.get("/content")
+@router.get("/content", dependencies=[Depends(require_api_key)])
 def get_content(db: Session = Depends(get_media_db)):
     """Alle content-rader (media-katalogen), med fysiske utgaver og
     eksterne kilder gruppert inn per rad.
@@ -37,7 +38,7 @@ def get_content(db: Session = Depends(get_media_db)):
     return list_content(db)
 
 
-@router.get("/content/{content_id}")
+@router.get("/content/{content_id}", dependencies=[Depends(require_api_key)])
 def get_content_detail(content_id: str, db: Session = Depends(get_media_db)):
     """Én content-rad (detaljvisning), med fysiske utgaver og eksterne
     kilder. content_id er 32-tegns hex (samme form som feltet i
@@ -118,7 +119,7 @@ def backfill_tmdb_covers(db: Session = Depends(get_media_db)):
     return backfill_tmdb_cover_images(db)
 
 
-@router.get("/content/{content_id}/covers")
+@router.get("/content/{content_id}/covers", dependencies=[Depends(require_api_key)])
 def get_content_covers(content_id: str, db: Session = Depends(get_media_db)):
     """Lister alle TMDB-postere som er tilgjengelige for en content-rad
     (hentet fra sist lagrede data_json, ingen nye TMDB-kall gjøres),

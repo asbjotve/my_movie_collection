@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api_key import require_api_key
 from app.media_db import get_media_db
 from app.services.add_data.custom_list_manager import (
     add_item_to_custom_list,
@@ -16,7 +17,7 @@ router = APIRouter(
 )
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_api_key)])
 async def get_custom_lists(
     include_wishlist: bool = False,
     db: Session = Depends(get_media_db),
