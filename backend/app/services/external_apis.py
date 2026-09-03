@@ -44,7 +44,7 @@ def fetch_tmdb_details(external_id: str, content_type: str) -> dict:
             url,
             params={
                 "api_key": settings.TMDB_API_KEY,
-                "language": "en-US",
+                "language": "nb-NO",
                 "append_to_response": (
                     "alternative_titles,credits,external_ids,images,"
                     "keywords,release_dates,translations"
