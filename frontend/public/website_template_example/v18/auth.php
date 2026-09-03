@@ -57,6 +57,47 @@ function current_username(): ?string
 }
 
 /**
+ * Sender en autentisert forespørsel (med Bearer access_token fra
+ * PHP-sesjonen) til et /auth/...-endepunkt som krever innlogging
+ * (f.eks. 2FA-oppsett/aktivering/deaktivering). Returnerer
+ * [httpCode, decoded_json_body_or_null] - samme form som
+ * auth_api_post(), men uten body er GET, med body er POST.
+ */
+function auth_api_authenticated(string $method, string $path, ?array $body = null): array
+{
+    auth_start_session();
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['detail' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . $path);
+    $headers = ['Authorization: Bearer ' . $accessToken];
+
+    $options = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+    ];
+
+    if ($method === 'POST') {
+        $options[CURLOPT_CUSTOMREQUEST] = 'POST';
+        $options[CURLOPT_POSTFIELDS] = json_encode($body ?? []);
+        $headers[] = 'Content-Type: application/json';
+    }
+    $options[CURLOPT_HTTPHEADER] = $headers;
+
+    curl_setopt_array($ch, $options);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, null];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
+/**
  * Sender en POST-forespørsel til et /auth/...-endepunkt i backend og
  * returnerer [httpCode, decoded_json_body_or_null].
  */

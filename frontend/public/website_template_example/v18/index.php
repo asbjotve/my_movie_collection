@@ -402,9 +402,16 @@ $sectionAccess = [
         <p>Opprett, endre eller slett egendefinerte lister.</p>
       </div>
       <div class="adminCard">
-        <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
-        <h3>Brukere</h3>
-        <p>Administrer hvem som har tilgang til løsningen.</p>
+        <?php if ($isLoggedIn): ?>
+          <a href="/website_template_example/v18/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
+            <h3>To-faktor autentisering (2FA)</h3>
+            <p>Sett opp eller deaktiver 2FA for din bruker.</p>
+          </a>
+        <?php else: ?>
+          <span class="lockedBadge">Låst</span>
+          <h3>To-faktor autentisering (2FA)</h3>
+          <p>Sett opp eller deaktiver 2FA for din bruker.</p>
+        <?php endif; ?>
       </div>
       <div class="adminCard">
         <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
