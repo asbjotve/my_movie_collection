@@ -204,3 +204,37 @@ function require_login(): string
     header('Location: /website_template_example/v18/login.php?redirect=' . urlencode($redirectTo));
     exit;
 }
+
+/**
+ * Variant av require_login() for AJAX/API-endepunkter (f.eks.
+ * bulk_add_movies_form/v14/api.php, temp_add_movie_barcode/v1/submit.php)
+ * som kalles via fetch/XHR fra klient-JS - der gir en redirect (Location-
+ * header) ingen mening, siden svaret aldri vises som en side i
+ * nettleseren. Returnerer i stedet JSON 401 og stopper videre kjøring.
+ */
+function require_login_or_json_401(): string
+{
+    if (is_logged_in()) {
+        return current_username();
+    }
+
+    http_response_code(401);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'error' => 'Ikke innlogget. Logg inn på /website_template_example/v18/login.php først.',
+    ]);
+    exit;
+}
+
+/**
+ * Returnerer en ferdig "Authorization: Bearer ..."-header-streng basert
+ * på access_token i PHP-sesjonen. Brukes av frittstående verktøy som har
+ * sin egen curl-oppsett (multipart/skjema-opplasting o.l.) og derfor ikke
+ * kan bruke auth_api_authenticated() direkte, men som likevel må sende
+ * med brukerens JWT til beskyttede skrive-endepunkter.
+ */
+function auth_bearer_header(): string
+{
+    auth_start_session();
+    return 'Authorization: Bearer ' . ($_SESSION['auth_access_token'] ?? '');
+}

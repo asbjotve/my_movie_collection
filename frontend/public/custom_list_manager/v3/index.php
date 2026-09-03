@@ -3,6 +3,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/lang.php';
 
+// Krever innlogget bruker (samme JWT/sesjon som website_template_example/v18)
+// siden denne siden POST-er til skrive-endepunkter i backend.
+require_once __DIR__ . '/../../website_template_example/v18/auth.php';
+require_login();
+
 $listsEndpoint = 'http://172.19.0.1:9500/lists';
 $listItemsEndpoint = 'http://172.19.0.1:9500/lists/items';
 
@@ -43,6 +48,7 @@ function apiRequest(string $url, array $postFields): array
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $postFields,
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 30,
     ]);
 
@@ -175,10 +181,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'add_ite
 // before giving up and showing the error notice.
 function fetchListsWithRetry(string $url, int $maxAttempts = 3, int $delayMs = 400): array
 {
+    // GET /lists er et lese-endepunkt og krever X-API-Key, ikke JWT (se
+    // app/api_key.py). Lastes fra frontend/.env, samme mønster som
+    // website_template_example/v18/api.php.
+    require_once __DIR__ . '/../../../vendor/autoload.php';
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../');
+    $dotenv->load();
+    $internalApiKey = $_ENV['INTERNAL_API_KEY'] ?? '';
+
     for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['X-API-Key: ' . $internalApiKey],
             CURLOPT_TIMEOUT => 10,
         ]);
         $response = curl_exec($ch);

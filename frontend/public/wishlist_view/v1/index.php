@@ -3,6 +3,14 @@
 // Fetches the "Wishlist" custom list from the backend API and renders it
 // as a mobile-friendly table (collapses to stacked cards on small screens).
 
+// INTERNAL_API_KEY kreves nå av backend på lese-endepunkter (se
+// app/api_key.py) - lastes fra frontend/.env, samme mønster som
+// website_template_example/v18/api.php.
+require_once __DIR__ . '/../../../vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../');
+$dotenv->load();
+$internalApiKey = $_ENV['INTERNAL_API_KEY'] ?? '';
+
 $apiEndpoint = 'http://172.19.0.1:9500/wishlist/movies';
 
 $movies = [];
@@ -11,6 +19,7 @@ $fetchError = null;
 $ch = curl_init($apiEndpoint);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ['X-API-Key: ' . $internalApiKey],
     CURLOPT_TIMEOUT => 10,
 ]);
 $response = curl_exec($ch);

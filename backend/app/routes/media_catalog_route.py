@@ -3,7 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api_key import require_api_key
+from app.db import User
 from app.media_db import get_media_db
+from app.security import get_current_user
 from app.services.media_catalog import (
     ContentExternalSourceError,
     backfill_tmdb_cover_images,
@@ -55,6 +57,7 @@ def patch_content_external_source(
     source: str,
     external_id: str,
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Oppdaterer data_json for en eksisterende content_external_source-rad,
     identifisert kun via source ('tmdb' eller 'tvdb') og external_id -
@@ -84,6 +87,7 @@ def merge_external_source(
     source: str,
     external_id: str,
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Fletter sist lagrede data_json for (source, external_id) inn i
     tilhørende content-rad (title, overview, runtime osv.), med mindre
@@ -103,7 +107,10 @@ def merge_external_source(
 
 
 @router.post("/backfill/tmdb-covers")
-def backfill_tmdb_covers(db: Session = Depends(get_media_db)):
+def backfill_tmdb_covers(
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
     """Henter cover_image (posterbilde) fra TMDB for alle content-rader
     som har en source='tmdb'-kobling i content_external_source, men som
     ennå mangler cover_image (NULL) i content-tabellen.
@@ -136,6 +143,7 @@ def set_content_cover(
     content_id: str,
     payload: SetCoverImagePayload,
     db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Setter cover_image for en content-rad til et av posterbildene fra
     GET /content/{content_id}/covers (identifisert via TMDB sin
