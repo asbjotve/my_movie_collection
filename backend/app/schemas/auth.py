@@ -63,5 +63,6 @@ class TwoFaDisableRequest(BaseModel):
 class CurrentUserResponse(BaseModel):
     id: int
     username: str
+    role: str
     is_active: bool
     totp_enabled: bool

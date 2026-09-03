@@ -116,6 +116,7 @@ async def me(current_user: User = Depends(get_current_user)):
     return CurrentUserResponse(
         id=current_user.id,
         username=current_user.username,
+        role=current_user.role,
         is_active=bool(current_user.is_active),
         totp_enabled=bool(current_user.totp_enabled),
     )

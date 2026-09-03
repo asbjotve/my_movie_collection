@@ -16,6 +16,11 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    # Enkel rolle-infrastruktur - kun "admin" finnes/brukes i dag, men
+    # feltet + JWT-claim + require_role()-dependency (se security.py) er
+    # på plass i forkant, slik at flere roller kan legges til senere uten
+    # en ny runde med skjema-/login-endringer.
+    role = Column(String(32), nullable=False, default="admin")
     # TOTP-basert 2FA (se app/auth.py for hjelpefunksjoner):
     # - totp_secret: aktivt secret, satt først når 2FA er bekreftet/på.
     # - totp_secret_pending: secret generert av /auth/2fa/setup, men ikke

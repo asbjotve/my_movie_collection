@@ -106,3 +106,26 @@ async def get_current_user(
         )
 
     return user
+
+
+def require_role(*allowed_roles: str):
+    """Dependency-factory for rollebasert tilgang, f.eks.
+    Depends(require_role("admin")). Sjekker user.role slik den er lagret
+    i databasen akkurat nå (ikke en verdi hentet fra selve JWT-tokenet),
+    slik at en rolleendring slår inn med en gang - uten at brukeren må
+    logge inn på nytt.
+
+    Ikke brukt noe sted ennå, siden det per i dag kun finnes én rolle
+    ("admin") - men klar til bruk den dagen det trengs flere roller med
+    ulik tilgang (f.eks. en fremtidig "viewer"-rolle).
+    """
+
+    async def _check_role(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Du har ikke tilgang til denne handlingen",
+            )
+        return current_user
+
+    return _check_role

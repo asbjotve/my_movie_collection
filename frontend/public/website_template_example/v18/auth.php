@@ -167,6 +167,28 @@ function auth_login_2fa(string $preAuthToken, string $code, string $username): a
     return ['ok', $username];
 }
 
+/** Henter rollen til innlogget bruker fra GET /auth/me. Returnerer
+ * null hvis kallet feiler - da lagres ingen rolle i sesjonen, og
+ * current_user_role() vil returnere null (ikke en gjettet verdi). */
+function auth_fetch_role(string $accessToken): ?string
+{
+    $ch = curl_init(AUTH_API_BASE_URL . '/auth/me');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false || $httpCode !== 200) {
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    return $data['role'] ?? null;
+}
+
 /** Lagrer innlogget bruker + access_token i PHP-sesjonen. */
 function auth_set_session(string $username, string $accessToken): void
 {
@@ -174,6 +196,19 @@ function auth_set_session(string $username, string $accessToken): void
     session_regenerate_id(true); // hindre session fixation ved innlogging
     $_SESSION['auth_username'] = $username;
     $_SESSION['auth_access_token'] = $accessToken;
+    // Rolle er kun til fremtidig bruk (per i dag finnes bare "admin", og
+    // ingenting i frontend skiller på den) - lagres likevel her slik at
+    // current_user_role() er klar til bruk uten videre endringer.
+    $_SESSION['auth_role'] = auth_fetch_role($accessToken);
+}
+
+/** Returnerer innlogget brukers rolle, eller null hvis ikke innlogget /
+ * rollen ikke kunne hentes. Ikke brukt til noe ennå - se auth_role i
+ * auth_set_session() for kontekst. */
+function current_user_role(): ?string
+{
+    auth_start_session();
+    return $_SESSION['auth_role'] ?? null;
 }
 
 /** Logger ut - tømmer hele sesjonen. */
