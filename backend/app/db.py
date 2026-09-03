@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, create_engine
+from sqlalchemy import Boolean, Column, Integer, String, Text, create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from config.config import settings
@@ -32,6 +32,18 @@ class User(Base):
     totp_enabled = Column(Integer, default=0, nullable=False)
     recovery_codes_json = Column(Text, nullable=True)
     is_active = Column(Integer, default=1)
+
+
+class SectionAccess(Base):
+    """Database-modell for om en "seksjon" på forsiden (v18/index.php)
+    krever innlogging. Erstatter det som tidligere var en hardkodet
+    $sectionAccess-array i index.php - nå styrbart via en liten
+    admin-side (admin_tilganger.php), uten kodeendring."""
+
+    __tablename__ = "section_access"
+
+    section_key = Column(String(64), primary_key=True)
+    requires_login = Column(Boolean, nullable=False, default=False)
 
 
 def init_db() -> None:

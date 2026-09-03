@@ -37,12 +37,13 @@ declare(strict_types=1);
  * ============================================================
  *
  *  KONFIGURERBAR TILGANG PER MENYPUNKT
- *  $sectionAccess under styrer om et menypunkt vises med hengelås-ikon
- *  og merknadsboks (dvs. "krever innlogging når det kommer") eller om
- *  det er helt åpent. Sett verdien til true/false per punkt – ingen
- *  annen kode må endres for å justere dette. "Ønskeliste" er satt til
- *  true her (låst) som eksempel på at den også kan konfigureres, men
- *  kan enkelt endres til false igjen.
+ *  $sectionAccess styrer om et menypunkt vises med hengelås-ikon og
+ *  merknadsboks (dvs. "krever innlogging") eller om det er helt åpent.
+ *  Verdiene hentes nå fra backend (GET /settings/section-access, lagret
+ *  i tabellen section_access i mmc_userdb) i stedet for å være
+ *  hardkodet - og kan endres via den nye admin-siden
+ *  admin_tilganger.php (krever innlogging som admin). Se
+ *  fetch_section_access() i auth.php.
  * ============================================================
  */
 
@@ -50,11 +51,24 @@ require_once __DIR__ . '/auth.php';
 
 $isLoggedIn = is_logged_in();
 
+// Innstillinger for hvilke seksjoner som krever innlogging hentes nå
+// fra backend (GET /settings/section-access) i stedet for å være
+// hardkodet her - se fetch_section_access() i auth.php. Kan endres via
+// den nye admin-siden admin_tilganger.php (krever innlogging).
+// $fallback brukes kun hvis API-kallet feiler (f.eks. backend nede),
+// og gjenspeiler de tidligere hardkodede standardverdiene.
+$sectionRequiresLogin = fetch_section_access([
+    'mine_filmer'    => false,
+    'onskeliste'     => true,
+    'andre_lister'   => true,
+    'administrering' => true,
+]);
+
 $sectionAccess = [
-    'mine_filmer'    => false, // åpen
-    'onskeliste'     => true,  // låst (konfigurerbar – kan settes til false)
-    'andre_lister'   => true,  // låst
-    'administrering' => !$isLoggedIn, // låst helt til noen faktisk er innlogget
+    'mine_filmer'    => $sectionRequiresLogin['mine_filmer'] && !$isLoggedIn,
+    'onskeliste'     => $sectionRequiresLogin['onskeliste'] && !$isLoggedIn,
+    'andre_lister'   => $sectionRequiresLogin['andre_lister'] && !$isLoggedIn,
+    'administrering' => $sectionRequiresLogin['administrering'] && !$isLoggedIn,
 ];
 ?>
 <!doctype html>
@@ -365,8 +379,9 @@ $sectionAccess = [
     <div class="list" id="onskelisteList"></div>
     <?php if ($sectionAccess['onskeliste']): ?>
     <div class="noteBox">
-      🔒 <strong>Vurdering:</strong> her satt til å kreve innlogging (konfigurerbart via
-      <code>$sectionAccess['onskeliste']</code> øverst i filen) – kan enkelt settes åpen igjen.
+      🔒 <strong>Vurdering:</strong> her satt til å kreve innlogging (styres nå fra
+      <a href="/website_template_example/v18/admin_tilganger.php" style="color:var(--accent);">Tilgangsstyring</a>
+      under Administrering) – kan enkelt settes åpen igjen der.
     </div>
     <?php endif; ?>
   </section>
@@ -411,6 +426,18 @@ $sectionAccess = [
           <span class="lockedBadge">Låst</span>
           <h3>To-faktor autentisering (2FA)</h3>
           <p>Sett opp eller deaktiver 2FA for din bruker.</p>
+        <?php endif; ?>
+      </div>
+      <div class="adminCard">
+        <?php if ($isLoggedIn): ?>
+          <a href="/website_template_example/v18/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
+            <h3>Tilgangsstyring</h3>
+            <p>Velg hvilke sider/seksjoner som krever innlogging.</p>
+          </a>
+        <?php else: ?>
+          <span class="lockedBadge">Låst</span>
+          <h3>Tilgangsstyring</h3>
+          <p>Velg hvilke sider/seksjoner som krever innlogging.</p>
         <?php endif; ?>
       </div>
       <div class="adminCard">

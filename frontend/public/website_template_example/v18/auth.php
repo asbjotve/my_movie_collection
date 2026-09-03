@@ -211,6 +211,76 @@ function current_user_role(): ?string
     return $_SESSION['auth_role'] ?? null;
 }
 
+/**
+ * Henter innstillinger for hvilke seksjoner (i $sectionAccess-stil) som
+ * krever innlogging, fra GET /settings/section-access. Endepunktet er
+ * bevisst åpent (ingen API-nøkkel/JWT), så alle besøkende kan slå det
+ * opp for å vise riktig hengelås-status.
+ *
+ * Returnerer $fallback (index.php sine tidligere hardkodede verdier)
+ * hvis kallet feiler, slik at siden fortsatt fungerer selv om
+ * backend/nettverk er nede.
+ */
+function fetch_section_access(array $fallback): array
+{
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/section-access');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 5,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false || $httpCode !== 200) {
+        return $fallback;
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data)) {
+        return $fallback;
+    }
+
+    return array_merge($fallback, $data);
+}
+
+/**
+ * Oppdaterer innstillinger for hvilke seksjoner som krever innlogging,
+ * via PUT /settings/section-access. Krever et gyldig access_token for
+ * en innlogget admin-bruker (require_role("admin") i backend).
+ *
+ * $sections er et assoc-array som ['onskeliste' => true, ...] - kun
+ * nøklene som faktisk skal endres trenger å være med.
+ *
+ * Returnerer [httpCode, data].
+ */
+function update_section_access(array $sections): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/section-access');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ],
+        CURLOPT_POSTFIELDS => json_encode(['sections' => $sections]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, null];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
 /** Logger ut - tømmer hele sesjonen. */
 function auth_logout(): void
 {
