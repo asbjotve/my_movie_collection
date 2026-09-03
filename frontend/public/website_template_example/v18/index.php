@@ -416,30 +416,20 @@ $sectionAccess = [
         <h3>Rediger lister</h3>
         <p>Opprett, endre eller slett egendefinerte lister.</p>
       </div>
+      <?php if ($isLoggedIn): ?>
       <div class="adminCard">
-        <?php if ($isLoggedIn): ?>
-          <a href="/website_template_example/v18/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
-            <h3>To-faktor autentisering (2FA)</h3>
-            <p>Sett opp eller deaktiver 2FA for din bruker.</p>
-          </a>
-        <?php else: ?>
-          <span class="lockedBadge">Låst</span>
+        <a href="/website_template_example/v18/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
           <h3>To-faktor autentisering (2FA)</h3>
           <p>Sett opp eller deaktiver 2FA for din bruker.</p>
-        <?php endif; ?>
+        </a>
       </div>
       <div class="adminCard">
-        <?php if ($isLoggedIn): ?>
-          <a href="/website_template_example/v18/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
-            <h3>Tilgangsstyring</h3>
-            <p>Velg hvilke sider/seksjoner som krever innlogging.</p>
-          </a>
-        <?php else: ?>
-          <span class="lockedBadge">Låst</span>
+        <a href="/website_template_example/v18/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
           <h3>Tilgangsstyring</h3>
           <p>Velg hvilke sider/seksjoner som krever innlogging.</p>
-        <?php endif; ?>
+        </a>
       </div>
+      <?php endif; ?>
       <div class="adminCard">
         <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
         <h3>Systemstatus</h3>
