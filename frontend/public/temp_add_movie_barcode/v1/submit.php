@@ -7,7 +7,22 @@ declare(strict_types=1);
 // samme PHP-sesjon som website_template_example/v18 (samme domene).
 require_once __DIR__ . '/../../website_template_example/v18/auth.php';
 
-$apiUrl = 'https://app.plexcity.net/import/physical-collection';
+// Kaller backend internt (server-til-server), ikke via det offentlige
+// domenet - unngår en unødvendig runde ut på internett og en ekstern
+// avhengighet til domenenavnet. Base-URL-en er konfigurerbar via
+// MEDIA_API_BASE_URL i .env (samme mønster som INTERNAL_API_KEY under),
+// slik at prosjektet kan flyttes til en annen server/vert uten å måtte
+// endre denne filen - se frontend/.env.example.
+require_once __DIR__ . '/../../../vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../');
+$dotenv->load();
+
+$mediaApiBaseUrl = $_ENV['MEDIA_API_BASE_URL'] ?? '';
+if (!$mediaApiBaseUrl) {
+    throw new Exception('MEDIA_API_BASE_URL er ikke satt i .env-filen');
+}
+
+$apiUrl = rtrim($mediaApiBaseUrl, '/') . '/import/physical-collection';
 
 header('Content-Type: application/json');
 
