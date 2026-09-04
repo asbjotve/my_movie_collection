@@ -22,15 +22,19 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Intern adresse til FastAPI/uvicorn (samme vert som resten av prosjektet bruker).
-const MEDIA_API_BASE_URL = 'http://172.19.0.1:9500';
-
 // Last inn frontend/.env (samme mønster som v15/config.php) - kun for
 // å hente INTERNAL_API_KEY, som må matche backend sin INTERNAL_API_KEY
 // (se backend/config/.env) for å nå lese-endepunktene under.
 require_once __DIR__ . '/../../../vendor/autoload.php';
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../');
 $dotenv->load();
+
+// Base URL to the internal FastAPI/uvicorn backend, loaded from .env
+// (MEDIA_API_BASE_URL) so the value can be changed without editing code
+define('MEDIA_API_BASE_URL', $_ENV['MEDIA_API_BASE_URL'] ?? '');
+if (!MEDIA_API_BASE_URL) {
+    throw new Exception('MEDIA_API_BASE_URL is not set in .env file');
+}
 
 define('INTERNAL_API_KEY', $_ENV['INTERNAL_API_KEY'] ?? '');
 if (!INTERNAL_API_KEY) {

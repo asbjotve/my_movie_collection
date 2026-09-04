@@ -20,7 +20,18 @@ declare(strict_types=1);
  * ============================================================
  */
 
-const AUTH_API_BASE_URL = 'http://172.19.0.1:9500';
+// Load frontend/.env (same pattern as api.php) - only needed here to
+// read AUTH_API_BASE_URL (via MEDIA_API_BASE_URL, see below).
+require_once __DIR__ . '/../../../vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../');
+$dotenv->load();
+
+// Base URL to the internal FastAPI/uvicorn backend, loaded from .env
+// (MEDIA_API_BASE_URL) so the value can be changed without editing code.
+define('AUTH_API_BASE_URL', $_ENV['MEDIA_API_BASE_URL'] ?? '');
+if (!AUTH_API_BASE_URL) {
+    throw new Exception('MEDIA_API_BASE_URL is not set in .env file');
+}
 
 /**
  * Starter PHP-sesjonen (med fornuftige cookie-innstillinger) hvis den
