@@ -338,9 +338,11 @@ $sectionAccess = [
 <main>
 
   <!-- ============ MINE FILMER ============ -->
-  <section class="panel active" id="panel-mine_filmer">
-    <h2 class="pageTitle">Mine filmer</h2>
-    <p class="pageHint">Data hentes via API (FastAPI-backend), ikke direkte MySQL som v15/v17.</p>
+    <section class="panel active" id="panel-mine_filmer">
+      <h2 class="pageTitle">Mine filmer</h2>
+      <?php if ($sectionAccess['mine_filmer']): ?>
+      <p class="pageHint">Krever innlogging. <a href="<?= BASE_PATH ?>/login.php" style="color:var(--accent);">Logg inn</a> for å få tilgang.</p>
+      <?php else: ?>
 
     <div class="filterBar">
       <div class="search">
@@ -370,6 +372,7 @@ $sectionAccess = [
       </thead>
       <tbody id="mineFilmerTableBody"></tbody>
     </table>
+    <?php endif; ?>
   </section>
 
   <!-- ============ ØNSKELISTE ============ -->
@@ -602,7 +605,11 @@ $sectionAccess = [
   }
 
 
-  loadMineFilmer();
+  const mineFilmerLocked = <?= $sectionAccess['mine_filmer'] ? 'true' : 'false' ?>;
+  if (!mineFilmerLocked) {
+    loadMineFilmer();
+  }
+
 
   // ---- Render: Ønskeliste ----
   const onskelisteList = document.getElementById("onskelisteList");
