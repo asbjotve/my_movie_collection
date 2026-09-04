@@ -22,6 +22,13 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
+
+$sectionRequiresLogin = fetch_section_access(['mine_filmer' => false]);
+if ($sectionRequiresLogin['mine_filmer'] && !is_logged_in()) {
+    require_login_or_json_401();
+}
+
 // Last inn frontend/.env (samme mønster som v15/config.php) - kun for
 // å hente INTERNAL_API_KEY, som må matche backend sin INTERNAL_API_KEY
 // (se backend/config/.env) for å nå lese-endepunktene under.

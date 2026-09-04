@@ -47,7 +47,7 @@ declare(strict_types=1);
  * ============================================================
  */
 
-require_once __DIR__ . '/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 
 $isLoggedIn = is_logged_in();
 
@@ -328,9 +328,9 @@ $sectionAccess = [
     <span class="dot"></span>
     <?php if ($isLoggedIn): ?>
       Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>
-      · <a href="/website_template_example/v18/logout.php" style="color:inherit;">Logg ut</a>
+      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;">Logg ut</a>
     <?php else: ?>
-      Ikke innlogget · <a href="/website_template_example/v18/login.php" style="color:inherit;">Logg inn</a>
+      Ikke innlogget · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;">Logg inn</a>
     <?php endif; ?>
   </div>
 </div>
@@ -338,9 +338,11 @@ $sectionAccess = [
 <main>
 
   <!-- ============ MINE FILMER ============ -->
-  <section class="panel active" id="panel-mine_filmer">
-    <h2 class="pageTitle">Mine filmer</h2>
-    <p class="pageHint">Data hentes via API (FastAPI-backend), ikke direkte MySQL som v15/v17.</p>
+    <section class="panel active" id="panel-mine_filmer">
+      <h2 class="pageTitle">Mine filmer</h2>
+      <?php if ($sectionAccess['mine_filmer']): ?>
+      <p class="pageHint">Krever innlogging. <a href="<?= BASE_PATH ?>/login.php" style="color:var(--accent);">Logg inn</a> for å få tilgang.</p>
+      <?php else: ?>
 
     <div class="filterBar">
       <div class="search">
@@ -370,6 +372,7 @@ $sectionAccess = [
       </thead>
       <tbody id="mineFilmerTableBody"></tbody>
     </table>
+    <?php endif; ?>
   </section>
 
   <!-- ============ ØNSKELISTE ============ -->
@@ -380,7 +383,7 @@ $sectionAccess = [
     <?php if ($sectionAccess['onskeliste']): ?>
     <div class="noteBox">
       🔒 <strong>Vurdering:</strong> her satt til å kreve innlogging (styres nå fra
-      <a href="/website_template_example/v18/admin_tilganger.php" style="color:var(--accent);">Tilgangsstyring</a>
+      <a href="<?= BASE_PATH ?>/admin_tilganger.php" style="color:var(--accent);">Tilgangsstyring</a>
       under Administrering) – kan enkelt settes åpen igjen der.
     </div>
     <?php endif; ?>
@@ -403,7 +406,7 @@ $sectionAccess = [
     <?php if ($isLoggedIn): ?>
       <p class="pageHint">Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>. Handlingene under er fortsatt plassholdere i denne malen (selve funksjonene finnes andre steder i prosjektet ennå), men panelet er nå faktisk ulåst for deg.</p>
     <?php else: ?>
-      <p class="pageHint">Krever innlogging. <a href="/website_template_example/v18/login.php" style="color:var(--accent);">Logg inn</a> for å få tilgang.</p>
+      <p class="pageHint">Krever innlogging. <a href="<?= BASE_PATH ?>/login.php" style="color:var(--accent);">Logg inn</a> for å få tilgang.</p>
     <?php endif; ?>
     <div class="adminGrid">
       <div class="adminCard">
@@ -418,13 +421,13 @@ $sectionAccess = [
       </div>
       <?php if ($isLoggedIn): ?>
       <div class="adminCard">
-        <a href="/website_template_example/v18/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
+        <a href="<?= BASE_PATH ?>/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
           <h3>To-faktor autentisering (2FA)</h3>
           <p>Sett opp eller deaktiver 2FA for din bruker.</p>
         </a>
       </div>
       <div class="adminCard">
-        <a href="/website_template_example/v18/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
+        <a href="<?= BASE_PATH ?>/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
           <h3>Tilgangsstyring</h3>
           <p>Velg hvilke sider/seksjoner som krever innlogging.</p>
         </a>
@@ -602,7 +605,11 @@ $sectionAccess = [
   }
 
 
-  loadMineFilmer();
+  const mineFilmerLocked = <?= $sectionAccess['mine_filmer'] ? 'true' : 'false' ?>;
+  if (!mineFilmerLocked) {
+    loadMineFilmer();
+  }
+
 
   // ---- Render: Ønskeliste ----
   const onskelisteList = document.getElementById("onskelisteList");

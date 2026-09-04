@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 
 // Hard gate: hele siden krever innlogging - ikke bare et skjult
 // menypunkt. Prøver noen å åpne denne URL-en direkte uten å være
@@ -120,7 +120,7 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
 </head>
 <body>
 <div class="wrap">
-  <p><a href="/website_template_example/v18/index.php" class="backLink">← Tilbake til Administrering</a></p>
+  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink">← Tilbake til Administrering</a></p>
 
   <div class="card">
     <h1>To-faktor autentisering (2FA)</h1>

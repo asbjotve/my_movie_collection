@@ -5,7 +5,7 @@ require_once __DIR__ . '/lang.php';
 
 // Krever innlogget bruker (samme JWT/sesjon som website_template_example/v18)
 // siden denne siden POST-er til skrive-endepunkter i backend.
-require_once __DIR__ . '/../../website_template_example/v18/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 require_login();
 
 $listsEndpoint = 'http://172.19.0.1:9500/lists';

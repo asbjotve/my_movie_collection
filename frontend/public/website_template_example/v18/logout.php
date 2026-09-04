@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 
 auth_logout();
 
-header('Location: /website_template_example/v18/index.php');
+header('Location: ' . BASE_PATH . '/index.php');
 exit;

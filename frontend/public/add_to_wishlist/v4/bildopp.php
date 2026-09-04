@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 // Krever innlogget bruker (samme JWT/sesjon som website_template_example/v18)
 // siden dette POST-er til et skrive-endepunkt i backend.
-require_once __DIR__ . '/../../website_template_example/v18/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 require_login();
 
 $apiEndpoint = 'http://172.19.0.1:9500/wishlist/movies';

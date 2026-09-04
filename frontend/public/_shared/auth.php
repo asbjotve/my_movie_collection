@@ -2,28 +2,35 @@
 declare(strict_types=1);
 
 /**
- * auth.php – delt bibliotek for innlogging i website_template_example
- * (v18), brukt av login.php/logout.php og av index.php/detail.php for
- * å sjekke om noen er innlogget.
+ * auth.php - shared login library used across the project (formerly
+ * lived under website_template_example/v18/, moved here so it isn't
+ * tied to any single versioned app folder and can be included via
+ * $_SERVER['DOCUMENT_ROOT'] regardless of caller location).
+ *
+ * Used by website_template_example/v18 (login.php/logout.php/index.php/
+ * 2fa_setup.php/admin_tilganger.php) as well as several standalone
+ * tools that share the same PHP session/login
+ * (custom_list_manager/v3, add_to_wishlist/v4, bulk_add_movies_form/v14,
+ * temp_add_movie_barcode/v1).
  *
  * ============================================================
- *  HVORDAN DETTE HENGER SAMMEN MED BACKEND-API-ET
- *  Selve innlogging/2FA-logikken (passord-sjekk, JWT, TOTP) ligger i
- *  FastAPI-backend (se backend/app/routes/auth_route.py):
- *      POST /auth/login       - brukernavn+passord
- *      POST /auth/login/2fa   - andre steg hvis 2FA er på
- *  Denne fila kaller disse endepunktene server-side (samme mønster som
- *  api.php sin proxy mot resten av API-et) og lagrer KUN resultatet
- *  (username + access_token) i en vanlig PHP-sesjon
- *  ($_SESSION - identifisert via en cookie, PHPSESSID, som PHP setter
- *  automatisk). Selve JWT-tokenet eksponeres aldri til nettleseren/JS.
+ *  HOW THIS RELATES TO THE BACKEND API
+ *  The actual login/2FA logic (password check, JWT, TOTP) lives in the
+ *  FastAPI backend (see backend/app/routes/auth_route.py):
+ *      POST /auth/login       - username+password
+ *      POST /auth/login/2fa   - second step if 2FA is enabled
+ *  This file calls those endpoints server-side (same pattern as
+ *  api.php's proxy to the rest of the API) and stores ONLY the result
+ *  (username + access_token) in a regular PHP session
+ *  ($_SESSION - identified via a cookie, PHPSESSID, set automatically
+ *  by PHP). The JWT token itself is never exposed to the browser/JS.
  * ============================================================
  */
 
 // Load frontend/.env (same pattern as api.php) - only needed here to
 // read AUTH_API_BASE_URL (via MEDIA_API_BASE_URL, see below).
-require_once __DIR__ . '/../../../vendor/autoload.php';
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../');
+require_once __DIR__ . '/../../vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../');
 $dotenv->load();
 
 // Base URL to the internal FastAPI/uvicorn backend, loaded from .env
@@ -32,6 +39,16 @@ define('AUTH_API_BASE_URL', $_ENV['MEDIA_API_BASE_URL'] ?? '');
 if (!AUTH_API_BASE_URL) {
     throw new Exception('MEDIA_API_BASE_URL is not set in .env file');
 }
+
+// URL path prefix of the website_template_example app (used to build
+// absolute links/redirects to login.php, logout.php, index.php, etc.
+// below). Loaded from .env (BASE_PATH) so the app can be moved/renamed
+// to a different URL path without editing code in multiple files.
+define('BASE_PATH', $_ENV['BASE_PATH'] ?? '');
+if (!BASE_PATH) {
+    throw new Exception('BASE_PATH is not set in .env file');
+}
+
 
 /**
  * Starter PHP-sesjonen (med fornuftige cookie-innstillinger) hvis den
@@ -317,7 +334,7 @@ function require_login(): string
     }
 
     $redirectTo = $_SERVER['REQUEST_URI'] ?? '/';
-    header('Location: /website_template_example/v18/login.php?redirect=' . urlencode($redirectTo));
+    header('Location: ' . BASE_PATH . '/login.php?redirect=' . urlencode($redirectTo));
     exit;
 }
 
@@ -337,7 +354,7 @@ function require_login_or_json_401(): string
     http_response_code(401);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
-        'error' => 'Ikke innlogget. Logg inn på /website_template_example/v18/login.php først.',
+        'error' => 'Ikke innlogget. Logg inn på ' . BASE_PATH . '/login.php først.',
     ]);
     exit;
 }
