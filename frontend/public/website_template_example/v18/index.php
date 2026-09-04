@@ -154,6 +154,13 @@ $sectionAccess = [
     h2.pageTitle{ margin: 0 0 2px; font-size:15px; }
     p.pageHint{ margin: 0 0 10px; color: var(--muted); font-size:11px; }
 
+    .loginCta{
+      display:inline-block; margin-top:6px; padding:8px 16px; border-radius:7px;
+      background: var(--accent); color:#fff; font-size:13px; font-weight:600;
+      text-decoration:none;
+    }
+    .loginCta:hover{ opacity:.9; }
+
     .grid{
       display:grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -341,7 +348,8 @@ $sectionAccess = [
     <section class="panel active" id="panel-mine_filmer">
       <h2 class="pageTitle">Mine filmer</h2>
       <?php if ($sectionAccess['mine_filmer']): ?>
-      <p class="pageHint">Krever innlogging. <a href="<?= BASE_PATH ?>/login.php" style="color:var(--accent);">Logg inn</a> for å få tilgang.</p>
+      <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
+      <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
       <?php else: ?>
 
     <div class="filterBar">
@@ -376,29 +384,28 @@ $sectionAccess = [
   </section>
 
   <!-- ============ ØNSKELISTE ============ -->
-  <section class="panel" id="panel-onskeliste">
-    <h2 class="pageTitle">Ønskeliste</h2>
+<section class="panel" id="panel-onskeliste">
+  <h2 class="pageTitle">Ønskeliste</h2>
+  <?php if ($sectionAccess['onskeliste']): ?>
+    <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
+    <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
+  <?php else: ?>
     <p class="pageHint">Plassholder-data – ingen databasekobling i denne versjonen.</p>
     <div class="list" id="onskelisteList"></div>
-    <?php if ($sectionAccess['onskeliste']): ?>
-    <div class="noteBox">
-      🔒 <strong>Vurdering:</strong> her satt til å kreve innlogging (styres nå fra
-      <a href="<?= BASE_PATH ?>/admin_tilganger.php" style="color:var(--accent);">Tilgangsstyring</a>
-      under Administrering) – kan enkelt settes åpen igjen der.
-    </div>
-    <?php endif; ?>
-  </section>
+  <?php endif; ?>
+</section>
 
   <!-- ============ ANDRE LISTER ============ -->
-  <section class="panel" id="panel-andre_lister">
-    <h2 class="pageTitle">Andre lister</h2>
+<section class="panel" id="panel-andre_lister">
+  <h2 class="pageTitle">Andre lister</h2>
+  <?php if ($sectionAccess['andre_lister']): ?>
+    <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
+    <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
+  <?php else: ?>
     <p class="pageHint">Plassholder-data – ingen databasekobling i denne versjonen.</p>
     <div class="grid" id="andreListerGrid"></div>
-    <div class="noteBox">
-      🔒 <strong>Vurdering:</strong> dette punktet bør trolig kreve innlogging når ekte
-      innlogging kommer på plass, siden egendefinerte lister er personlig innhold.
-    </div>
-  </section>
+  <?php endif; ?>
+</section>
 
   <!-- ============ ADMINISTRERING ============ -->
   <section class="panel" id="panel-administrering">
@@ -406,7 +413,8 @@ $sectionAccess = [
     <?php if ($isLoggedIn): ?>
       <p class="pageHint">Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>. Handlingene under er fortsatt plassholdere i denne malen (selve funksjonene finnes andre steder i prosjektet ennå), men panelet er nå faktisk ulåst for deg.</p>
     <?php else: ?>
-      <p class="pageHint">Krever innlogging. <a href="<?= BASE_PATH ?>/login.php" style="color:var(--accent);">Logg inn</a> for å få tilgang.</p>
+      <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
+      <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
     <?php endif; ?>
     <div class="adminGrid">
       <div class="adminCard">
@@ -414,12 +422,13 @@ $sectionAccess = [
         <h3>Legg til film</h3>
         <p>Manuell registrering av nye filmer/serier i katalogen.</p>
       </div>
-      <div class="adminCard">
-        <?php if (!$isLoggedIn): ?><span class="lockedBadge">Låst</span><?php endif; ?>
-        <h3>Rediger lister</h3>
-        <p>Opprett, endre eller slett egendefinerte lister.</p>
-      </div>
       <?php if ($isLoggedIn): ?>
+      <div class="adminCard">
+        <a href="/custom_list_manager/v3/index.php" style="color:inherit; text-decoration:none; display:block;">
+          <h3>Rediger lister</h3>
+          <p>Opprett, endre eller slett egendefinerte lister.</p>
+        </a>
+      </div>
       <div class="adminCard">
         <a href="<?= BASE_PATH ?>/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
           <h3>To-faktor autentisering (2FA)</h3>
@@ -464,9 +473,11 @@ $sectionAccess = [
   ];
 
   // ---- Mine filmer: live data fra databasen (api.php), som v15 ----
+  const mineFilmerLocked = <?= $sectionAccess['mine_filmer'] ? 'true' : 'false' ?>;
   let mineFilmerData = [];
   let mineFilmerView = "grid"; // "grid" eller "list"
 
+  if (!mineFilmerLocked) {
   const mineFilmerGrid = document.getElementById("mineFilmerGrid");
   const mineFilmerTable = document.getElementById("mineFilmerTable");
   const mineFilmerTableBody = document.getElementById("mineFilmerTableBody");
@@ -604,32 +615,35 @@ $sectionAccess = [
     renderMineFilmer();
   }
 
-
-  const mineFilmerLocked = <?= $sectionAccess['mine_filmer'] ? 'true' : 'false' ?>;
-  if (!mineFilmerLocked) {
-    loadMineFilmer();
-  }
+  loadMineFilmer();
+  } // end if (!mineFilmerLocked)
 
 
   // ---- Render: Ønskeliste ----
-  const onskelisteList = document.getElementById("onskelisteList");
-  onskelisteList.innerHTML = demoWishlist.map(w => `
-    <div class="row">
-      <strong>${w.title}</strong>
-      <small>Lagt til: ${w.addedAt}</small>
-    </div>
-  `).join("");
+  const onskelisteLocked = <?= $sectionAccess['onskeliste'] ? 'true' : 'false' ?>;
+  if (!onskelisteLocked) {
+    const onskelisteList = document.getElementById("onskelisteList");
+    onskelisteList.innerHTML = demoWishlist.map(w => `
+      <div class="row">
+        <strong>${w.title}</strong>
+        <small>Lagt til: ${w.addedAt}</small>
+      </div>
+    `).join("");
+  }
 
   // ---- Render: Andre lister ----
-  const andreListerGrid = document.getElementById("andreListerGrid");
-  andreListerGrid.innerHTML = demoLists.map(l => `
-    <div class="card">
-      <div class="meta">
-        <div class="title">${l.name}</div>
-        <div class="sub"><span class="tag">${l.itemCount} elementer</span></div>
+  const andreListerLocked = <?= $sectionAccess['andre_lister'] ? 'true' : 'false' ?>;
+  if (!andreListerLocked) {
+    const andreListerGrid = document.getElementById("andreListerGrid");
+    andreListerGrid.innerHTML = demoLists.map(l => `
+      <div class="card">
+        <div class="meta">
+          <div class="title">${l.name}</div>
+          <div class="sub"><span class="tag">${l.itemCount} elementer</span></div>
+        </div>
       </div>
-    </div>
-  `).join("");
+    `).join("");
+  }
 
   // ---- Toppmeny: bytt synlig panel ----
   const navButtons = document.querySelectorAll("#mainnav button");
