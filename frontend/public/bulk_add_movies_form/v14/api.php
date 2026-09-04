@@ -55,7 +55,7 @@ try {
     if ($method === 'POST' && $action === 'submit') {
         // POST /import/physical-collection er et skrive-endepunkt og krever
         // nå en innlogget bruker (JWT) - se app/security.py::get_current_user.
-        require_once __DIR__ . '/../../website_template_example/v18/auth.php';
+        require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
         require_login_or_json_401();
 
         $rawBody = file_get_contents('php://input');

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 
 // Hard gate: hele siden krever innlogging - samme mønster som
 // 2fa_setup.php. En dag med flere roller kan denne strammes ytterligere
@@ -103,7 +103,7 @@ $currentAccess = fetch_section_access([
 </head>
 <body>
 <div class="wrap">
-  <p><a href="/website_template_example/v18/index.php" class="backLink">← Tilbake til Administrering</a></p>
+  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink">← Tilbake til Administrering</a></p>
 
   <div class="card">
     <h1>Tilgangsstyring</h1>

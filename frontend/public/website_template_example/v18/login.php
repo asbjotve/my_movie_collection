@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 
 auth_start_session();
 
-$redirect = $_GET['redirect'] ?? $_POST['redirect'] ?? '/website_template_example/v18/index.php';
+$redirect = $_GET['redirect'] ?? $_POST['redirect'] ?? BASE_PATH . '/index.php';
 // Enkel sikring mot open-redirect: tillat kun relative stier innenfor denne appen.
 if (!is_string($redirect) || $redirect === '' || $redirect[0] !== '/' || str_starts_with($redirect, '//')) {
-    $redirect = '/website_template_example/v18/index.php';
+    $redirect = BASE_PATH . '/index.php';
 }
 
 $error = null;
@@ -154,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php endif; ?>
 
   <p class="hint">
-    <a href="/website_template_example/v18/index.php" style="color:var(--muted);">← Tilbake uten å logge inn</a>
+    <a href="<?= BASE_PATH ?>/index.php" style="color:var(--muted);">← Tilbake uten å logge inn</a>
   </p>
 </div>
 </body>

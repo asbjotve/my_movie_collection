@@ -5,7 +5,7 @@ declare(strict_types=1);
 // POST /import/physical-collection er et skrive-endepunkt og krever nå en
 // innlogget bruker (JWT) - se app/security.py::get_current_user. Bruker
 // samme PHP-sesjon som website_template_example/v18 (samme domene).
-require_once __DIR__ . '/../../website_template_example/v18/auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 
 // Kaller backend internt (server-til-server), ikke via det offentlige
 // domenet - unngår en unødvendig runde ut på internett og en ekstern
