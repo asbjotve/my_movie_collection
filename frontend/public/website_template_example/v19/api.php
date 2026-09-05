@@ -234,6 +234,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
     exit;
 }
 
+// PATCH ?action=update_content_field&id=<hex content_id>
+// (body: kun feltet(ene) som redigeres, f.eks. {"runtime": 92})
+// Brukes av penne-ikon-redigering på detaljsiden for felter som ligger
+// direkte på content-tabellen (title/overview/runtime/osv.) - se
+// PATCH /media/content/{id} i backend/app/routes/media_catalog_route.py.
+// Kun feltnavn som finnes i ContentFieldUpdateRequest slipper gjennom
+// på backend-siden - denne proxyen sender bare kroppen videre uendret.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update_content_field') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $contentId = (string)($_GET['id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $updateUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId;
+
+    $ch = curl_init($updateUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// PATCH ?action=update_physical_copy_field&collection_id=<hex>&copy_id=<int>
+// (body: kun feltet(ene) som redigeres, f.eks. {"price": 179})
+// Brukes av penne-ikon-redigering for eier-/kjøpsinformasjon på ett
+// fysisk eksemplar (owner/store/purchased_at/price/currency) - se
+// PATCH /media/physical-copy/{collection_id}/{copy_id} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update_physical_copy_field') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $collectionId = (string)($_GET['collection_id'] ?? '');
+    $copyId = (string)($_GET['copy_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $collectionId) || !preg_match('/^\d+$/', $copyId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig collection_id/copy_id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $updateUrl = MEDIA_API_BASE_URL . '/media/physical-copy/' . $collectionId . '/' . $copyId;
+
+    $ch = curl_init($updateUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Uten ?id=... hentes hele listen (GET /media/content), som før.
 // Med ?id=<hex content_id> hentes én enkelt rad for detaljsiden
 // (GET /media/content/{id}), brukt av detail.php.

@@ -223,6 +223,14 @@ $sectionAccess = [
     .factCard .k{ color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
     .factCard .v{ font-size:14px; font-weight:600; }
 
+    /* ---- Penne-ikon for redigering av felter (content/physical_copy) ---- */
+    .editPencilBtn{
+      appearance:none; cursor:pointer; background:none; border:none;
+      color: var(--muted); font-size:13px; padding:0 0 0 6px; line-height:1;
+      vertical-align:middle;
+    }
+    .editPencilBtn:hover{ color: var(--accent, #5b8def); }
+
     .sourcesBox{
       background: var(--panel);
       border:1px solid var(--line);
@@ -356,7 +364,13 @@ $sectionAccess = [
     <div>
       <div class="titleBlock">
         <h1 id="dTitle"></h1>
+        <?php if ($isLoggedIn): ?>
+        <button type="button" class="editPencilBtn" data-field="title" data-type="text" data-target="dTitle" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
+        <?php endif; ?>
         <div class="originalTitle" id="dOriginalTitle"></div>
+        <?php if ($isLoggedIn): ?>
+        <button type="button" class="editPencilBtn" data-field="original_title" data-type="text" data-target="dOriginalTitle" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
+        <?php endif; ?>
         <?php if ($isLoggedIn): ?>
         <div class="refreshButtons">
           <button class="refreshBtn" id="btnRefreshTmdb" type="button" disabled><?= htmlspecialchars(t('wte.detail.refresh_tmdb_btn')) ?></button>
@@ -368,21 +382,21 @@ $sectionAccess = [
       </div>
 
       <div class="factsGrid" id="idsGrid">
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="v" id="fImdb">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="v" id="fTmdb">-</div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="v" id="fTvdb">-</div></div>
       </div>
 
       <div class="factsGrid">
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_release')) ?></div><div class="v" id="fRelease">-</div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_runtime')) ?></div><div class="v" id="fRuntime">-</div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="v" id="fAge">-</div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="v" id="fType">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_release')) ?></div><div class="v" id="fRelease">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="first_release" data-type="date" data-target="fRelease" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_runtime')) ?></div><div class="v" id="fRuntime">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="runtime" data-type="number" data-target="fRuntime" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="v" id="fAge">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="age_restriction" data-type="text" data-target="fAge" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="v" id="fType">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="content_type" data-type="select" data-target="fType" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_prod_company')) ?></div><div class="v" id="fProdCompany">-</div></div>
       </div>
 
       <div class="sourcesBox">
-        <h3><?= htmlspecialchars(t('wte.detail.summary_heading')) ?></h3>
+        <h3><?= htmlspecialchars(t('wte.detail.summary_heading')) ?><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="overview" data-type="textarea" data-target="overviewText" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></h3>
         <div id="overviewText" style="color:var(--muted); font-size:13px; line-height:1.5;"><?= htmlspecialchars(t('wte.detail.no_overview')) ?></div>
       </div>
     </div>
@@ -429,6 +443,27 @@ $sectionAccess = [
   </div>
 </div>
 
+<!--
+  Generisk redigerings-modal for penne-ikonene: brukes for både
+  content-felter (PATCH /media/content/{id}) og eier-/kjøpsinformasjon
+  pr. fysisk eksemplar (PATCH /media/physical-copy/{collection_id}/{copy_id}) -
+  se openEditFieldModal()/saveEditField() lenger ned.
+-->
+<div id="editFieldModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox" style="max-width:420px;">
+    <div class="modalHeader">
+      <h3 id="editFieldModalTitle"></h3>
+      <button type="button" id="btnCloseEditFieldModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <div id="editFieldModalStatus" class="refreshStatus"></div>
+    <div id="editFieldModalBody" style="margin-top:10px;"></div>
+    <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" id="btnCancelEditField" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.cancel_btn')) ?></button>
+      <button type="button" id="btnSaveEditField" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.save_btn')) ?></button>
+    </div>
+  </div>
+</div>
+
 <style>
   .modalOverlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.6);
@@ -456,6 +491,11 @@ $sectionAccess = [
   const WTE_I18N = <?= json_encode([
       'detail' => wte_translations_branch('wte.detail'),
   ], JSON_UNESCAPED_UNICODE) ?>;
+  // Styrer om penne-ikonene for redigering skal fungere (de vises kun
+  // i DOM-en for innloggede besøkende via $isLoggedIn i PHP-delen
+  // over, men vi trenger flagget i JS også for pencil-klikk-handleren
+  // som er felles for alle ikonene).
+  const IS_LOGGED_IN = <?= $isLoggedIn ? 'true' : 'false' ?>;
 
   // Simple sprintf-style formatter, supports %s and %d placeholders
   // (same helper as clmFormat() in custom_list_manager/v3/script.js).
@@ -524,6 +564,7 @@ $sectionAccess = [
           ${c.barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.barcode_label, escapeHtml(c.barcode))}</span>` : ""}
           ${c.box_set_barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.box_barcode_label, escapeHtml(c.box_set_barcode))}</span>` : ""}
           ${c.owner ? `<span class="meta">${wteFormat(WTE_I18N.detail.owner_label, escapeHtml(c.owner))}</span>` : ""}
+          ${IS_LOGGED_IN ? `<button type="button" class="editPencilBtn" data-field="owner" data-type="text" data-collection-id="${escapeHtml(c.collection_id)}" data-copy-id="${c.copy_id}" title="${escapeHtml(WTE_I18N.detail.edit_field_btn)}">✏️</button>` : ""}
           ${hasBoxItems ? `<span class="hint">${WTE_I18N.detail.show_box_contents}</span>` : ""}
           ${hasDiscs ? `<span class="hint">${WTE_I18N.detail.show_discs}</span>` : ""}
         </div>
@@ -609,18 +650,23 @@ $sectionAccess = [
     const cards = copies.map(c => {
       const b = formatBadge(c.format);
       const hasInfo = c.store || c.purchased_at || (c.price !== null && c.price !== undefined);
+      const collId = escapeHtml(c.collection_id);
+      const editBtn = (field, type) => IS_LOGGED_IN
+        ? `<button type="button" class="editPencilBtn" data-field="${field}" data-type="${type}" data-collection-id="${collId}" data-copy-id="${c.copy_id}" title="${escapeHtml(WTE_I18N.detail.edit_field_btn)}">✏️</button>`
+        : "";
 
       const lines = [
-        c.store ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_store_label, escapeHtml(c.store))}</span>` : "",
-        c.purchased_at ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_date_label, escapeHtml(c.purchased_at))}</span>` : "",
-        (c.price !== null && c.price !== undefined) ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_price_label, escapeHtml(String(c.price)), escapeHtml(c.currency || "NOK"))}</span>` : "",
+        (c.store ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_store_label, escapeHtml(c.store))}</span>` : "") + editBtn("store", "text"),
+        (c.purchased_at ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_date_label, escapeHtml(c.purchased_at))}</span>` : "") + editBtn("purchased_at", "date"),
+        ((c.price !== null && c.price !== undefined) ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_price_label, escapeHtml(String(c.price)), escapeHtml(c.currency || "NOK"))}</span>` : "") + editBtn("price", "number") + editBtn("currency", "text"),
       ].filter(Boolean).join("");
 
       return `
         <div class="copyRow">
           <span class="fmt">${escapeHtml(b.label)}</span>
           ${c.is_box_set ? `<span class="boxTag">${WTE_I18N.detail.box_set_tag}</span>` : ""}
-          ${hasInfo ? lines : `<span class="meta">${WTE_I18N.detail.purchase_no_info_for_copy}</span>`}
+          ${hasInfo ? "" : `<span class="meta">${WTE_I18N.detail.purchase_no_info_for_copy}</span>`}
+          ${lines}
         </div>
       `;
     }).join("");
@@ -663,7 +709,14 @@ $sectionAccess = [
       : `<span class="noOwnership">${WTE_I18N.detail.no_ownership}</span>`;
   }
 
+  // Holder siste innlastede item tilgjengelig for penne-ikon-
+  // redigeringen (se editPencilBtn-klikkhandleren lenger ned) - slik
+  // slipper vi å re-fetche eller parse DOM-tekst for å finne "nåværende
+  // verdi" når redigeringsmodalen åpnes.
+  let currentItem = null;
+
   function renderDetail(item){
+    currentItem = item;
     document.title = item.title + WTE_I18N.detail.meta_title_suffix;
 
     const posterBox = document.getElementById("posterBox");
@@ -921,6 +974,127 @@ $sectionAccess = [
   document.getElementById("btnCloseCoverModal").addEventListener("click", closeCoverModal);
   coverModalOverlay.addEventListener("click", (e) => {
     if (e.target === coverModalOverlay) closeCoverModal();
+  });
+
+  // ---- Penne-ikon-redigering: én felles modal for både content-felter
+  // (title/overview/runtime/osv. - PATCH /media/content/{id}) og
+  // eier-/kjøpsinformasjon pr. fysisk eksemplar (owner/store/
+  // purchased_at/price/currency - PATCH
+  // /media/physical-copy/{collection_id}/{copy_id}). Penne-ikonene
+  // finnes kun i DOM-en for innloggede besøkende (se IS_LOGGED_IN og
+  // $isLoggedIn i PHP-delen), men selve skrive-tilgangen er uansett
+  // beskyttet av innlogging på backend-siden (get_current_user på
+  // begge endepunktene) - dette er bare et UX-lag. ----
+  const editFieldModalOverlay = document.getElementById("editFieldModalOverlay");
+  const editFieldModalTitle = document.getElementById("editFieldModalTitle");
+  const editFieldModalStatus = document.getElementById("editFieldModalStatus");
+  const editFieldModalBody = document.getElementById("editFieldModalBody");
+  let editFieldContext = null;
+
+  function closeEditFieldModal(){
+    editFieldModalOverlay.style.display = "none";
+    editFieldModalBody.innerHTML = "";
+    editFieldContext = null;
+  }
+
+  function openEditFieldModal(ctx){
+    editFieldContext = ctx;
+    editFieldModalStatus.textContent = "";
+    editFieldModalStatus.className = "refreshStatus";
+    const label = WTE_I18N.detail["edit_field_label_" + ctx.field] || ctx.field;
+    editFieldModalTitle.textContent = wteFormat(WTE_I18N.detail.edit_field_title, label);
+
+    const inputStyle = "width:100%; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);";
+    let inputHtml;
+    if (ctx.type === "textarea") {
+      inputHtml = `<textarea id="editFieldInput" rows="6" style="${inputStyle}">${escapeHtml(ctx.value ?? "")}</textarea>`;
+    } else if (ctx.type === "select" && ctx.field === "content_type") {
+      const options = ["movie", "tv"].map(v =>
+        `<option value="${v}" ${ctx.value === v ? "selected" : ""}>${escapeHtml(WTE_I18N.detail["edit_field_type_" + v])}</option>`
+      ).join("");
+      inputHtml = `<select id="editFieldInput" style="${inputStyle}">${options}</select>`;
+    } else {
+      inputHtml = `<input id="editFieldInput" type="${ctx.type}" value="${escapeHtml(ctx.value ?? "")}" style="${inputStyle}">`;
+    }
+    editFieldModalBody.innerHTML = inputHtml;
+    editFieldModalOverlay.style.display = "flex";
+    document.getElementById("editFieldInput").focus();
+  }
+
+  async function saveEditField(){
+    if (!editFieldContext) return;
+    const { kind, field, type, collectionId, copyId } = editFieldContext;
+    const inputEl = document.getElementById("editFieldInput");
+    const rawValue = inputEl.value;
+
+    // Tomt felt tolkes som "fjern verdien" (sender null), ikke "ingen
+    // endring" - "ingen endring" oppnås ved å ikke åpne redigeringen i
+    // det hele tatt. Se docstring for update_physical_copy_fields()/
+    // update_content_fields() i backend for samme resonnement.
+    let value;
+    if (rawValue === "") {
+      value = null;
+    } else if (type === "number") {
+      value = field === "price" ? parseFloat(rawValue) : parseInt(rawValue, 10);
+    } else {
+      value = rawValue;
+    }
+
+    editFieldModalStatus.className = "refreshStatus";
+    editFieldModalStatus.textContent = WTE_I18N.detail.saving_field;
+
+    try {
+      const url = kind === "content"
+        ? "api.php?action=update_content_field&id=" + encodeURIComponent(contentId)
+        : "api.php?action=update_physical_copy_field&collection_id=" + encodeURIComponent(collectionId) + "&copy_id=" + encodeURIComponent(copyId);
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(", ") : (json.detail || json.error);
+        throw new Error(detail || ("HTTP " + res.status));
+      }
+
+      closeEditFieldModal();
+      await loadDetail();
+    } catch (err) {
+      editFieldModalStatus.className = "refreshStatus error";
+      editFieldModalStatus.textContent = WTE_I18N.detail.save_field_error_prefix + err.message;
+    }
+  }
+
+  // Event delegation - penne-ikonene for fysiske eksemplarer finnes
+  // ikke i DOM-en før renderCollectionTab()/renderPurchaseTab() har
+  // kjørt, så en vanlig addEventListener pr. knapp fungerer ikke der.
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".editPencilBtn");
+    if (!btn || !currentItem) return;
+
+    const field = btn.dataset.field;
+    const type = btn.dataset.type;
+    const collectionId = btn.dataset.collectionId;
+    const copyId = btn.dataset.copyId;
+
+    if (collectionId && copyId !== undefined) {
+      const copy = (currentItem.physical_copies || []).find(
+        c => c.collection_id === collectionId && String(c.copy_id) === copyId
+      );
+      if (!copy) return;
+      openEditFieldModal({ kind: "physical_copy", field, type, collectionId, copyId, value: copy[field] });
+    } else {
+      openEditFieldModal({ kind: "content", field, type, value: currentItem[field] });
+    }
+  });
+
+  document.getElementById("btnCloseEditFieldModal").addEventListener("click", closeEditFieldModal);
+  document.getElementById("btnCancelEditField").addEventListener("click", closeEditFieldModal);
+  document.getElementById("btnSaveEditField").addEventListener("click", saveEditField);
+  editFieldModalOverlay.addEventListener("click", (e) => {
+    if (e.target === editFieldModalOverlay) closeEditFieldModal();
   });
 
   loadDetail();

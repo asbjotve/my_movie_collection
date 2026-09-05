@@ -798,6 +798,187 @@ def set_content_cover_image(db: Session, content_id: str, file_path: str) -> dic
     }
 
 
+def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
+    """Oppdaterer ett eller flere content-felter manuelt (penne-ikon-
+    redigering på detaljsiden), og legger hvert redigerte felt til i
+    content.locked_fields - slik at en senere "flett inn fra TMDB/TVDB"
+    ikke overskriver den manuelle rettingen (samme mønster som
+    set_content_cover_image() bruker for cover_image).
+
+    `fields` skal komme fra
+    ContentFieldUpdateRequest.model_dump(exclude_unset=True) i
+    route-laget, slik at kun feltene brukeren faktisk endret er med her
+    (også hvis en verdi bevisst settes til None/tom streng).
+
+    Kaster ContentExternalSourceError (404) hvis content ikke finnes,
+    (400) hvis et feltnavn i `fields` ikke er blant de redigerbare
+    feltene (se EDITABLE_CONTENT_FIELDS).
+    """
+
+    if not fields:
+        raise ContentExternalSourceError("Ingen felt å oppdatere", status_code=400)
+
+    unknown_fields = set(fields) - EDITABLE_CONTENT_FIELDS
+    if unknown_fields:
+        raise ContentExternalSourceError(
+            f"Feltene {sorted(unknown_fields)} kan ikke redigeres her",
+            status_code=400,
+        )
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        raise ContentExternalSourceError("Ugyldig content_id", status_code=404)
+
+    content_row = db.execute(
+        text("SELECT content_id, locked_fields FROM content WHERE content_id = :content_id"),
+        {"content_id": raw_id},
+    ).fetchone()
+
+    if content_row is None:
+        raise ContentExternalSourceError(
+            "Fant ikke content med denne IDen", status_code=404
+        )
+
+    locked_fields = set(
+        json.loads(content_row.locked_fields) if content_row.locked_fields else []
+    )
+    locked_fields.update(fields.keys())
+
+    # first_release er en `date` her (fra Pydantic) - SQLAlchemy/DBAPI
+    # håndterer det direkte mot content.first_release (timestamp), så
+    # ingen manuell str()-konvertering trengs.
+    set_clauses = ", ".join(f"{name} = :{name}" for name in fields)
+    params = dict(fields)
+    params["content_id"] = raw_id
+    params["locked_fields"] = json.dumps(sorted(locked_fields))
+
+    db.execute(
+        text(
+            f"""
+            UPDATE content
+            SET {set_clauses}, locked_fields = :locked_fields
+            WHERE content_id = :content_id
+            """
+        ),
+        params,
+    )
+    db.commit()
+
+    return {"status": "ok", "content_id": content_id, "updated_fields": sorted(fields.keys())}
+
+
+def update_physical_copy_fields(
+    db: Session, collection_id: str, copy_id: int, fields: dict
+) -> dict:
+    """Oppdaterer ett eller flere felter på ett fysisk eksemplar
+    (penne-ikon-redigering på "Samlingsopplysninger"/"Kjøpsinformasjon"
+    i detaljsiden).
+
+    owner/store sendes som navn (fritekst) - finnes en rad med det
+    navnet i owner-/store-tabellen brukes den, ellers opprettes en ny
+    rad automatisk (get-or-create). Tom streng ("") tolkes som "fjern
+    koblingen" (setter owner_id/store_id til NULL), IKKE som "ingen
+    endring" - "ingen endring" oppnås ved å utelate feltet helt fra
+    forespørselen.
+
+    `fields` skal komme fra
+    PhysicalCopyFieldUpdateRequest.model_dump(exclude_unset=True).
+
+    Kaster ContentExternalSourceError (404) hvis eksemplaret ikke
+    finnes.
+    """
+
+    if not fields:
+        raise ContentExternalSourceError("Ingen felt å oppdatere", status_code=400)
+
+    try:
+        raw_collection_id = _parse_hex_id(collection_id)
+    except (ValueError, AttributeError):
+        raise ContentExternalSourceError("Ugyldig collection_id", status_code=404)
+
+    copy_row = db.execute(
+        text(
+            """
+            SELECT collection_id FROM physical_copy
+            WHERE collection_id = :collection_id AND copy_id = :copy_id
+            """
+        ),
+        {"collection_id": raw_collection_id, "copy_id": copy_id},
+    ).fetchone()
+
+    if copy_row is None:
+        raise ContentExternalSourceError(
+            "Fant ikke eksemplaret med denne collection_id/copy_id", status_code=404
+        )
+
+    set_clauses: list[str] = []
+    params: dict = {"collection_id": raw_collection_id, "copy_id": copy_id}
+
+    if "owner" in fields:
+        set_clauses.append("owner_id = :owner_id")
+        params["owner_id"] = _get_or_create_owner_id(db, fields["owner"])
+    if "store" in fields:
+        set_clauses.append("store_id = :store_id")
+        params["store_id"] = _get_or_create_store_id(db, fields["store"])
+    for plain_field in ("purchased_at", "price", "currency"):
+        if plain_field in fields:
+            set_clauses.append(f"{plain_field} = :{plain_field}")
+            params[plain_field] = fields[plain_field]
+
+    if not set_clauses:
+        raise ContentExternalSourceError("Ingen felt å oppdatere", status_code=400)
+
+    db.execute(
+        text(
+            f"""
+            UPDATE physical_copy
+            SET {", ".join(set_clauses)}
+            WHERE collection_id = :collection_id AND copy_id = :copy_id
+            """
+        ),
+        params,
+    )
+    db.commit()
+
+    return {
+        "status": "ok",
+        "collection_id": collection_id,
+        "copy_id": copy_id,
+        "updated_fields": sorted(fields.keys()),
+    }
+
+
+def _get_or_create_owner_id(db: Session, name: str | None) -> int | None:
+    name = (name or "").strip()
+    if not name:
+        return None
+
+    existing = db.execute(
+        text("SELECT owner_id FROM owner WHERE name = :name"), {"name": name}
+    ).fetchone()
+    if existing:
+        return existing.owner_id
+
+    result = db.execute(text("INSERT INTO owner (name) VALUES (:name)"), {"name": name})
+    return result.lastrowid
+
+
+def _get_or_create_store_id(db: Session, name: str | None) -> int | None:
+    name = (name or "").strip()
+    if not name:
+        return None
+
+    existing = db.execute(
+        text("SELECT store_id FROM store WHERE name = :name"), {"name": name}
+    ).fetchone()
+    if existing:
+        return existing.store_id
+
+    result = db.execute(text("INSERT INTO store (name) VALUES (:name)"), {"name": name})
+    return result.lastrowid
+
+
 def update_content_external_source(
     db: Session,
     source: str,
@@ -911,6 +1092,14 @@ MERGEABLE_CONTENT_FIELDS = {
     "age_restriction",
     "imdb_id",
 }
+
+# Felter som kan redigeres manuelt via PATCH /media/content/{id}
+# (penne-ikon på detaljsiden) - samme som MERGEABLE_CONTENT_FIELDS,
+# minus cover_image (eget endepunkt, se set_content_cover_image())
+# pluss content_type (redigerbart manuelt, men kommer ikke fra
+# TMDB/TVDB-fletting siden det sjelden endrer seg for en eksisterende
+# rad).
+EDITABLE_CONTENT_FIELDS = (MERGEABLE_CONTENT_FIELDS - {"cover_image"}) | {"content_type"}
 
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 

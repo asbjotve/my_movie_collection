@@ -5,6 +5,10 @@ from sqlalchemy.orm import Session
 from app.api_key import require_api_key
 from app.db import AppSetting, User, get_db
 from app.media_db import get_media_db
+from app.schemas.media_catalog import (
+    ContentFieldUpdateRequest,
+    PhysicalCopyFieldUpdateRequest,
+)
 from app.security import get_current_user
 from app.services.media_catalog import (
     ContentExternalSourceError,
@@ -15,6 +19,8 @@ from app.services.media_catalog import (
     merge_content_from_source,
     set_content_cover_image,
     update_content_external_source,
+    update_content_fields,
+    update_physical_copy_fields,
 )
 
 
@@ -60,6 +66,54 @@ def get_content_detail(
     if item is None:
         raise HTTPException(status_code=404, detail="Fant ikke content med denne IDen")
     return item
+
+
+@router.patch("/content/{content_id}")
+def patch_content_fields(
+    content_id: str,
+    payload: ContentFieldUpdateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Manuell redigering av ett eller flere content-felter (penne-
+    ikon på detaljsiden), f.eks. title/overview/runtime. Krever
+    innlogging (get_current_user).
+
+    Kun feltene som faktisk er med i payload (exclude_unset) blir
+    oppdatert - se ContentFieldUpdateRequest og
+    update_content_fields() for detaljer, inkludert hvordan
+    content.locked_fields håndteres.
+    """
+    fields = payload.model_dump(exclude_unset=True)
+    try:
+        return update_content_fields(db, content_id, fields)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/physical-copy/{collection_id}/{copy_id}")
+def patch_physical_copy_fields(
+    collection_id: str,
+    copy_id: int,
+    payload: PhysicalCopyFieldUpdateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Manuell redigering av eier-/kjøpsinformasjon på ett fysisk
+    eksemplar (penne-ikon på "Samlingsopplysninger"/"Kjøpsinformasjon"),
+    f.eks. owner/store/purchased_at/price/currency. Krever innlogging
+    (get_current_user).
+
+    Kun feltene som faktisk er med i payload (exclude_unset) blir
+    oppdatert - se PhysicalCopyFieldUpdateRequest og
+    update_physical_copy_fields() for detaljer, inkludert get-or-create
+    for owner/store.
+    """
+    fields = payload.model_dump(exclude_unset=True)
+    try:
+        return update_physical_copy_fields(db, collection_id, copy_id, fields)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.patch("/external-source/{source}/{external_id}")
