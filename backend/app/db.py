@@ -3,7 +3,14 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from config.config import settings
 
-engine = create_engine(settings.database_url)
+# Se media_db.py for begrunnelse for pool_pre_ping/pool_recycle - samme
+# "Lost connection to MySQL server"-problem kan i prinsippet ramme
+# denne tilkoblingen (mmc_userdb: brukere/section_access) også.
+engine = create_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
