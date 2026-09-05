@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
+require_once __DIR__ . '/lang.php';
 
 // Hard gate: hele siden krever innlogging - ikke bare et skjult
 // menypunkt. Prøver noen å åpne denne URL-en direkte uten å være
@@ -20,31 +21,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($httpCode === 200 && $data) {
             $_SESSION['twofa_setup_pending'] = $data;
         } else {
-            $error = $data['detail'] ?? 'Kunne ikke starte 2FA-oppsett.';
+            $error = $data['detail'] ?? t('wte.twofa.setup_start_error');
         }
     } elseif ($action === 'cancel_setup') {
         unset($_SESSION['twofa_setup_pending']);
     } elseif ($action === 'confirm_setup') {
         $code = trim((string)($_POST['code'] ?? ''));
         if ($code === '') {
-            $error = 'Skriv inn koden fra autentisator-appen.';
+            $error = t('wte.twofa.enter_code');
         } else {
             [$httpCode, $data] = auth_api_authenticated('POST', '/auth/2fa/enable', ['code' => $code]);
             if ($httpCode === 200 && $data) {
                 unset($_SESSION['twofa_setup_pending']);
                 $recoveryCodes = $data['recovery_codes'];
             } else {
-                $error = $data['detail'] ?? 'Ugyldig kode.';
+                $error = $data['detail'] ?? t('wte.twofa.invalid_code');
             }
         }
     } elseif ($action === 'disable') {
         $password = (string)($_POST['password'] ?? '');
         if ($password === '') {
-            $error = 'Skriv inn passordet ditt for å bekrefte.';
+            $error = t('wte.twofa.enter_password_confirm');
         } else {
             [$httpCode, $data] = auth_api_authenticated('POST', '/auth/2fa/disable', ['password' => $password]);
             if ($httpCode !== 200) {
-                $error = $data['detail'] ?? 'Kunne ikke deaktivere 2FA.';
+                $error = $data['detail'] ?? t('wte.twofa.disable_failed');
             }
         }
     }
@@ -57,10 +58,10 @@ $totpEnabled = $meHttpCode === 200 && !empty($me['totp_enabled']);
 $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
 ?>
 <!doctype html>
-<html lang="no">
+<html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
 <head>
 <meta charset="utf-8">
-<title>To-faktor autentisering – Media-katalog</title>
+<title><?= htmlspecialchars(t('wte.twofa.meta_title')) ?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root{
@@ -120,13 +121,13 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
 </head>
 <body>
 <div class="wrap">
-  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink">← Tilbake til Administrering</a></p>
+  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink"><?= htmlspecialchars(t('wte.twofa.back_link')) ?></a></p>
 
   <div class="card">
-    <h1>To-faktor autentisering (2FA)</h1>
+    <h1><?= htmlspecialchars(t('wte.twofa.heading')) ?></h1>
     <p class="subtitle">
-      Innlogget som <strong><?= htmlspecialchars($username) ?></strong> ·
-      Status: <span class="statusBadge <?= $totpEnabled ? 'on' : 'off' ?>"><?= $totpEnabled ? 'Aktivert' : 'Ikke aktivert' ?></span>
+      <?= sprintf(htmlspecialchars(t('wte.twofa.logged_in_as')), '<strong>' . htmlspecialchars($username) . '</strong>') ?>
+      <?= htmlspecialchars(t('wte.twofa.status_label')) ?> <span class="statusBadge <?= $totpEnabled ? 'on' : 'off' ?>"><?= $totpEnabled ? htmlspecialchars(t('wte.twofa.status_on')) : htmlspecialchars(t('wte.twofa.status_off')) ?></span>
     </p>
 
     <?php if ($error): ?>
@@ -135,51 +136,48 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
 
     <?php if ($recoveryCodes): ?>
       <div class="warnBox">
-        ✅ 2FA er nå aktivert! Lagre recovery-kodene under et trygt sted -
-        de vises kun denne ene gangen, og kan brukes til å logge inn hvis
-        du mister tilgang til autentisator-appen. Hver kode kan kun
-        brukes én gang.
+        <?= htmlspecialchars(t('wte.twofa.enabled_notice')) ?>
       </div>
       <div class="recoveryList">
         <?php foreach ($recoveryCodes as $code): ?>
           <?= htmlspecialchars($code) ?><br>
         <?php endforeach; ?>
       </div>
-      <p class="subtitle">Når du har lagret kodene, kan du gå tilbake til Administrering.</p>
+      <p class="subtitle"><?= htmlspecialchars(t('wte.twofa.saved_codes_hint')) ?></p>
 
     <?php elseif ($totpEnabled): ?>
-      <p class="subtitle">2FA er aktivert for kontoen din. Du kan deaktivere det under (krever passordet ditt som bekreftelse).</p>
+      <p class="subtitle"><?= htmlspecialchars(t('wte.twofa.enabled_subtitle')) ?></p>
       <form method="post">
         <input type="hidden" name="action" value="disable">
-        <label for="password">Passord</label>
+        <label for="password"><?= htmlspecialchars(t('wte.twofa.password_label')) ?></label>
         <input type="password" id="password" name="password" autocomplete="current-password" required>
-        <button type="submit" class="btnDanger">Deaktiver 2FA</button>
+        <button type="submit" class="btnDanger"><?= htmlspecialchars(t('wte.twofa.disable_btn')) ?></button>
       </form>
 
     <?php elseif ($setupPending): ?>
-      <p class="subtitle">Skann QR-koden med en autentisator-app (Google Authenticator, Authy, e.l.), og bekreft med koden den viser.</p>
+      <p class="subtitle"><?= htmlspecialchars(t('wte.twofa.scan_qr_subtitle')) ?></p>
       <div class="qrBox">
-        <img src="<?= htmlspecialchars($setupPending['qr_code_data_uri']) ?>" alt="QR-kode for 2FA" width="200" height="200">
+        <img src="<?= htmlspecialchars($setupPending['qr_code_data_uri']) ?>" alt="<?= htmlspecialchars(t('wte.twofa.qr_alt')) ?>" width="200" height="200">
       </div>
-      <p class="subtitle">Eller skriv inn secret-et manuelt:</p>
+      <p class="subtitle"><?= htmlspecialchars(t('wte.twofa.manual_secret_subtitle')) ?></p>
       <div class="secretText"><?= htmlspecialchars($setupPending['secret']) ?></div>
 
       <form method="post">
         <input type="hidden" name="action" value="confirm_setup">
-        <label for="code">Kode fra autentisator-appen</label>
+        <label for="code"><?= htmlspecialchars(t('wte.twofa.code_from_app_label')) ?></label>
         <input type="text" id="code" name="code" autocomplete="one-time-code" autofocus required>
-        <button type="submit" class="btnPrimary">Bekreft og aktiver</button>
+        <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.twofa.confirm_enable_btn')) ?></button>
       </form>
       <form method="post">
         <input type="hidden" name="action" value="cancel_setup">
-        <button type="submit" class="btnGhost">Avbryt oppsett</button>
+        <button type="submit" class="btnGhost"><?= htmlspecialchars(t('wte.twofa.cancel_setup_btn')) ?></button>
       </form>
 
     <?php else: ?>
-      <p class="subtitle">2FA er ikke aktivert. Sett opp en autentisator-app for ekstra sikkerhet ved innlogging.</p>
+      <p class="subtitle"><?= htmlspecialchars(t('wte.twofa.not_enabled_subtitle')) ?></p>
       <form method="post">
         <input type="hidden" name="action" value="start_setup">
-        <button type="submit" class="btnPrimary">Sett opp 2FA</button>
+        <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.twofa.setup_btn')) ?></button>
       </form>
     <?php endif; ?>
   </div>

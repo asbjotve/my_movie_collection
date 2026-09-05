@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
+require_once __DIR__ . '/lang.php';
 
 // Hard gate: hele siden krever innlogging - samme mønster som
 // 2fa_setup.php. En dag med flere roller kan denne strammes ytterligere
@@ -12,10 +13,10 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 $username = require_login();
 
 $labels = [
-    'mine_filmer'    => 'Mine filmer',
-    'onskeliste'     => 'Ønskeliste',
-    'andre_lister'   => 'Andre lister',
-    'administrering' => 'Administrering',
+    'mine_filmer'    => t('wte.nav.mine_filmer'),
+    'onskeliste'     => t('wte.nav.onskeliste'),
+    'andre_lister'   => t('wte.nav.andre_lister'),
+    'administrering' => t('wte.nav.administrering'),
 ];
 
 $error = null;
@@ -31,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($httpCode === 200) {
         $saved = true;
     } else {
-        $error = $data['detail'] ?? $data['error'] ?? 'Kunne ikke lagre innstillingene.';
+        $error = $data['detail'] ?? $data['error'] ?? t('wte.admin_tilganger.save_failed');
     }
 }
 
@@ -45,10 +46,10 @@ $currentAccess = fetch_section_access([
 ]);
 ?>
 <!doctype html>
-<html lang="no">
+<html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
 <head>
 <meta charset="utf-8">
-<title>Tilgangsstyring – Media-katalog</title>
+<title><?= htmlspecialchars(t('wte.admin_tilganger.meta_title')) ?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root{
@@ -103,20 +104,19 @@ $currentAccess = fetch_section_access([
 </head>
 <body>
 <div class="wrap">
-  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink">← Tilbake til Administrering</a></p>
+  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink"><?= htmlspecialchars(t('wte.admin_tilganger.back_link')) ?></a></p>
 
   <div class="card">
-    <h1>Tilgangsstyring</h1>
+    <h1><?= htmlspecialchars(t('wte.admin_tilganger.heading')) ?></h1>
     <p class="subtitle">
-      Innlogget som <strong><?= htmlspecialchars($username) ?></strong> ·
-      Velg hvilke sider/seksjoner som skal kreve innlogging for besøkende.
+      <?= sprintf(htmlspecialchars(t('wte.admin_tilganger.subtitle')), '<strong>' . htmlspecialchars($username) . '</strong>') ?>
     </p>
 
     <?php if ($error): ?>
       <div class="errorBox"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
     <?php if ($saved): ?>
-      <div class="successBox">✅ Innstillingene ble lagret.</div>
+      <div class="successBox"><?= htmlspecialchars(t('wte.admin_tilganger.saved_notice')) ?></div>
     <?php endif; ?>
 
     <form method="post">
@@ -129,7 +129,7 @@ $currentAccess = fetch_section_access([
           </label>
         </div>
       <?php endforeach; ?>
-      <button type="submit" class="btnPrimary">Lagre</button>
+      <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.save_btn')) ?></button>
     </form>
   </div>
 </div>
