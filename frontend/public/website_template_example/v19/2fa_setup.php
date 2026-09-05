@@ -121,7 +121,7 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
 </head>
 <body>
 <div class="wrap">
-  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink"><?= htmlspecialchars(t('wte.twofa.back_link')) ?></a></p>
+  <p><a href="index.php" class="backLink"><?= htmlspecialchars(t('wte.twofa.back_link')) ?></a></p>
 
   <div class="card">
     <h1><?= htmlspecialchars(t('wte.twofa.heading')) ?></h1>

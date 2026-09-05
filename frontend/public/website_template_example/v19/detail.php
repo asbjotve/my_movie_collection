@@ -117,6 +117,24 @@ $sectionAccess = [
     }
     .authState .dot{ width:8px; height:8px; border-radius:50%; background: var(--danger); display:inline-block; }
 
+    /* ---- Language switcher (top nav) ---- */
+    .lang-switch{ display:flex; gap:4px; }
+    .lang-switch a{
+      display:inline-block;
+      padding:4px 9px;
+      border-radius:8px;
+      font-size:11px;
+      font-weight:700;
+      text-decoration:none;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .lang-switch a.active{
+      color: #0c1024;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
     main{ padding: 18px 22px; max-width: 1400px; margin: 0 auto; }
 
     .backLink{
@@ -303,13 +321,18 @@ $sectionAccess = [
     <a href="index.php?panel=andre_lister"><?= htmlspecialchars(t('wte.nav.andre_lister')) ?><?= $sectionAccess['andre_lister'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
     <a href="index.php?panel=administrering"><?= htmlspecialchars(t('wte.nav.administrering')) ?><?= $sectionAccess['administrering'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
   </nav>
+  <div class="lang-switch">
+    <?php foreach (WTE_AVAILABLE_LANGS as $langCode): ?>
+      <a href="?lang=<?= htmlspecialchars($langCode) ?>" class="<?= $GLOBALS['__wte_lang'] === $langCode ? 'active' : '' ?>"><?= htmlspecialchars(strtoupper($langCode)) ?></a>
+    <?php endforeach; ?>
+  </div>
   <div class="authState">
     <span class="dot"></span>
     <?php if ($isLoggedIn): ?>
       <?= htmlspecialchars(t('wte.nav.logged_in_as')) ?> <strong><?= htmlspecialchars(current_username()) ?></strong>
-      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.logout')) ?></a>
+      · <a href="logout.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.logout')) ?></a>
     <?php else: ?>
-      <?= htmlspecialchars(t('wte.nav.not_logged_in')) ?> · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.login')) ?></a>
+      <?= htmlspecialchars(t('wte.nav.not_logged_in')) ?> · <a href="login.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.login')) ?></a>
     <?php endif; ?>
   </div>
 </div>

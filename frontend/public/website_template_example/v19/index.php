@@ -384,9 +384,9 @@ $sectionAccess = [
     <span class="dot"></span>
     <?php if ($isLoggedIn): ?>
       <?= htmlspecialchars(t('wte.nav.logged_in_as')) ?> <strong><?= htmlspecialchars(current_username()) ?></strong>
-      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.logout')) ?></a>
+      · <a href="logout.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.logout')) ?></a>
     <?php else: ?>
-      <?= htmlspecialchars(t('wte.nav.not_logged_in')) ?> · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.login')) ?></a>
+      <?= htmlspecialchars(t('wte.nav.not_logged_in')) ?> · <a href="login.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.login')) ?></a>
     <?php endif; ?>
   </div>
 </nav>
@@ -398,7 +398,7 @@ $sectionAccess = [
       <h2 class="pageTitle"><?= htmlspecialchars(t('wte.index.mine_filmer.title')) ?></h2>
       <?php if ($sectionAccess['mine_filmer']): ?>
       <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
-      <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
+      <a href="login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
       <?php else: ?>
 
     <div class="filterBar">
@@ -437,7 +437,7 @@ $sectionAccess = [
   <h2 class="pageTitle"><?= htmlspecialchars(t('wte.index.onskeliste.title')) ?></h2>
   <?php if ($sectionAccess['onskeliste']): ?>
     <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
-    <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
+    <a href="login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
   <?php else: ?>
     <p class="pageHint"><?= htmlspecialchars(t('wte.index.onskeliste.placeholder')) ?></p>
     <div class="list" id="onskelisteList"></div>
@@ -449,7 +449,7 @@ $sectionAccess = [
   <h2 class="pageTitle"><?= htmlspecialchars(t('wte.index.andre_lister.title')) ?></h2>
   <?php if ($sectionAccess['andre_lister']): ?>
     <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
-    <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
+    <a href="login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
   <?php else: ?>
     <p class="pageHint"><?= htmlspecialchars(t('wte.index.andre_lister.placeholder')) ?></p>
     <div class="grid" id="andreListerGrid"></div>
@@ -463,7 +463,7 @@ $sectionAccess = [
       <p class="pageHint"><?= t('wte.index.administrering.logged_in_hint', '<strong>' . htmlspecialchars(current_username()) . '</strong>') ?></p>
     <?php else: ?>
       <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
-      <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
+      <a href="login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
     <?php endif; ?>
     <div class="adminGrid">
       <div class="adminCard card">
@@ -479,13 +479,13 @@ $sectionAccess = [
         </a>
       </div>
       <div class="adminCard card">
-        <a href="<?= BASE_PATH ?>/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
+        <a href="2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
           <h3><?= htmlspecialchars(t('wte.index.administrering.card_2fa_title')) ?></h3>
           <p><?= htmlspecialchars(t('wte.index.administrering.card_2fa_desc')) ?></p>
         </a>
       </div>
       <div class="adminCard card">
-        <a href="<?= BASE_PATH ?>/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
+        <a href="admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
           <h3><?= htmlspecialchars(t('wte.index.administrering.card_access_title')) ?></h3>
           <p><?= htmlspecialchars(t('wte.index.administrering.card_access_desc')) ?></p>
         </a>

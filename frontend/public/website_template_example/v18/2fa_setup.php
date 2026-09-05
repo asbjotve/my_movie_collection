@@ -120,7 +120,7 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
 </head>
 <body>
 <div class="wrap">
-  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink">← Tilbake til Administrering</a></p>
+  <p><a href="index.php" class="backLink">← Tilbake til Administrering</a></p>
 
   <div class="card">
     <h1>To-faktor autentisering (2FA)</h1>
