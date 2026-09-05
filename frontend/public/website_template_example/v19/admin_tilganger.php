@@ -52,6 +52,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_language'])) 
     }
 }
 
+$currencyError = null;
+$currencySaved = false;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_currency'])) {
+    $requestedCurrency = strtoupper(trim((string)$_POST['default_currency']));
+    if (preg_match('/^[A-Z]{3}$/', $requestedCurrency)) {
+        [$httpCode, $data] = update_default_currency_setting($requestedCurrency);
+        if ($httpCode === 200) {
+            $currencySaved = true;
+        } else {
+            $currencyError = $data['detail'] ?? $data['error'] ?? t('wte.admin_tilganger.currency_save_failed');
+        }
+    } else {
+        $currencyError = t('wte.admin_tilganger.currency_save_failed');
+    }
+}
+
 // Hent gjeldende status etter en eventuell lagring over, slik at siden
 // alltid viser ferskest mulig tilstand (samme mønster som 2fa_setup.php).
 $currentAccess = fetch_section_access([
@@ -67,6 +84,11 @@ $currentAccess = fetch_section_access([
 // resolveringen som besøkende faktisk får, så select-boksen viser
 // riktig forhåndsvalgt verdi selv når ingen overstyring er lagret.
 $currentDefaultLang = fetch_default_language_setting() ?? wte_default_lang();
+
+// Gjeldende admin-overstyrte default-valuta - null betyr "ingen
+// overstyring lagret ennå" (backend faller da tilbake til NOK, se
+// _load_physical_copies() i media_catalog.py).
+$currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
 ?>
 <!doctype html>
 <html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
@@ -176,6 +198,30 @@ $currentDefaultLang = fetch_default_language_setting() ?? wte_default_lang();
         <?php endforeach; ?>
       </select>
       <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.lang_save_btn')) ?></button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h1><?= htmlspecialchars(t('wte.admin_tilganger.currency_heading')) ?></h1>
+    <p class="subtitle"><?= htmlspecialchars(t('wte.admin_tilganger.currency_subtitle')) ?></p>
+
+    <?php if ($currencyError): ?>
+      <div class="errorBox"><?= htmlspecialchars($currencyError) ?></div>
+    <?php endif; ?>
+    <?php if ($currencySaved): ?>
+      <div class="successBox"><?= htmlspecialchars(t('wte.admin_tilganger.currency_saved_notice')) ?></div>
+    <?php endif; ?>
+
+    <form method="post">
+      <input
+        type="text"
+        name="default_currency"
+        value="<?= htmlspecialchars($currentDefaultCurrency) ?>"
+        maxlength="3"
+        pattern="[A-Za-z]{3}"
+        style="width:100%; padding:10px; border-radius:7px; background:var(--bg); color:var(--text); border:1px solid var(--border); font-size:14px; text-transform:uppercase;"
+      >
+      <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.currency_save_btn')) ?></button>
     </form>
   </div>
 </div>

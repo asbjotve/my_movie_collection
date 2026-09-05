@@ -69,6 +69,7 @@ def _load_physical_copies(
     collections: list[dict],
     raw_collection_ids: list[bytes],
     raw_content_id: bytes,
+    default_currency: str = "NOK",
 ) -> list[dict]:
     """Bygger en flat liste over fysiske eksemplarer ("Samlingsopplysninger")
     for en films samlinger: ett `physical_copy` = ett eksemplar = én
@@ -121,7 +122,8 @@ def _load_physical_copies(
                 pc.store_id AS store_id,
                 s.name AS store_name,
                 pc.purchased_at AS purchased_at,
-                pc.price AS price
+                pc.price AS price,
+                pc.currency AS currency
             FROM physical_copy pc
             LEFT JOIN owner o ON o.owner_id = pc.owner_id
             LEFT JOIN store s ON s.store_id = pc.store_id
@@ -281,6 +283,10 @@ def _load_physical_copies(
                     str(row.purchased_at) if row.purchased_at is not None else None
                 ),
                 "price": float(row.price) if row.price is not None else None,
+                # Valuta er ikke obligatorisk pr. eksemplar - hvis ikke
+                # satt, faller vi tilbake til default_currency (styrt av
+                # /settings/default-currency, se app_settings_route.py).
+                "currency": row.currency or default_currency,
             }
         )
 
@@ -554,7 +560,7 @@ def list_content(db: Session) -> list[dict]:
     return result
 
 
-def get_content_by_id(db: Session, content_id: str) -> dict | None:
+def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK") -> dict | None:
     """Henter én content-rad (med samme struktur som list_content sine
     elementer), for detaljsiden i website_template_example v18.
 
@@ -633,7 +639,7 @@ def get_content_by_id(db: Session, content_id: str) -> dict | None:
         for r in collection_rows
     ]
     physical_copies = _load_physical_copies(
-        db, collections, [r.collection_id for r in collection_rows], raw_id
+        db, collections, [r.collection_id for r in collection_rows], raw_id, default_currency
     )
 
     return {

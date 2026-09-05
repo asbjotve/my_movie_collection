@@ -613,7 +613,7 @@ $sectionAccess = [
       const lines = [
         c.store ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_store_label, escapeHtml(c.store))}</span>` : "",
         c.purchased_at ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_date_label, escapeHtml(c.purchased_at))}</span>` : "",
-        (c.price !== null && c.price !== undefined) ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_price_label, escapeHtml(String(c.price)))}</span>` : "",
+        (c.price !== null && c.price !== undefined) ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_price_label, escapeHtml(String(c.price)), escapeHtml(c.currency || "NOK"))}</span>` : "",
       ].filter(Boolean).join("");
 
       return `

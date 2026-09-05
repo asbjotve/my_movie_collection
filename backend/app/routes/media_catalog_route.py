@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api_key import require_api_key
-from app.db import User
+from app.db import AppSetting, User, get_db
 from app.media_db import get_media_db
 from app.security import get_current_user
 from app.services.media_catalog import (
@@ -41,12 +41,22 @@ def get_content(db: Session = Depends(get_media_db)):
 
 
 @router.get("/content/{content_id}", dependencies=[Depends(require_api_key)])
-def get_content_detail(content_id: str, db: Session = Depends(get_media_db)):
+def get_content_detail(
+    content_id: str,
+    db: Session = Depends(get_media_db),
+    userdb: Session = Depends(get_db),
+):
     """Én content-rad (detaljvisning), med fysiske utgaver og eksterne
     kilder. content_id er 32-tegns hex (samme form som feltet i
     /media/content sin respons).
     """
-    item = get_content_by_id(db, content_id)
+    # default_currency-settingen ligger i mmc_userdb (app_settings),
+    # en annen database enn selve media-katalogen (db_mediearkiv) - se
+    # docstring i app_settings_route.py for hele fallback-rekkefølgen.
+    setting = userdb.query(AppSetting).filter(AppSetting.setting_key == "default_currency").first()
+    default_currency = (setting.setting_value if setting else None) or "NOK"
+
+    item = get_content_by_id(db, content_id, default_currency=default_currency)
     if item is None:
         raise HTTPException(status_code=404, detail="Fant ikke content med denne IDen")
     return item

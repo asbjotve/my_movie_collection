@@ -393,6 +393,67 @@ function update_default_language_setting(string $lang): array
     return [$httpCode, json_decode($response, true)];
 }
 
+/**
+ * Henter admin-overstyrt default-valuta via GET
+ * /settings/default-currency (offentlig endepunkt, ingen auth). Returnerer
+ * null hvis ingen overstyring er lagret ennå (backend faller da tilbake
+ * til NOK) - samme mønster som fetch_default_language_setting().
+ */
+function fetch_default_currency_setting(): ?string
+{
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/default-currency');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 5,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false || $httpCode !== 200) {
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data) || !isset($data['default_currency']) || !is_string($data['default_currency'])) {
+        return null;
+    }
+
+    return $data['default_currency'];
+}
+
+/**
+ * Oppdaterer admin-overstyrt default-valuta via PUT
+ * /settings/default-currency. Krever et gyldig access_token for en
+ * innlogget admin-bruker (require_role("admin") i backend).
+ */
+function update_default_currency_setting(string $currency): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/default-currency');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ],
+        CURLOPT_POSTFIELDS => json_encode(['default_currency' => $currency]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, null];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
 /** Logger ut - tømmer hele sesjonen. */
 function auth_logout(): void
 {
