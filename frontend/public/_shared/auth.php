@@ -51,6 +51,23 @@ if (!BASE_PATH) {
 
 
 /**
+ * Returns the URL path of the directory the currently running script
+ * lives in (e.g. "/website_template_example/v19" for a request to
+ * .../v19/login.php). Used to build same-directory links/redirects
+ * (login.php, logout.php, index.php) without relying on the global
+ * BASE_PATH constant above - BASE_PATH only ever points to a single
+ * tool/version, so it silently breaks as soon as more than one
+ * version of the same tool exists side by side (e.g. website_template_
+ * example v18 + v19 at the same time). Deriving the path per-request
+ * instead means every version resolves correctly to itself, and the
+ * app can still be freely moved/renamed without touching any config.
+ */
+function current_script_dir(): string
+{
+    return rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+}
+
+/**
  * Starter PHP-sesjonen (med fornuftige cookie-innstillinger) hvis den
  * ikke allerede er startet. Må kalles før noe leses fra/skrives til
  * $_SESSION - kalles automatisk av alle funksjonene under.
@@ -334,7 +351,7 @@ function require_login(): string
     }
 
     $redirectTo = $_SERVER['REQUEST_URI'] ?? '/';
-    header('Location: ' . BASE_PATH . '/login.php?redirect=' . urlencode($redirectTo));
+    header('Location: ' . current_script_dir() . '/login.php?redirect=' . urlencode($redirectTo));
     exit;
 }
 
@@ -354,7 +371,7 @@ function require_login_or_json_401(): string
     http_response_code(401);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
-        'error' => 'Ikke innlogget. Logg inn på ' . BASE_PATH . '/login.php først.',
+        'error' => 'Ikke innlogget. Logg inn på ' . current_script_dir() . '/login.php først.',
     ]);
     exit;
 }

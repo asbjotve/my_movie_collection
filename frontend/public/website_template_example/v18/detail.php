@@ -306,9 +306,9 @@ $sectionAccess = [
     <span class="dot"></span>
     <?php if ($isLoggedIn): ?>
       Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>
-      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;">Logg ut</a>
+      · <a href="logout.php" style="color:inherit;">Logg ut</a>
     <?php else: ?>
-      Ikke innlogget · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;">Logg inn</a>
+      Ikke innlogget · <a href="login.php" style="color:inherit;">Logg inn</a>
     <?php endif; ?>
   </div>
 </div>

@@ -104,7 +104,7 @@ $currentAccess = fetch_section_access([
 </head>
 <body>
 <div class="wrap">
-  <p><a href="<?= BASE_PATH ?>/index.php" class="backLink"><?= htmlspecialchars(t('wte.admin_tilganger.back_link')) ?></a></p>
+  <p><a href="index.php" class="backLink"><?= htmlspecialchars(t('wte.admin_tilganger.back_link')) ?></a></p>
 
   <div class="card">
     <h1><?= htmlspecialchars(t('wte.admin_tilganger.heading')) ?></h1>

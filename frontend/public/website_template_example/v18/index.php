@@ -335,9 +335,9 @@ $sectionAccess = [
     <span class="dot"></span>
     <?php if ($isLoggedIn): ?>
       Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>
-      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;">Logg ut</a>
+      · <a href="logout.php" style="color:inherit;">Logg ut</a>
     <?php else: ?>
-      Ikke innlogget · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;">Logg inn</a>
+      Ikke innlogget · <a href="login.php" style="color:inherit;">Logg inn</a>
     <?php endif; ?>
   </div>
 </div>
@@ -349,7 +349,7 @@ $sectionAccess = [
       <h2 class="pageTitle">Mine filmer</h2>
       <?php if ($sectionAccess['mine_filmer']): ?>
       <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-      <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
+      <a href="login.php" class="loginCta">🔒 Logg inn</a>
       <?php else: ?>
 
     <div class="filterBar">
@@ -388,7 +388,7 @@ $sectionAccess = [
   <h2 class="pageTitle">Ønskeliste</h2>
   <?php if ($sectionAccess['onskeliste']): ?>
     <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-    <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
+    <a href="login.php" class="loginCta">🔒 Logg inn</a>
   <?php else: ?>
     <p class="pageHint">Plassholder-data – ingen databasekobling i denne versjonen.</p>
     <div class="list" id="onskelisteList"></div>
@@ -400,7 +400,7 @@ $sectionAccess = [
   <h2 class="pageTitle">Andre lister</h2>
   <?php if ($sectionAccess['andre_lister']): ?>
     <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-    <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
+    <a href="login.php" class="loginCta">🔒 Logg inn</a>
   <?php else: ?>
     <p class="pageHint">Plassholder-data – ingen databasekobling i denne versjonen.</p>
     <div class="grid" id="andreListerGrid"></div>
@@ -414,7 +414,7 @@ $sectionAccess = [
       <p class="pageHint">Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>. Handlingene under er fortsatt plassholdere i denne malen (selve funksjonene finnes andre steder i prosjektet ennå), men panelet er nå faktisk ulåst for deg.</p>
     <?php else: ?>
       <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-      <a href="<?= BASE_PATH ?>/login.php" class="loginCta">🔒 Logg inn</a>
+      <a href="login.php" class="loginCta">🔒 Logg inn</a>
     <?php endif; ?>
     <div class="adminGrid">
       <div class="adminCard">
@@ -430,13 +430,13 @@ $sectionAccess = [
         </a>
       </div>
       <div class="adminCard">
-        <a href="<?= BASE_PATH ?>/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
+        <a href="2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
           <h3>To-faktor autentisering (2FA)</h3>
           <p>Sett opp eller deaktiver 2FA for din bruker.</p>
         </a>
       </div>
       <div class="adminCard">
-        <a href="<?= BASE_PATH ?>/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
+        <a href="admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
           <h3>Tilgangsstyring</h3>
           <p>Velg hvilke sider/seksjoner som krever innlogging.</p>
         </a>
