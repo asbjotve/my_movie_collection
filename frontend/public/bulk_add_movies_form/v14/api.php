@@ -268,7 +268,10 @@ function makeRequest(string $url, string $method = 'GET', array $headers = [], ?
     curl_close($ch);
 
     if ($response === false) {
-        throw new RuntimeException('cURL-feil: ' . $curlError . ' (URL: ' . $url . ')');
+        // URL-en kan inneholde en API-nøkkel (f.eks. TMDB_API_KEY) - logg den
+        // kun server-side, ikke i responsen til klienten.
+        error_log('cURL-feil: ' . $curlError . ' (URL: ' . $url . ')');
+        throw new RuntimeException('Kunne ikke kontakte ekstern tjeneste (nettverksfeil).');
     }
 
     return [$response, $httpCode > 0 ? $httpCode : 502];

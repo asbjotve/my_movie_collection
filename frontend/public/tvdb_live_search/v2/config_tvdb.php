@@ -60,29 +60,26 @@ function getTvdbToken(): string
     $err      = curl_error($ch);
 
     if ($response === false) {
-        throw new RuntimeException('TVDB login cURL-feil: ' . $err);
+        error_log('TVDB login cURL-feil: ' . $err);
+        throw new RuntimeException('Kunne ikke kontakte TVDB (nettverksfeil).');
     }
 
-    // For debugging: logg det vi sendte + det vi fikk
-    // (fjern dette når du er fornøyd)
-    // error_log('TVDB login request body: ' . $body);
-    // error_log('TVDB login response: ' . $response);
-
     if ($httpCode !== 200) {
-        throw new RuntimeException(
-            'TVDB login feilet (' . $httpCode . '): ' . $response .
-            ' | body: ' . $body
-        );
+        // Responsen/body kan i praksis inneholde apikey/pin - logg kun server-side.
+        error_log('TVDB login feilet (' . $httpCode . '): ' . $response . ' | body: ' . $body);
+        throw new RuntimeException('TVDB login feilet (' . $httpCode . ').');
     }
 
     $data = json_decode($response, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new RuntimeException('TVDB login: ugyldig JSON: ' . json_last_error_msg());
+        error_log('TVDB login: ugyldig JSON: ' . json_last_error_msg() . ' | respons: ' . $response);
+        throw new RuntimeException('TVDB login: ugyldig JSON-respons.');
     }
 
     $token = $data['data']['token'] ?? null;
     if (!$token) {
-        throw new RuntimeException('TVDB login: token mangler i responsen: ' . $response);
+        error_log('TVDB login: token mangler i responsen: ' . $response);
+        throw new RuntimeException('TVDB login: token mangler i responsen.');
     }
 
     $cachedToken = $token;

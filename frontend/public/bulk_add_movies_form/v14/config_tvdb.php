@@ -75,16 +75,20 @@ function getTvdbToken(bool $forceRefresh = false): string
     $err      = curl_error($ch);
 
     if ($response === false) {
-        throw new RuntimeException('TVDB login cURL-feil: ' . $err);
+        error_log('TVDB login cURL-feil: ' . $err);
+        throw new RuntimeException('Kunne ikke kontakte TVDB (nettverksfeil).');
     }
     if ($httpCode !== 200) {
-        throw new RuntimeException('TVDB login feilet (' . $httpCode . '): ' . $response);
+        // Responsen kan i praksis inneholde detaljer vi ikke vil eksponere - logg kun server-side.
+        error_log('TVDB login feilet (' . $httpCode . '): ' . $response);
+        throw new RuntimeException('TVDB login feilet (' . $httpCode . ').');
     }
 
     $data = json_decode($response, true);
     $token = $data['data']['token'] ?? null;
     if (!$token) {
-        throw new RuntimeException('TVDB login: token mangler i responsen: ' . $response);
+        error_log('TVDB login: token mangler i responsen: ' . $response);
+        throw new RuntimeException('TVDB login: token mangler i responsen.');
     }
 
     $cachedToken = $token;

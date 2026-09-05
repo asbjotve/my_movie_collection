@@ -197,15 +197,15 @@ function makeRequest(string $url): string
     curl_close($ch);
 
     if ($response === false) {
-        throw new RuntimeException('cURL-feil: ' . $curlError . ' (URL: ' . $url . ')');
+        error_log('TMDB cURL-feil: ' . $curlError . ' (URL: ' . $url . ')');
+        throw new RuntimeException('Kunne ikke kontakte TMDB (nettverksfeil).');
     }
 
     if ($httpCode !== 200) {
-        // Ta med bruddstykke av responsen for debugging
+        // Bruddstykke av responsen logges kun server-side (kan inneholde detaljer vi ikke vil eksponere)
         $short = mb_substr($response, 0, 300);
-        throw new RuntimeException(
-            'TMDB API-feil (' . $httpCode . '). URL: ' . $url . ' Respons: ' . $short
-        );
+        error_log('TMDB API-feil (' . $httpCode . '). URL: ' . $url . ' Respons: ' . $short);
+        throw new RuntimeException('TMDB API-feil (' . $httpCode . ').');
     }
 
     return $response;

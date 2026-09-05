@@ -81,6 +81,7 @@ function auth_start_session(): void
     session_set_cookie_params([
         'lifetime' => 0,       // utløper når nettleseren lukkes
         'path' => '/',
+        'secure' => true,      // siten kjøres alltid over HTTPS i produksjon (openresty-proxy foran Apache)
         'httponly' => true,    // ikke tilgjengelig fra JavaScript
         'samesite' => 'Lax',
     ]);
