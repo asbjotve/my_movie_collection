@@ -113,10 +113,20 @@ def _load_physical_copies(
     copy_rows = db.execute(
         text(
             """
-            SELECT copy_id, collection_id
-            FROM physical_copy
-            WHERE collection_id IN :ids
-            ORDER BY collection_id, copy_id
+            SELECT
+                pc.copy_id AS copy_id,
+                pc.collection_id AS collection_id,
+                pc.owner_id AS owner_id,
+                o.name AS owner_name,
+                pc.store_id AS store_id,
+                s.name AS store_name,
+                pc.purchased_at AS purchased_at,
+                pc.price AS price
+            FROM physical_copy pc
+            LEFT JOIN owner o ON o.owner_id = pc.owner_id
+            LEFT JOIN store s ON s.store_id = pc.store_id
+            WHERE pc.collection_id IN :ids
+            ORDER BY pc.collection_id, pc.copy_id
             """
         ).bindparams(bindparam("ids", expanding=True)),
         {"ids": raw_collection_ids},
@@ -262,6 +272,15 @@ def _load_physical_copies(
                 "box_set_items": (
                     _load_box_set_items(db, box_set_barcode) if box_set_barcode else []
                 ),
+                # Eier-/kjøpsinformasjon (owner/store-tabellene) - se
+                # "Samlingsopplysninger" (owner) og "Kjøpsinformasjon"
+                # (store/purchased_at/price) på detaljsiden.
+                "owner": row.owner_name,
+                "store": row.store_name,
+                "purchased_at": (
+                    str(row.purchased_at) if row.purchased_at is not None else None
+                ),
+                "price": float(row.price) if row.price is not None else None,
             }
         )
 

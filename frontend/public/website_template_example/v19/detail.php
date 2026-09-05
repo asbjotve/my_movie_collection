@@ -405,10 +405,8 @@ $sectionAccess = [
       <!-- fylles av renderCollectionTab() -->
     </div>
 
-    <div class="tabPanel" data-tab-panel="purchase">
-      <div class="emptyNote">
-        <?= htmlspecialchars(t('wte.detail.purchase_empty_note')) ?>
-      </div>
+    <div class="tabPanel" data-tab-panel="purchase" id="purchasePanel">
+      <!-- fylles av renderPurchaseTab() -->
     </div>
   </div>
 </main>
@@ -525,6 +523,7 @@ $sectionAccess = [
           <span class="meta">${escapeHtml(discTxt)}</span>
           ${c.barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.barcode_label, escapeHtml(c.barcode))}</span>` : ""}
           ${c.box_set_barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.box_barcode_label, escapeHtml(c.box_set_barcode))}</span>` : ""}
+          ${c.owner ? `<span class="meta">${wteFormat(WTE_I18N.detail.owner_label, escapeHtml(c.owner))}</span>` : ""}
           ${hasBoxItems ? `<span class="hint">${WTE_I18N.detail.show_box_contents}</span>` : ""}
           ${hasDiscs ? `<span class="hint">${WTE_I18N.detail.show_discs}</span>` : ""}
         </div>
@@ -592,6 +591,41 @@ $sectionAccess = [
         }
       });
     });
+  }
+
+  // ---- "Kjøpsinformasjon": ett kort pr. fysisk eksemplar (samme
+  // eksemplar-liste som "Samlingsopplysninger"), med butikk/kjøpsdato/
+  // pris fra physical_copy (store/purchased_at/price). Viser en egen
+  // melding pr. eksemplar hvis ingenting av dette er registrert ennå. ----
+  function renderPurchaseTab(item){
+    const panel = document.getElementById("purchasePanel");
+    const copies = item.physical_copies || [];
+
+    if (!copies.length){
+      panel.innerHTML = `<div class="emptyNote">${WTE_I18N.detail.purchase_not_in_collection}</div>`;
+      return;
+    }
+
+    const cards = copies.map(c => {
+      const b = formatBadge(c.format);
+      const hasInfo = c.store || c.purchased_at || (c.price !== null && c.price !== undefined);
+
+      const lines = [
+        c.store ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_store_label, escapeHtml(c.store))}</span>` : "",
+        c.purchased_at ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_date_label, escapeHtml(c.purchased_at))}</span>` : "",
+        (c.price !== null && c.price !== undefined) ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_price_label, escapeHtml(String(c.price)))}</span>` : "",
+      ].filter(Boolean).join("");
+
+      return `
+        <div class="copyRow">
+          <span class="fmt">${escapeHtml(b.label)}</span>
+          ${c.is_box_set ? `<span class="boxTag">${WTE_I18N.detail.box_set_tag}</span>` : ""}
+          ${hasInfo ? lines : `<span class="meta">${WTE_I18N.detail.purchase_no_info_for_copy}</span>`}
+        </div>
+      `;
+    }).join("");
+
+    panel.innerHTML = `<div class="copyList">${cards}</div>`;
   }
 
   // ---- Format-/kilde-badges: BD/DVD/4K UHD + Plex, kan vises samtidig ----
@@ -719,6 +753,7 @@ $sectionAccess = [
 
     renderOwnershipBadges(item);
     renderCollectionTab(item);
+    renderPurchaseTab(item);
 
     // "Bytt cover"-knappen krever bare at content finnes (contentId er
     // allerede kjent fra URL-en) - ingen ekstra betingelse. Finnes ikke
