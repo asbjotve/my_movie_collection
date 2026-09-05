@@ -49,6 +49,13 @@ def fetch_tmdb_details(external_id: str, content_type: str) -> dict:
                     "alternative_titles,credits,external_ids,images,"
                     "keywords,release_dates,translations"
                 ),
+                # Uten denne filtrerer TMDB "images" (postere) etter samme
+                # "language"-parameter som resten av kallet (nb-NO) - de
+                # fleste filmer/serier har ingen norskspråklige postere i
+                # det hele tatt, så images.posters endte som regel opp tom.
+                # nb/en/null (= uten språk) gir et bredt utvalg postere å
+                # velge mellom i "Bytt cover"-funksjonen.
+                "include_image_language": "nb,en,null",
             },
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
