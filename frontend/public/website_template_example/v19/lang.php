@@ -28,11 +28,22 @@ declare(strict_types=1);
  */
 const WTE_LANG_DIR = __DIR__ . '/lang';
 
-/** Default language if nothing else is selected/available. */
-const WTE_DEFAULT_LANG = 'no';
-
 /** Which languages actually exist/are supported in the UI. */
 const WTE_AVAILABLE_LANGS = ['no', 'en'];
+
+/**
+ * Default language if nothing else is selected/available.
+ * Configurable via WTE_DEFAULT_LANG in .env (falls back to 'no' if
+ * unset or set to something not in WTE_AVAILABLE_LANGS).
+ */
+function wte_default_lang(): string
+{
+    $envLang = $_ENV['WTE_DEFAULT_LANG'] ?? null;
+    if (is_string($envLang) && in_array($envLang, WTE_AVAILABLE_LANGS, true)) {
+        return $envLang;
+    }
+    return 'no';
+}
 
 /**
  * Determine which language is active for this request.
@@ -52,7 +63,7 @@ function wte_current_lang(): string
         return $cookieLang;
     }
 
-    return WTE_DEFAULT_LANG;
+    return wte_default_lang();
 }
 
 /**
@@ -64,7 +75,7 @@ function wte_load_translations(string $lang): array
     $file = WTE_LANG_DIR . '/' . basename($lang) . '.php';
 
     if (!is_file($file)) {
-        $file = WTE_LANG_DIR . '/' . WTE_DEFAULT_LANG . '.php';
+        $file = WTE_LANG_DIR . '/' . wte_default_lang() . '.php';
     }
 
     /** @var array<string, mixed> $translations */
