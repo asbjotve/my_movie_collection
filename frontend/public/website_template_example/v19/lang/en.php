@@ -69,8 +69,8 @@ return [
                 'card_edit_lists_desc'   => 'Create, edit or delete custom lists.',
                 'card_2fa_title'         => 'Two-factor authentication (2FA)',
                 'card_2fa_desc'          => 'Set up or disable 2FA for your account.',
-                'card_access_title'      => 'Access control',
-                'card_access_desc'       => 'Choose which pages/sections require login.',
+                'card_access_title'      => 'Access & language control',
+                'card_access_desc'       => 'Choose which pages/sections require login, and set the default language for new visitors.',
                 'card_system_status_title' => 'System status',
                 'card_system_status_desc'  => 'Simple overview of database/API connectivity.',
                 'note' => '🔒 <strong>Note:</strong> "Administration" should almost certainly require login – this is where data can be changed/deleted, unlike "My movies"/"Wishlist" which likely only display data.',
@@ -197,7 +197,7 @@ return [
         ],
 
         'admin_tilganger' => [
-            'meta_title'          => 'Access control – Media catalog',
+            'meta_title'          => 'Access & language control – Media catalog',
             'back_link'           => '← Back to Administration',
             'heading'             => 'Access control',
             'subtitle'            => 'Logged in as %s · Choose which pages/sections should require login for visitors.',

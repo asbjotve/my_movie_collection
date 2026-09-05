@@ -72,8 +72,8 @@ return [
                 'card_edit_lists_desc'   => 'Opprett, endre eller slett egendefinerte lister.',
                 'card_2fa_title'         => 'To-faktor autentisering (2FA)',
                 'card_2fa_desc'          => 'Sett opp eller deaktiver 2FA for din bruker.',
-                'card_access_title'      => 'Tilgangsstyring',
-                'card_access_desc'       => 'Velg hvilke sider/seksjoner som krever innlogging.',
+                'card_access_title'      => 'Tilgangs- og språkstyring',
+                'card_access_desc'       => 'Velg hvilke sider/seksjoner som krever innlogging, og sett default-språk for nye besøkende.',
                 'card_system_status_title' => 'Systemstatus',
                 'card_system_status_desc'  => 'Enkel oversikt over database/API-tilkobling.',
                 'note' => '🔒 <strong>Vurdering:</strong> "Administrering" bør nesten helt sikkert kreve innlogging – dette er stedet hvor data kan endres/slettes, i motsetning til "Mine filmer"/"Ønskeliste" som trolig bare viser data.',
@@ -200,7 +200,7 @@ return [
         ],
 
         'admin_tilganger' => [
-            'meta_title'          => 'Tilgangsstyring – Media-katalog',
+            'meta_title'          => 'Tilgangs- og språkstyring – Media-katalog',
             'back_link'           => '← Tilbake til Administrering',
             'heading'             => 'Tilgangsstyring',
             'subtitle'            => 'Innlogget som %s · Velg hvilke sider/seksjoner som skal kreve innlogging for besøkende.',
