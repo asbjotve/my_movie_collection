@@ -420,7 +420,7 @@ function resolve_login_url(): string
         return current_script_dir() . '/login.php';
     }
 
-    return $_ENV['SHARED_LOGIN_PATH'] ?? '/website_template_example/v18/login.php';
+    return $_ENV['SHARED_LOGIN_PATH'] ?? '/website_template_example/v19/login.php';
 }
 
 /**
