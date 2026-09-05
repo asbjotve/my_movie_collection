@@ -2,13 +2,14 @@
 declare(strict_types=1);
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
+require_once __DIR__ . '/lang.php';
 
 auth_start_session();
 
-$redirect = $_GET['redirect'] ?? $_POST['redirect'] ?? BASE_PATH . '/index.php';
+$redirect = $_GET['redirect'] ?? $_POST['redirect'] ?? current_script_dir() . '/index.php';
 // Enkel sikring mot open-redirect: tillat kun relative stier innenfor denne appen.
 if (!is_string($redirect) || $redirect === '' || $redirect[0] !== '/' || str_starts_with($redirect, '//')) {
-    $redirect = BASE_PATH . '/index.php';
+    $redirect = current_script_dir() . '/index.php';
 }
 
 $error = null;
@@ -28,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = (string)($_POST['password'] ?? '');
 
         if ($username === '' || $password === '') {
-            $error = 'Fyll ut både brukernavn og passord.';
+            $error = t('wte.login.fill_both_fields');
         } else {
             [$status, $value] = auth_login($username, $password);
 
@@ -52,10 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Sesjonen har utløpt eller vi kom hit uten å ha gått
             // gjennom steg 1 - be om å starte på nytt.
             unset($_SESSION['login_pending_username'], $_SESSION['login_pending_preauth']);
-            $error = 'Innloggingsøkten er utløpt - prøv å logge inn på nytt.';
+            $error = t('wte.login.session_expired');
             $step = 'password';
         } elseif ($code === '') {
-            $error = 'Skriv inn koden fra autentisator-appen (eller en recovery-kode).';
+            $error = t('wte.login.enter_2fa_code');
             $step = '2fa';
         } else {
             [$status, $value] = auth_login_2fa($pendingPreauth, $code, $pendingUsername);
@@ -76,10 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!doctype html>
-<html lang="no">
+<html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
 <head>
 <meta charset="utf-8">
-<title>Logg inn – Media-katalog</title>
+<title><?= htmlspecialchars(t('wte.login.meta_title')) ?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root{
@@ -121,31 +122,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
 <div class="loginBox">
-  <h1>🎬 Media-katalog</h1>
+  <h1><?= htmlspecialchars(t('wte.login.brand')) ?></h1>
 
   <?php if ($step === '2fa'): ?>
-    <p class="subtitle">Skriv inn koden fra autentisator-appen for <strong><?= htmlspecialchars($_SESSION['login_pending_username']) ?></strong>.</p>
+    <p class="subtitle"><?= t('wte.login.2fa_prompt', '<strong>' . htmlspecialchars($_SESSION['login_pending_username']) . '</strong>') ?></p>
     <form method="post">
       <input type="hidden" name="action" value="2fa">
       <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
-      <label for="code">Kode (autentisator-app eller recovery-kode)</label>
+      <label for="code"><?= htmlspecialchars(t('wte.login.2fa_code_label')) ?></label>
       <input type="text" id="code" name="code" autocomplete="one-time-code" autofocus required>
-      <button type="submit" class="submitBtn">Bekreft</button>
+      <button type="submit" class="submitBtn"><?= htmlspecialchars(t('wte.login.confirm_btn')) ?></button>
     </form>
     <form method="post">
       <input type="hidden" name="action" value="restart">
-      <button type="submit" class="linkBtn">Avbryt / logg inn med en annen bruker</button>
+      <button type="submit" class="linkBtn"><?= htmlspecialchars(t('wte.login.cancel_2fa_btn')) ?></button>
     </form>
   <?php else: ?>
-    <p class="subtitle">Logg inn for å få tilgang til Administrering.</p>
+    <p class="subtitle"><?= htmlspecialchars(t('wte.login.subtitle')) ?></p>
     <form method="post">
       <input type="hidden" name="action" value="password">
       <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
-      <label for="username">Brukernavn</label>
+      <label for="username"><?= htmlspecialchars(t('wte.login.username_label')) ?></label>
       <input type="text" id="username" name="username" autocomplete="username" autofocus required>
-      <label for="password">Passord</label>
+      <label for="password"><?= htmlspecialchars(t('wte.login.password_label')) ?></label>
       <input type="password" id="password" name="password" autocomplete="current-password" required>
-      <button type="submit" class="submitBtn">Logg inn</button>
+      <button type="submit" class="submitBtn"><?= htmlspecialchars(t('wte.login.login_btn')) ?></button>
     </form>
   <?php endif; ?>
 
@@ -154,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php endif; ?>
 
   <p class="hint">
-    <a href="<?= BASE_PATH ?>/index.php" style="color:var(--muted);">← Tilbake uten å logge inn</a>
+    <a href="index.php" style="color:var(--muted);"><?= htmlspecialchars(t('wte.login.back_without_login')) ?></a>
   </p>
 </div>
 </body>
