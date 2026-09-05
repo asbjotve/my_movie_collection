@@ -122,3 +122,18 @@ function wte_translations_branch(string $key): array
 
     return is_array($value) ? $value : [];
 }
+
+/**
+ * Builds a "?lang=xx&..." URL for the language-switcher links, keeping
+ * every other existing query param intact (e.g. ?id=... on detail.php,
+ * ?panel=... on index.php) - a plain "?lang=xx" href would otherwise
+ * replace the whole query string and drop them, breaking whichever
+ * page relies on that other param (e.g. detail.php's "Missing id in
+ * the URL" error right after switching language).
+ */
+function wte_lang_switch_url(string $lang): string
+{
+    $params = $_GET;
+    $params['lang'] = $lang;
+    return '?' . http_build_query($params);
+}

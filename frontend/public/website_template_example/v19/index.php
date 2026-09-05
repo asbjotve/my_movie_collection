@@ -377,7 +377,7 @@ $sectionAccess = [
   </div>
   <div class="lang-switch">
     <?php foreach (WTE_AVAILABLE_LANGS as $langCode): ?>
-      <a href="?lang=<?= htmlspecialchars($langCode) ?>" class="<?= $GLOBALS['__wte_lang'] === $langCode ? 'active' : '' ?>"><?= htmlspecialchars(strtoupper($langCode)) ?></a>
+      <a href="<?= htmlspecialchars(wte_lang_switch_url($langCode)) ?>" class="<?= $GLOBALS['__wte_lang'] === $langCode ? 'active' : '' ?>"><?= htmlspecialchars(strtoupper($langCode)) ?></a>
     <?php endforeach; ?>
   </div>
   <div class="authState badge rounded-pill">
