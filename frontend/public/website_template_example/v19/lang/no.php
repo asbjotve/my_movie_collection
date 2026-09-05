@@ -207,6 +207,13 @@ return [
             'save_failed'         => 'Kunne ikke lagre innstillingene.',
             'saved_notice'        => '✅ Innstillingene ble lagret.',
             'save_btn'            => 'Lagre',
+            'lang_heading'        => 'Default språk',
+            'lang_subtitle'       => 'Språket nye besøkende ser før de selv har valgt (?lang=xx). Påvirker ikke besøkende som allerede har valgt eget språk.',
+            'lang_save_failed'    => 'Kunne ikke lagre default-språk.',
+            'lang_saved_notice'   => '✅ Default-språk ble lagret.',
+            'lang_no'             => 'Norsk',
+            'lang_en'             => 'Engelsk',
+            'lang_save_btn'       => 'Lagre språk',
         ],
     ],
 ];

@@ -326,6 +326,72 @@ function update_section_access(array $sections): array
     return [$httpCode, json_decode($response, true)];
 }
 
+/**
+ * Henter admin-overstyrt default-språk fra GET /settings/default-language
+ * (brukt av website_template_example/v19 sin wte_default_lang() - se
+ * lang.php). Endepunktet er bevisst åpent (ingen API-nøkkel/JWT), siden
+ * lang.php må slå opp verdien for ALLE besøkende på hver sidevisning.
+ *
+ * Returnerer null hvis ingen overstyring er lagret ennå, eller hvis
+ * kallet feiler (kaller-siden faller da videre tilbake til .env / "no").
+ */
+function fetch_default_language_setting(): ?string
+{
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/default-language');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 5,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false || $httpCode !== 200) {
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data) || !isset($data['default_language']) || !is_string($data['default_language'])) {
+        return null;
+    }
+
+    return $data['default_language'];
+}
+
+/**
+ * Oppdaterer admin-overstyrt default-språk via PUT
+ * /settings/default-language. Krever et gyldig access_token for en
+ * innlogget admin-bruker (require_role("admin") i backend).
+ *
+ * Returnerer [httpCode, data].
+ */
+function update_default_language_setting(string $lang): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/default-language');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ],
+        CURLOPT_POSTFIELDS => json_encode(['default_language' => $lang]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, null];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
 /** Logger ut - tømmer hele sesjonen. */
 function auth_logout(): void
 {

@@ -33,16 +33,29 @@ const WTE_AVAILABLE_LANGS = ['no', 'en'];
 
 /**
  * Default language if nothing else is selected/available.
- * Configurable via WTE_DEFAULT_LANG in .env (falls back to 'no' if
- * unset or set to something not in WTE_AVAILABLE_LANGS).
+ * Order: admin override in DB (via GET /settings/default-language,
+ * see admin_tilganger.php) -> WTE_DEFAULT_LANG in .env -> "no".
+ * The DB lookup is cached in a static var so it only happens once per
+ * request even if wte_default_lang() is called multiple times.
  */
 function wte_default_lang(): string
 {
+    static $resolved = null;
+    if ($resolved !== null) {
+        return $resolved;
+    }
+
+    $dbLang = fetch_default_language_setting();
+    if (is_string($dbLang) && in_array($dbLang, WTE_AVAILABLE_LANGS, true)) {
+        return $resolved = $dbLang;
+    }
+
     $envLang = $_ENV['WTE_DEFAULT_LANG'] ?? null;
     if (is_string($envLang) && in_array($envLang, WTE_AVAILABLE_LANGS, true)) {
-        return $envLang;
+        return $resolved = $envLang;
     }
-    return 'no';
+
+    return $resolved = 'no';
 }
 
 /**

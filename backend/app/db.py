@@ -53,6 +53,20 @@ class SectionAccess(Base):
     requires_login = Column(Boolean, nullable=False, default=False)
 
 
+class AppSetting(Base):
+    """Generisk nøkkel/verdi-tabell for enkle admin-styrbare innstillinger
+    som ikke passer inn i SectionAccess (bool per seksjon). Første bruk:
+    "default_language" (se app/routes/app_settings_route.py og
+    frontend/.../v19/lang.php sin wte_default_lang()) - lar en admin
+    overstyre default UI-språk uten å måtte redigere .env på serveren,
+    noe som gjør prosjektet enklere å dele/videreformidle til andre."""
+
+    __tablename__ = "app_settings"
+
+    setting_key = Column(String(64), primary_key=True)
+    setting_value = Column(String(255), nullable=True)
+
+
 def init_db() -> None:
     """Oppretter tabeller hvis de ikke finnes."""
 

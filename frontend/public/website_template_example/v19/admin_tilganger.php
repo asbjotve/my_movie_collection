@@ -21,8 +21,10 @@ $labels = [
 
 $error = null;
 $saved = false;
+$langError = null;
+$langSaved = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['section'])) {
     $sections = [];
     foreach (array_keys($labels) as $key) {
         $sections[$key] = isset($_POST['section'][$key]);
@@ -36,6 +38,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_language'])) {
+    $requestedLang = (string)$_POST['default_language'];
+    if (in_array($requestedLang, WTE_AVAILABLE_LANGS, true)) {
+        [$httpCode, $data] = update_default_language_setting($requestedLang);
+        if ($httpCode === 200) {
+            $langSaved = true;
+        } else {
+            $langError = $data['detail'] ?? $data['error'] ?? t('wte.admin_tilganger.lang_save_failed');
+        }
+    } else {
+        $langError = t('wte.admin_tilganger.lang_save_failed');
+    }
+}
+
 // Hent gjeldende status etter en eventuell lagring over, slik at siden
 // alltid viser ferskest mulig tilstand (samme mønster som 2fa_setup.php).
 $currentAccess = fetch_section_access([
@@ -44,6 +60,13 @@ $currentAccess = fetch_section_access([
     'andre_lister'   => true,
     'administrering' => true,
 ]);
+
+// Gjeldende admin-overstyrte default-språk - null betyr "ingen
+// overstyring lagret ennå" (da brukes WTE_DEFAULT_LANG i .env, se
+// wte_default_lang() i lang.php). Faller tilbake til den samme
+// resolveringen som besøkende faktisk får, så select-boksen viser
+// riktig forhåndsvalgt verdi selv når ingen overstyring er lagret.
+$currentDefaultLang = fetch_default_language_setting() ?? wte_default_lang();
 ?>
 <!doctype html>
 <html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
@@ -130,6 +153,29 @@ $currentAccess = fetch_section_access([
         </div>
       <?php endforeach; ?>
       <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.save_btn')) ?></button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h1><?= htmlspecialchars(t('wte.admin_tilganger.lang_heading')) ?></h1>
+    <p class="subtitle"><?= htmlspecialchars(t('wte.admin_tilganger.lang_subtitle')) ?></p>
+
+    <?php if ($langError): ?>
+      <div class="errorBox"><?= htmlspecialchars($langError) ?></div>
+    <?php endif; ?>
+    <?php if ($langSaved): ?>
+      <div class="successBox"><?= htmlspecialchars(t('wte.admin_tilganger.lang_saved_notice')) ?></div>
+    <?php endif; ?>
+
+    <form method="post">
+      <select name="default_language" style="width:100%; padding:10px; border-radius:7px; background:var(--bg); color:var(--text); border:1px solid var(--border); font-size:14px;">
+        <?php foreach (WTE_AVAILABLE_LANGS as $langCode): ?>
+          <option value="<?= htmlspecialchars($langCode) ?>" <?= $currentDefaultLang === $langCode ? 'selected' : '' ?>>
+            <?= htmlspecialchars(t('wte.admin_tilganger.lang_' . $langCode)) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+      <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.lang_save_btn')) ?></button>
     </form>
   </div>
 </div>

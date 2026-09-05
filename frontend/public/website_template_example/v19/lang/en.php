@@ -204,6 +204,13 @@ return [
             'save_failed'         => 'Could not save the settings.',
             'saved_notice'        => '✅ The settings were saved.',
             'save_btn'            => 'Save',
+            'lang_heading'        => 'Default language',
+            'lang_subtitle'       => 'The language new visitors see before they pick one themselves (?lang=xx). Does not affect visitors who already picked their own language.',
+            'lang_save_failed'    => 'Could not save the default language.',
+            'lang_saved_notice'   => '✅ Default language was saved.',
+            'lang_no'             => 'Norwegian',
+            'lang_en'             => 'English',
+            'lang_save_btn'       => 'Save language',
         ],
     ],
 ];
