@@ -364,12 +364,9 @@ $sectionAccess = [
     <div>
       <div class="titleBlock">
         <h1 id="dTitle"></h1>
-        <?php if ($isLoggedIn): ?>
-        <button type="button" class="editPencilBtn" data-field="title" data-type="text" data-target="dTitle" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
-        <?php endif; ?>
         <div class="originalTitle" id="dOriginalTitle"></div>
         <?php if ($isLoggedIn): ?>
-        <button type="button" class="editPencilBtn" data-field="original_title" data-type="text" data-target="dOriginalTitle" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
+        <button type="button" class="editPencilBtn" data-field="title_group" data-type="titleGroup" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
         <?php endif; ?>
         <?php if ($isLoggedIn): ?>
         <div class="refreshButtons">
@@ -1001,12 +998,26 @@ $sectionAccess = [
     editFieldContext = ctx;
     editFieldModalStatus.textContent = "";
     editFieldModalStatus.className = "refreshStatus";
-    const label = WTE_I18N.detail["edit_field_label_" + ctx.field] || ctx.field;
+    const label = ctx.field === "title_group"
+      ? WTE_I18N.detail.edit_field_label_title
+      : (WTE_I18N.detail["edit_field_label_" + ctx.field] || ctx.field);
     editFieldModalTitle.textContent = wteFormat(WTE_I18N.detail.edit_field_title, label);
 
     const inputStyle = "width:100%; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);";
     let inputHtml;
-    if (ctx.type === "textarea") {
+    if (ctx.type === "titleGroup") {
+      // Tittel og original tittel redigeres samlet i én pop-up, siden
+      // original_title ofte ikke er utfylt og et eget penne-ikon der
+      // ser rart ut når feltet er tomt.
+      const titleLabel = WTE_I18N.detail.edit_field_label_title;
+      const originalTitleLabel = WTE_I18N.detail.edit_field_label_original_title;
+      inputHtml = `
+        <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">${escapeHtml(titleLabel)}</label>
+        <input id="editFieldInputTitle" type="text" value="${escapeHtml(ctx.value.title ?? "")}" style="${inputStyle}">
+        <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(originalTitleLabel)}</label>
+        <input id="editFieldInputOriginalTitle" type="text" value="${escapeHtml(ctx.value.original_title ?? "")}" style="${inputStyle}">
+      `;
+    } else if (ctx.type === "textarea") {
       inputHtml = `<textarea id="editFieldInput" rows="6" style="${inputStyle}">${escapeHtml(ctx.value ?? "")}</textarea>`;
     } else if (ctx.type === "select" && ctx.field === "content_type") {
       const options = ["movie", "tv"].map(v =>
@@ -1024,20 +1035,32 @@ $sectionAccess = [
   async function saveEditField(){
     if (!editFieldContext) return;
     const { kind, field, type, collectionId, copyId } = editFieldContext;
-    const inputEl = document.getElementById("editFieldInput");
-    const rawValue = inputEl.value;
 
-    // Tomt felt tolkes som "fjern verdien" (sender null), ikke "ingen
-    // endring" - "ingen endring" oppnås ved å ikke åpne redigeringen i
-    // det hele tatt. Se docstring for update_physical_copy_fields()/
-    // update_content_fields() i backend for samme resonnement.
-    let value;
-    if (rawValue === "") {
-      value = null;
-    } else if (type === "number") {
-      value = field === "price" ? parseFloat(rawValue) : parseInt(rawValue, 10);
+    let body;
+    if (type === "titleGroup") {
+      const titleVal = document.getElementById("editFieldInputTitle").value;
+      const originalTitleVal = document.getElementById("editFieldInputOriginalTitle").value;
+      body = {
+        title: titleVal === "" ? null : titleVal,
+        original_title: originalTitleVal === "" ? null : originalTitleVal,
+      };
     } else {
-      value = rawValue;
+      const inputEl = document.getElementById("editFieldInput");
+      const rawValue = inputEl.value;
+
+      // Tomt felt tolkes som "fjern verdien" (sender null), ikke "ingen
+      // endring" - "ingen endring" oppnås ved å ikke åpne redigeringen i
+      // det hele tatt. Se docstring for update_physical_copy_fields()/
+      // update_content_fields() i backend for samme resonnement.
+      let value;
+      if (rawValue === "") {
+        value = null;
+      } else if (type === "number") {
+        value = field === "price" ? parseFloat(rawValue) : parseInt(rawValue, 10);
+      } else {
+        value = rawValue;
+      }
+      body = { [field]: value };
     }
 
     editFieldModalStatus.className = "refreshStatus";
@@ -1051,7 +1074,7 @@ $sectionAccess = [
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: value }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -1085,6 +1108,8 @@ $sectionAccess = [
       );
       if (!copy) return;
       openEditFieldModal({ kind: "physical_copy", field, type, collectionId, copyId, value: copy[field] });
+    } else if (type === "titleGroup") {
+      openEditFieldModal({ kind: "content", field, type, value: { title: currentItem.title, original_title: currentItem.original_title } });
     } else {
       openEditFieldModal({ kind: "content", field, type, value: currentItem[field] });
     }
