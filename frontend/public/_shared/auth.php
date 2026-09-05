@@ -401,6 +401,29 @@ function auth_logout(): void
 }
 
 /**
+ * Finner URL-en til login.php som skal brukes for gjeldende kall.
+ *
+ * De fleste tools (website_template_example v18/v19) har sin egen
+ * login.php i samme mappe - da brukes den (current_script_dir()).
+ * Men flere frittstående verktøy deler samme innloggings-sesjon
+ * (session-cookien har path "/", se auth_start_session()) UTEN å ha
+ * sin egen login.php - f.eks. custom_list_manager, bulk_add_movies_form,
+ * temp_add_movie_barcode. For disse ville current_script_dir() . '/login.php'
+ * pekt på en side som ikke finnes (404) - fall derfor tilbake til en delt
+ * login-side, konfigurerbar via SHARED_LOGIN_PATH i .env slik at den kan
+ * endres uten kodeendring hvis f.eks. v18 en dag fjernes/erstattes.
+ */
+function resolve_login_url(): string
+{
+    $ownLogin = $_SERVER['DOCUMENT_ROOT'] . current_script_dir() . '/login.php';
+    if (is_file($ownLogin)) {
+        return current_script_dir() . '/login.php';
+    }
+
+    return $_ENV['SHARED_LOGIN_PATH'] ?? '/website_template_example/v18/login.php';
+}
+
+/**
  * Krever innlogging for siden den kalles fra - redirecter til
  * login.php (med ?redirect=... tilbake til gjeldende side) hvis ingen
  * er innlogget, og stopper videre kjøring (exit).
@@ -417,7 +440,7 @@ function require_login(): string
     }
 
     $redirectTo = $_SERVER['REQUEST_URI'] ?? '/';
-    header('Location: ' . current_script_dir() . '/login.php?redirect=' . urlencode($redirectTo));
+    header('Location: ' . resolve_login_url() . '?redirect=' . urlencode($redirectTo));
     exit;
 }
 
@@ -437,7 +460,7 @@ function require_login_or_json_401(): string
     http_response_code(401);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
-        'error' => 'Ikke innlogget. Logg inn på ' . current_script_dir() . '/login.php først.',
+        'error' => 'Ikke innlogget. Logg inn på ' . resolve_login_url() . ' først.',
     ]);
     exit;
 }
