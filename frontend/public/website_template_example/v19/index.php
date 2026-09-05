@@ -56,6 +56,7 @@ declare(strict_types=1);
  */
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
+require_once __DIR__ . '/lang.php';
 
 $isLoggedIn = is_logged_in();
 
@@ -80,11 +81,11 @@ $sectionAccess = [
 ];
 ?>
 <!doctype html>
-<html lang="no" data-bs-theme="dark">
+<html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>" data-bs-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Media-katalog – v19 (Bootstrap 5)</title>
+  <title><?= htmlspecialchars(t('wte.index.meta_title')) ?></title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <style>
@@ -170,6 +171,24 @@ $sectionAccess = [
       width:8px; height:8px; border-radius:50%;
       background: var(--danger);
       display:inline-block;
+    }
+
+    /* ---- Language switcher (top nav) ---- */
+    .lang-switch{ display:flex; gap:4px; }
+    .lang-switch a{
+      display:inline-block;
+      padding:4px 9px;
+      border-radius:8px;
+      font-size:11px;
+      font-weight:700;
+      text-decoration:none;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .lang-switch a.active{
+      color: #0c1024;
+      background: var(--accent);
+      border-color: var(--accent);
     }
 
     main{ padding: 14px 22px; max-width: 1800px; margin: 0 auto; }
@@ -351,18 +370,23 @@ $sectionAccess = [
 <nav class="navbar navbar-expand-lg topbar" data-bs-theme="dark">
   <div class="brand navbar-brand mb-0">🎬 Media-katalog</div>
   <div class="mainnav" id="mainnav">
-    <button type="button" class="btn active" data-panel="mine_filmer">Mine filmer<?= $sectionAccess['mine_filmer'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
-    <button type="button" class="btn" data-panel="onskeliste">Ønskeliste<?= $sectionAccess['onskeliste'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
-    <button type="button" class="btn" data-panel="andre_lister">Andre lister<?= $sectionAccess['andre_lister'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
-    <button type="button" class="btn" data-panel="administrering">Administrering<?= $sectionAccess['administrering'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+    <button type="button" class="btn active" data-panel="mine_filmer"><?= htmlspecialchars(t('wte.nav.mine_filmer')) ?><?= $sectionAccess['mine_filmer'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+    <button type="button" class="btn" data-panel="onskeliste"><?= htmlspecialchars(t('wte.nav.onskeliste')) ?><?= $sectionAccess['onskeliste'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+    <button type="button" class="btn" data-panel="andre_lister"><?= htmlspecialchars(t('wte.nav.andre_lister')) ?><?= $sectionAccess['andre_lister'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+    <button type="button" class="btn" data-panel="administrering"><?= htmlspecialchars(t('wte.nav.administrering')) ?><?= $sectionAccess['administrering'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
+  </div>
+  <div class="lang-switch">
+    <?php foreach (WTE_AVAILABLE_LANGS as $langCode): ?>
+      <a href="?lang=<?= htmlspecialchars($langCode) ?>" class="<?= $GLOBALS['__wte_lang'] === $langCode ? 'active' : '' ?>"><?= htmlspecialchars(strtoupper($langCode)) ?></a>
+    <?php endforeach; ?>
   </div>
   <div class="authState badge rounded-pill">
     <span class="dot"></span>
     <?php if ($isLoggedIn): ?>
-      Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>
-      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;">Logg ut</a>
+      <?= htmlspecialchars(t('wte.nav.logged_in_as')) ?> <strong><?= htmlspecialchars(current_username()) ?></strong>
+      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.logout')) ?></a>
     <?php else: ?>
-      Ikke innlogget · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;">Logg inn</a>
+      <?= htmlspecialchars(t('wte.nav.not_logged_in')) ?> · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.login')) ?></a>
     <?php endif; ?>
   </div>
 </nav>
@@ -371,36 +395,36 @@ $sectionAccess = [
 
   <!-- ============ MINE FILMER ============ -->
     <section class="panel active" id="panel-mine_filmer">
-      <h2 class="pageTitle">Mine filmer</h2>
+      <h2 class="pageTitle"><?= htmlspecialchars(t('wte.index.mine_filmer.title')) ?></h2>
       <?php if ($sectionAccess['mine_filmer']): ?>
-      <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-      <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn">🔒 Logg inn</a>
+      <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
+      <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
       <?php else: ?>
 
     <div class="filterBar">
       <div class="search">
-        <input id="mineFilmerSearch" placeholder="Søk tittel / original tittel…" />
+        <input id="mineFilmerSearch" placeholder="<?= htmlspecialchars(t('wte.index.mine_filmer.search_placeholder')) ?>" />
       </div>
       <div class="chiprow" id="mineFilmerTypeChips"></div>
       <label class="unwatchedToggle">
         <input id="mineFilmerOnlyUnwatched" type="checkbox" />
-        Vis bare ikke-sett
+        <?= htmlspecialchars(t('wte.index.mine_filmer.only_unwatched')) ?>
       </label>
       <div class="viewToggle" id="mineFilmerViewToggle">
-        <button type="button" data-view="grid" class="btn active">🖼️ Rutenett</button>
-        <button type="button" data-view="list" class="btn">📋 Liste</button>
+        <button type="button" data-view="grid" class="btn active"><?= htmlspecialchars(t('wte.index.mine_filmer.view_grid')) ?></button>
+        <button type="button" data-view="list" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.view_list')) ?></button>
       </div>
     </div>
 
-    <div id="mineFilmerStatus" style="color:var(--muted); font-size:13px;">Laster data fra databasen…</div>
+    <div id="mineFilmerStatus" style="color:var(--muted); font-size:13px;"><?= htmlspecialchars(t('wte.index.mine_filmer.loading')) ?></div>
     <div class="grid" id="mineFilmerGrid"></div>
     <table class="dataTable table table-dark table-hover" id="mineFilmerTable" style="display:none;">
       <thead>
         <tr>
-          <th>Tittel</th>
-          <th>Original tittel</th>
-          <th>Årstall</th>
-          <th>IMDb-id</th>
+          <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_title')) ?></th>
+          <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_original_title')) ?></th>
+          <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_year')) ?></th>
+          <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_imdb_id')) ?></th>
         </tr>
       </thead>
       <tbody id="mineFilmerTableBody"></tbody>
@@ -410,74 +434,72 @@ $sectionAccess = [
 
   <!-- ============ ØNSKELISTE ============ -->
 <section class="panel" id="panel-onskeliste">
-  <h2 class="pageTitle">Ønskeliste</h2>
+  <h2 class="pageTitle"><?= htmlspecialchars(t('wte.index.onskeliste.title')) ?></h2>
   <?php if ($sectionAccess['onskeliste']): ?>
-    <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-    <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn">🔒 Logg inn</a>
+    <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
+    <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
   <?php else: ?>
-    <p class="pageHint">Plassholder-data – ingen databasekobling i denne versjonen.</p>
+    <p class="pageHint"><?= htmlspecialchars(t('wte.index.onskeliste.placeholder')) ?></p>
     <div class="list" id="onskelisteList"></div>
   <?php endif; ?>
 </section>
 
   <!-- ============ ANDRE LISTER ============ -->
 <section class="panel" id="panel-andre_lister">
-  <h2 class="pageTitle">Andre lister</h2>
+  <h2 class="pageTitle"><?= htmlspecialchars(t('wte.index.andre_lister.title')) ?></h2>
   <?php if ($sectionAccess['andre_lister']): ?>
-    <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-    <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn">🔒 Logg inn</a>
+    <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
+    <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
   <?php else: ?>
-    <p class="pageHint">Plassholder-data – ingen databasekobling i denne versjonen.</p>
+    <p class="pageHint"><?= htmlspecialchars(t('wte.index.andre_lister.placeholder')) ?></p>
     <div class="grid" id="andreListerGrid"></div>
   <?php endif; ?>
 </section>
 
   <!-- ============ ADMINISTRERING ============ -->
   <section class="panel" id="panel-administrering">
-    <h2 class="pageTitle">Administrering</h2>
+    <h2 class="pageTitle"><?= htmlspecialchars(t('wte.index.administrering.title')) ?></h2>
     <?php if ($isLoggedIn): ?>
-      <p class="pageHint">Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>. Handlingene under er fortsatt plassholdere i denne malen (selve funksjonene finnes andre steder i prosjektet ennå), men panelet er nå faktisk ulåst for deg.</p>
+      <p class="pageHint"><?= t('wte.index.administrering.logged_in_hint', '<strong>' . htmlspecialchars(current_username()) . '</strong>') ?></p>
     <?php else: ?>
-      <p class="pageHint">Krever innlogging for å få tilgang til denne seksjonen.</p>
-      <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn">🔒 Logg inn</a>
+      <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
+      <a href="<?= BASE_PATH ?>/login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
     <?php endif; ?>
     <div class="adminGrid">
       <div class="adminCard card">
-        <?php if (!$isLoggedIn): ?><span class="lockedBadge badge">Låst</span><?php endif; ?>
-        <h3>Legg til film</h3>
-        <p>Manuell registrering av nye filmer/serier i katalogen.</p>
+        <?php if (!$isLoggedIn): ?><span class="lockedBadge badge"><?= htmlspecialchars(t('wte.index.administrering.locked_badge')) ?></span><?php endif; ?>
+        <h3><?= htmlspecialchars(t('wte.index.administrering.card_add_movie_title')) ?></h3>
+        <p><?= htmlspecialchars(t('wte.index.administrering.card_add_movie_desc')) ?></p>
       </div>
       <?php if ($isLoggedIn): ?>
       <div class="adminCard card">
         <a href="/custom_list_manager/v3/index.php" style="color:inherit; text-decoration:none; display:block;">
-          <h3>Rediger lister</h3>
-          <p>Opprett, endre eller slett egendefinerte lister.</p>
+          <h3><?= htmlspecialchars(t('wte.index.administrering.card_edit_lists_title')) ?></h3>
+          <p><?= htmlspecialchars(t('wte.index.administrering.card_edit_lists_desc')) ?></p>
         </a>
       </div>
       <div class="adminCard card">
         <a href="<?= BASE_PATH ?>/2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
-          <h3>To-faktor autentisering (2FA)</h3>
-          <p>Sett opp eller deaktiver 2FA for din bruker.</p>
+          <h3><?= htmlspecialchars(t('wte.index.administrering.card_2fa_title')) ?></h3>
+          <p><?= htmlspecialchars(t('wte.index.administrering.card_2fa_desc')) ?></p>
         </a>
       </div>
       <div class="adminCard card">
         <a href="<?= BASE_PATH ?>/admin_tilganger.php" style="color:inherit; text-decoration:none; display:block;">
-          <h3>Tilgangsstyring</h3>
-          <p>Velg hvilke sider/seksjoner som krever innlogging.</p>
+          <h3><?= htmlspecialchars(t('wte.index.administrering.card_access_title')) ?></h3>
+          <p><?= htmlspecialchars(t('wte.index.administrering.card_access_desc')) ?></p>
         </a>
       </div>
       <?php endif; ?>
       <div class="adminCard card">
-        <?php if (!$isLoggedIn): ?><span class="lockedBadge badge">Låst</span><?php endif; ?>
-        <h3>Systemstatus</h3>
-        <p>Enkel oversikt over database/API-tilkobling.</p>
+        <?php if (!$isLoggedIn): ?><span class="lockedBadge badge"><?= htmlspecialchars(t('wte.index.administrering.locked_badge')) ?></span><?php endif; ?>
+        <h3><?= htmlspecialchars(t('wte.index.administrering.card_system_status_title')) ?></h3>
+        <p><?= htmlspecialchars(t('wte.index.administrering.card_system_status_desc')) ?></p>
       </div>
     </div>
     <?php if (!$isLoggedIn): ?>
     <div class="noteBox">
-      🔒 <strong>Vurdering:</strong> "Administrering" bør nesten helt sikkert kreve
-      innlogging – dette er stedet hvor data kan endres/slettes, i motsetning til
-      "Mine filmer"/"Ønskeliste" som trolig bare viser data.
+      <?= t('wte.index.administrering.note') ?>
     </div>
     <?php endif; ?>
   </section>
@@ -485,16 +507,35 @@ $sectionAccess = [
 </main>
 
 <script>
+  // JS-side texts (fetch error prefix, "all" chip, watched/unwatched
+  // badges, demo item names, etc.), exposed from the same lang/*.php
+  // files as the server-rendered strings above - see lang.php and
+  // wte_translations_branch(). Same pattern as CLM_I18N in
+  // custom_list_manager/v3/script.js.
+  const WTE_I18N = <?= json_encode([
+      'mine_filmer' => wte_translations_branch('wte.index.mine_filmer'),
+      'onskeliste'  => wte_translations_branch('wte.index.onskeliste'),
+      'andre_lister' => wte_translations_branch('wte.index.andre_lister'),
+  ], JSON_UNESCAPED_UNICODE) ?>;
+
+  // Simple sprintf-style formatter, supports %s and %d placeholders
+  // (same helper as clmFormat() in custom_list_manager/v3/script.js).
+  function wteFormat(template, ...args) {
+    if (!template) return '';
+    let i = 0;
+    return template.replace(/%[sd]/g, () => (i < args.length ? args[i++] : ''));
+  }
+
   // ---- Demo-data (kun plassholder, ingen database) ----
   const demoWishlist = [
-    { title:"Oppenheimer", addedAt:"2026-05-01" },
-    { title:"Poor Things", addedAt:"2026-04-18" },
+    { title: WTE_I18N.onskeliste.demo_items?.[0] ?? "Oppenheimer", addedAt:"2026-05-01" },
+    { title: WTE_I18N.onskeliste.demo_items?.[1] ?? "Poor Things", addedAt:"2026-04-18" },
   ];
 
   const demoLists = [
-    { name:"Julefilmer", itemCount:7 },
-    { name:"Barnefilmer", itemCount:12 },
-    { name:"Skal ses med kompiser", itemCount:3 },
+    { name: WTE_I18N.andre_lister.demo_items?.[0] ?? "Julefilmer", itemCount:7 },
+    { name: WTE_I18N.andre_lister.demo_items?.[1] ?? "Barnefilmer", itemCount:12 },
+    { name: WTE_I18N.andre_lister.demo_items?.[2] ?? "Skal ses med kompiser", itemCount:3 },
   ];
 
   // ---- Mine filmer: live data fra databasen (api.php), som v15 ----
@@ -524,7 +565,7 @@ $sectionAccess = [
           <div class="title">${escapeHtml(item.title)}</div>
           <div class="sub">
             <span>${escapeHtml(item.first_release || "-")}</span>
-            <span class="tag badge ${item.watched_flag ? "good" : ""}">${item.watched_flag ? "Sett" : "Ikke sett"}</span>
+            <span class="tag badge ${item.watched_flag ? "good" : ""}">${item.watched_flag ? escapeHtml(WTE_I18N.mine_filmer.watched) : escapeHtml(WTE_I18N.mine_filmer.unwatched)}</span>
           </div>
         </div>
       </div>
@@ -584,7 +625,7 @@ $sectionAccess = [
 
     const all = document.createElement("div");
     all.className = "chip btn" + (mineFilmerActiveType === null ? " active" : "");
-    all.textContent = "Alle";
+    all.textContent = WTE_I18N.mine_filmer.chip_all;
     all.onclick = () => { mineFilmerActiveType = null; renderMineFilmerTypeChips(); renderMineFilmer(); };
     mineFilmerTypeChips.appendChild(all);
 
@@ -632,7 +673,7 @@ $sectionAccess = [
       mineFilmerData = Array.isArray(json) ? json : [];
       mineFilmerStatus.style.display = "none";
     } catch (err) {
-      mineFilmerStatus.textContent = "Klarte ikke å hente data: " + err.message;
+      mineFilmerStatus.textContent = WTE_I18N.mine_filmer.fetch_error_prefix + err.message;
       mineFilmerStatus.style.color = "var(--danger)";
       return;
     }
@@ -651,7 +692,7 @@ $sectionAccess = [
     onskelisteList.innerHTML = demoWishlist.map(w => `
       <div class="row">
         <strong>${w.title}</strong>
-        <small>Lagt til: ${w.addedAt}</small>
+        <small>${wteFormat(WTE_I18N.onskeliste.added_at, w.addedAt)}</small>
       </div>
     `).join("");
   }
@@ -664,7 +705,7 @@ $sectionAccess = [
       <div class="card">
         <div class="meta">
           <div class="title">${l.name}</div>
-          <div class="sub"><span class="tag badge">${l.itemCount} elementer</span></div>
+          <div class="sub"><span class="tag badge">${wteFormat(WTE_I18N.andre_lister.item_count, l.itemCount)}</span></div>
         </div>
       </div>
     `).join("");

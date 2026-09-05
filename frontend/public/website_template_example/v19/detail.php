@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
+require_once __DIR__ . '/lang.php';
 
 $isLoggedIn = is_logged_in();
 
@@ -48,11 +49,11 @@ $sectionAccess = [
  */
 ?>
 <!doctype html>
-<html lang="no">
+<html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Media-katalog – detaljer (v18)</title>
+  <title><?= htmlspecialchars(t('wte.detail.meta_title')) ?></title>
   <style>
     :root{
       --bg:#0c1024;
@@ -297,33 +298,33 @@ $sectionAccess = [
 <div class="topbar">
   <div class="brand">🎬 Media-katalog</div>
   <nav class="mainnav">
-    <a href="index.php" class="active">Mine filmer</a>
-    <a href="index.php?panel=onskeliste">Ønskeliste<?= $sectionAccess['onskeliste'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
-    <a href="index.php?panel=andre_lister">Andre lister<?= $sectionAccess['andre_lister'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
-    <a href="index.php?panel=administrering">Administrering<?= $sectionAccess['administrering'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php" class="active"><?= htmlspecialchars(t('wte.nav.mine_filmer')) ?></a>
+    <a href="index.php?panel=onskeliste"><?= htmlspecialchars(t('wte.nav.onskeliste')) ?><?= $sectionAccess['onskeliste'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php?panel=andre_lister"><?= htmlspecialchars(t('wte.nav.andre_lister')) ?><?= $sectionAccess['andre_lister'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php?panel=administrering"><?= htmlspecialchars(t('wte.nav.administrering')) ?><?= $sectionAccess['administrering'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
   </nav>
   <div class="authState">
     <span class="dot"></span>
     <?php if ($isLoggedIn): ?>
-      Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>
-      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;">Logg ut</a>
+      <?= htmlspecialchars(t('wte.nav.logged_in_as')) ?> <strong><?= htmlspecialchars(current_username()) ?></strong>
+      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.logout')) ?></a>
     <?php else: ?>
-      Ikke innlogget · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;">Logg inn</a>
+      <?= htmlspecialchars(t('wte.nav.not_logged_in')) ?> · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.login')) ?></a>
     <?php endif; ?>
   </div>
 </div>
 
 <main>
-  <a class="backLink" href="index.php">&larr; Tilbake til Mine filmer</a>
+  <a class="backLink" href="index.php"><?= t('wte.detail.back_link') ?></a>
 
-  <div id="detailStatus">Laster…</div>
+  <div id="detailStatus"><?= htmlspecialchars(t('wte.detail.loading')) ?></div>
 
   <div class="detailLayout" id="detailLayout" style="display:none;">
     <div class="posterCol">
       <div class="poster" id="posterBox">
         <div class="coverBadge" id="posterBadge"></div>
       </div>
-      <button class="refreshBtn" id="btnChooseCover" type="button" style="margin-top:8px; width:100%;" disabled>🖼️ Bytt cover</button>
+      <button class="refreshBtn" id="btnChooseCover" type="button" style="margin-top:8px; width:100%;" disabled><?= htmlspecialchars(t('wte.detail.choose_cover_btn')) ?></button>
       <div class="ownershipBadges" id="ownershipBadges"></div>
     </div>
 
@@ -332,46 +333,44 @@ $sectionAccess = [
         <h1 id="dTitle"></h1>
         <div class="originalTitle" id="dOriginalTitle"></div>
         <div class="refreshButtons">
-          <button class="refreshBtn" id="btnRefreshTmdb" type="button" disabled>🔄 TMDB</button>
-          <button class="refreshBtn" id="btnRefreshTvdb" type="button" disabled>🔄 TVDB</button>
+          <button class="refreshBtn" id="btnRefreshTmdb" type="button" disabled><?= htmlspecialchars(t('wte.detail.refresh_tmdb_btn')) ?></button>
+          <button class="refreshBtn" id="btnRefreshTvdb" type="button" disabled><?= htmlspecialchars(t('wte.detail.refresh_tvdb_btn')) ?></button>
           <span class="refreshStatus" id="refreshStatus"></span>
         </div>
         <div class="refreshStatus" id="lastMergedInfo"></div>
       </div>
 
       <div class="factsGrid" id="idsGrid">
-        <div class="factCard"><div class="k">IMDb</div><div class="v" id="fImdb">-</div></div>
-        <div class="factCard"><div class="k">TMDB</div><div class="v" id="fTmdb">-</div></div>
-        <div class="factCard"><div class="k">TVDB</div><div class="v" id="fTvdb">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="v" id="fImdb">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="v" id="fTmdb">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="v" id="fTvdb">-</div></div>
       </div>
 
       <div class="factsGrid">
-        <div class="factCard"><div class="k">Utgitt</div><div class="v" id="fRelease">-</div></div>
-        <div class="factCard"><div class="k">Spilletid</div><div class="v" id="fRuntime">-</div></div>
-        <div class="factCard"><div class="k">Aldersgrense</div><div class="v" id="fAge">-</div></div>
-        <div class="factCard"><div class="k">Type</div><div class="v" id="fType">-</div></div>
-        <div class="factCard"><div class="k">Produksjonsselskap</div><div class="v" id="fProdCompany">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_release')) ?></div><div class="v" id="fRelease">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_runtime')) ?></div><div class="v" id="fRuntime">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="v" id="fAge">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="v" id="fType">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_prod_company')) ?></div><div class="v" id="fProdCompany">-</div></div>
       </div>
 
       <div class="sourcesBox">
-        <h3>Sammendrag</h3>
-        <div id="overviewText" style="color:var(--muted); font-size:13px; line-height:1.5;">Ingen sammendrag registrert.</div>
+        <h3><?= htmlspecialchars(t('wte.detail.summary_heading')) ?></h3>
+        <div id="overviewText" style="color:var(--muted); font-size:13px; line-height:1.5;"><?= htmlspecialchars(t('wte.detail.no_overview')) ?></div>
       </div>
     </div>
   </div>
 
   <div class="tabSection" id="tabSection" style="display:none;">
     <div class="tabBar">
-      <button class="tabBtn active" data-tab="cast">Rollebesetning</button>
-      <button class="tabBtn" data-tab="collection">Samlingsopplysninger</button>
-      <button class="tabBtn" data-tab="purchase">Kjøpsinformasjon</button>
+      <button class="tabBtn active" data-tab="cast"><?= htmlspecialchars(t('wte.detail.tab_cast')) ?></button>
+      <button class="tabBtn" data-tab="collection"><?= htmlspecialchars(t('wte.detail.tab_collection')) ?></button>
+      <button class="tabBtn" data-tab="purchase"><?= htmlspecialchars(t('wte.detail.tab_purchase')) ?></button>
     </div>
 
     <div class="tabPanel active" data-tab-panel="cast">
       <div class="emptyNote">
-        Ingen data registrert ennå. Dette krever en egen tabell for
-        skuespillere/crew (rolle, navn, ev. bilde) koblet til filmen –
-        finnes ikke i databasen i dag.
+        <?= htmlspecialchars(t('wte.detail.cast_empty_note')) ?>
       </div>
     </div>
 
@@ -381,9 +380,7 @@ $sectionAccess = [
 
     <div class="tabPanel" data-tab-panel="purchase">
       <div class="emptyNote">
-        Ingen kjøpsinformasjon registrert ennå. Dette krever egne felt/
-        tabell for f.eks. pris, kjøpsdato og butikk – finnes ikke i
-        databasen i dag.
+        <?= htmlspecialchars(t('wte.detail.purchase_empty_note')) ?>
       </div>
     </div>
   </div>
@@ -399,7 +396,7 @@ $sectionAccess = [
 <div id="coverModalOverlay" class="modalOverlay" style="display:none;">
   <div class="modalBox">
     <div class="modalHeader">
-      <h3>Velg cover</h3>
+      <h3><?= htmlspecialchars(t('wte.detail.choose_cover_title')) ?></h3>
       <button type="button" id="btnCloseCoverModal" class="modalCloseBtn">&times;</button>
     </div>
     <div id="coverModalStatus" class="refreshStatus"></div>
@@ -431,6 +428,18 @@ $sectionAccess = [
 </style>
 
 <script>
+  const WTE_I18N = <?= json_encode([
+      'detail' => wte_translations_branch('wte.detail'),
+  ], JSON_UNESCAPED_UNICODE) ?>;
+
+  // Simple sprintf-style formatter, supports %s and %d placeholders
+  // (same helper as clmFormat() in custom_list_manager/v3/script.js).
+  function wteFormat(template, ...args) {
+    if (!template) return '';
+    let i = 0;
+    return template.replace(/%[sd]/g, () => (i < args.length ? args[i++] : ''));
+  }
+
   function escapeHtml(s){
     return String(s ?? "").replace(/[&<>"']/g, c => ({
       "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
@@ -467,15 +476,15 @@ $sectionAccess = [
     const copies = item.physical_copies || [];
 
     if (!copies.length){
-      panel.innerHTML = `<div class="emptyNote">Ikke registrert i fysisk samling (ingen Blu-ray/DVD-eksemplar for denne tittelen).</div>`;
+      panel.innerHTML = `<div class="emptyNote">${WTE_I18N.detail.not_in_collection}</div>`;
       return;
     }
 
     const rows = copies.map((c, i) => {
       const b = formatBadge(c.format);
       const discTxt = c.disc_count > 1
-        ? c.disc_count + " plater"
-        : c.disc_count === 1 ? "1 plate" : "Ukjent antall plater";
+        ? wteFormat(WTE_I18N.detail.disc_count_plural, c.disc_count)
+        : c.disc_count === 1 ? WTE_I18N.detail.disc_count_single : WTE_I18N.detail.disc_count_unknown;
       const hasBoxItems = c.is_box_set && (c.box_set_items || []).length;
       // Vis platetabellen for alle ikke-box-sett-eksemplarer med minst
       // én registrert plate - også når det bare er én plate.
@@ -485,12 +494,12 @@ $sectionAccess = [
       return `
         <div class="copyRow${clickable ? " clickable" : ""}" ${clickable ? `data-copy-index="${i}"` : ""}>
           <span class="fmt">${escapeHtml(b.label)}</span>
-          ${c.is_box_set ? `<span class="boxTag">Box-sett</span>` : ""}
+          ${c.is_box_set ? `<span class="boxTag">${WTE_I18N.detail.box_set_tag}</span>` : ""}
           <span class="meta">${escapeHtml(discTxt)}</span>
-          ${c.barcode ? `<span class="meta">Strekkode: ${escapeHtml(c.barcode)}</span>` : ""}
-          ${c.box_set_barcode ? `<span class="meta">Boks-strekkode: ${escapeHtml(c.box_set_barcode)}</span>` : ""}
-          ${hasBoxItems ? `<span class="hint">Vis innhold i boksen &rarr;</span>` : ""}
-          ${hasDiscs ? `<span class="hint">Vis platene &rarr;</span>` : ""}
+          ${c.barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.barcode_label, escapeHtml(c.barcode))}</span>` : ""}
+          ${c.box_set_barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.box_barcode_label, escapeHtml(c.box_set_barcode))}</span>` : ""}
+          ${hasBoxItems ? `<span class="hint">${WTE_I18N.detail.show_box_contents}</span>` : ""}
+          ${hasDiscs ? `<span class="hint">${WTE_I18N.detail.show_discs}</span>` : ""}
         </div>
       `;
     }).join("");
@@ -514,10 +523,10 @@ $sectionAccess = [
       `).join("");
 
       boxSetTable.innerHTML = `
-        <h4>Innhold i boksen</h4>
+        <h4>${WTE_I18N.detail.box_contents_heading}</h4>
         <table>
           <thead>
-            <tr><th>Tittel</th><th>Format</th><th>Lagringsplass</th></tr>
+            <tr><th>${WTE_I18N.detail.table_title}</th><th>${WTE_I18N.detail.table_format}</th><th>${WTE_I18N.detail.table_storage}</th></tr>
           </thead>
           <tbody>${tableRows}</tbody>
         </table>
@@ -528,17 +537,17 @@ $sectionAccess = [
     function renderDiscsTable(copy){
       const tableRows = (copy.discs || []).map(d => `
         <tr>
-          <td>${escapeHtml(d.label || d.type_disc || "Plate")}</td>
+          <td>${escapeHtml(d.label || d.type_disc || WTE_I18N.detail.disc_default_label)}</td>
           <td>${escapeHtml(d.format || "-")}</td>
           <td>${d.number_in_storage ?? "-"}</td>
         </tr>
       `).join("");
 
       boxSetTable.innerHTML = `
-        <h4>Plater i dette eksemplaret</h4>
+        <h4>${WTE_I18N.detail.discs_in_copy_heading}</h4>
         <table>
           <thead>
-            <tr><th>Plate</th><th>Format</th><th>Lagringsplass</th></tr>
+            <tr><th>${WTE_I18N.detail.table_disc}</th><th>${WTE_I18N.detail.table_format}</th><th>${WTE_I18N.detail.table_storage}</th></tr>
           </thead>
           <tbody>${tableRows}</tbody>
         </table>
@@ -561,10 +570,10 @@ $sectionAccess = [
   // ---- Format-/kilde-badges: BD/DVD/4K UHD + Plex, kan vises samtidig ----
   function formatBadge(format){
     const f = (format || "").toUpperCase();
-    if (f === "BD") return { cls: "bd", icon: "💿", label: "Blu-ray" };
-    if (f === "DVD") return { cls: "dvd", icon: "📀", label: "DVD" };
-    if (f.includes("UHD") || f.includes("4K")) return { cls: "uhd", icon: "💠", label: "4K UHD" };
-    return { cls: "other", icon: "📦", label: format || "Ukjent format" };
+    if (f === "BD") return { cls: "bd", icon: "💿", label: WTE_I18N.detail.format_bd };
+    if (f === "DVD") return { cls: "dvd", icon: "📀", label: WTE_I18N.detail.format_dvd };
+    if (f.includes("UHD") || f.includes("4K")) return { cls: "uhd", icon: "💠", label: WTE_I18N.detail.format_uhd };
+    return { cls: "other", icon: "📦", label: format || WTE_I18N.detail.format_unknown };
   }
 
   function renderOwnershipBadges(item){
@@ -585,16 +594,16 @@ $sectionAccess = [
     // fremtidig bruk - ingen "plex"-kilde i databasen ennå).
     const hasPlex = (item.sources || []).some(s => (s.source || "").toLowerCase() === "plex");
     if (hasPlex){
-      badges.push(`<span class="ownBadge plex"><span class="icon">▶️</span>Plex</span>`);
+      badges.push(`<span class="ownBadge plex"><span class="icon">▶️</span>${WTE_I18N.detail.format_plex}</span>`);
     }
 
     box.innerHTML = badges.length
       ? badges.join("")
-      : `<span class="noOwnership">Ingen registrerte eksemplarer/kilder ennå.</span>`;
+      : `<span class="noOwnership">${WTE_I18N.detail.no_ownership}</span>`;
   }
 
   function renderDetail(item){
-    document.title = item.title + " – Media-katalog (v18)";
+    document.title = item.title + WTE_I18N.detail.meta_title_suffix;
 
     const posterBox = document.getElementById("posterBox");
     if (item.cover_image){
@@ -606,17 +615,17 @@ $sectionAccess = [
     }
 
     document.getElementById("posterBadge").textContent = (item.content_type || "").toUpperCase();
-    document.getElementById("dTitle").textContent = item.title || "(uten tittel)";
+    document.getElementById("dTitle").textContent = item.title || WTE_I18N.detail.untitled;
 
     const originalTitleEl = document.getElementById("dOriginalTitle");
     if (item.original_title && item.original_title !== item.title){
-      originalTitleEl.textContent = "Original tittel: " + item.original_title;
+      originalTitleEl.textContent = wteFormat(WTE_I18N.detail.original_title_prefix, item.original_title);
     } else {
       originalTitleEl.textContent = "";
     }
 
     document.getElementById("fRelease").textContent = item.first_release || "-";
-    document.getElementById("fRuntime").textContent = item.runtime ? item.runtime + " min" : "-";
+    document.getElementById("fRuntime").textContent = item.runtime ? item.runtime + WTE_I18N.detail.runtime_suffix : "-";
     document.getElementById("fAge").textContent = item.age_restriction || "-";
     document.getElementById("fType").textContent = item.content_type || "-";
     // Produksjonsselskap finnes ikke i databasen ennå - se kommentar i toppen av filen.
@@ -657,10 +666,13 @@ $sectionAccess = [
     if (item.last_merged_source && item.last_merged_at){
       const [datePart, timePart] = item.last_merged_at.split(" ");
       const formattedDate = datePart ? datePart.split("-").reverse().join(".") : item.last_merged_at;
-      lastMergedInfo.textContent =
-        `Data sist hentet fra ${item.last_merged_source.toUpperCase()} (${formattedDate}${timePart ? " " + timePart.slice(0, 5) : ""}).`;
+      lastMergedInfo.textContent = wteFormat(
+        WTE_I18N.detail.last_merged_from,
+        item.last_merged_source.toUpperCase(),
+        formattedDate + (timePart ? " " + timePart.slice(0, 5) : "")
+      );
     } else {
-      lastMergedInfo.textContent = "Data er ikke flettet inn fra TMDB/TVDB ennå.";
+      lastMergedInfo.textContent = WTE_I18N.detail.not_merged_yet;
     }
 
     const overviewText = document.getElementById("overviewText");
@@ -668,7 +680,7 @@ $sectionAccess = [
       overviewText.textContent = item.overview;
       overviewText.style.color = "var(--text)";
     } else {
-      overviewText.textContent = "Ingen sammendrag registrert.";
+      overviewText.textContent = WTE_I18N.detail.no_overview;
       overviewText.style.color = "var(--muted)";
     }
 
@@ -686,7 +698,7 @@ $sectionAccess = [
 
   async function loadDetail(){
     if (!contentId){
-      detailStatus.textContent = "Mangler id i URL-en (?id=...).";
+      detailStatus.textContent = WTE_I18N.detail.missing_id;
       detailStatus.style.color = "var(--danger)";
       return;
     }
@@ -696,7 +708,7 @@ $sectionAccess = [
       if (json && json.error) throw new Error(json.error);
       renderDetail(json);
     } catch (err) {
-      detailStatus.textContent = "Klarte ikke å hente data: " + err.message;
+      detailStatus.textContent = WTE_I18N.detail.fetch_error_prefix + err.message;
       detailStatus.style.color = "var(--danger)";
     }
   }
@@ -715,7 +727,7 @@ $sectionAccess = [
     const allButtons = [document.getElementById("btnRefreshTmdb"), document.getElementById("btnRefreshTvdb")];
     allButtons.forEach(b => b.disabled = true);
     statusEl.className = "refreshStatus";
-    statusEl.textContent = `Henter fra ${source.toUpperCase()}…`;
+    statusEl.textContent = wteFormat(WTE_I18N.detail.fetching_from, source.toUpperCase());
 
     try {
       const refreshRes = await fetch(
@@ -728,7 +740,7 @@ $sectionAccess = [
         throw new Error(refreshJson.error || refreshJson.detail || ("HTTP " + refreshRes.status));
       }
 
-      statusEl.textContent = `Fletter inn fra ${source.toUpperCase()}…`;
+      statusEl.textContent = wteFormat(WTE_I18N.detail.merging_from, source.toUpperCase());
 
       const mergeRes = await fetch(
         "api.php?action=merge_external_source&source=" + encodeURIComponent(source) +
@@ -742,12 +754,12 @@ $sectionAccess = [
 
       const mergedFields = mergeJson.merged_fields || [];
       const skippedFields = mergeJson.skipped_locked_fields || [];
-      let message = `${source.toUpperCase()} oppdatert (${refreshJson.fetched_at || "nå"}).`;
+      let message = wteFormat(WTE_I18N.detail.source_updated, source.toUpperCase(), refreshJson.fetched_at || WTE_I18N.detail.now);
       message += mergedFields.length
-        ? ` Flettet inn: ${mergedFields.join(", ")}.`
-        : " Ingen felt ble endret.";
+        ? wteFormat(WTE_I18N.detail.merged_fields_prefix, mergedFields.join(", "))
+        : WTE_I18N.detail.no_fields_changed;
       if (skippedFields.length){
-        message += ` Låst (hoppet over): ${skippedFields.join(", ")}.`;
+        message += wteFormat(WTE_I18N.detail.locked_fields_skipped, skippedFields.join(", "));
       }
 
       statusEl.className = "refreshStatus success";
@@ -755,7 +767,7 @@ $sectionAccess = [
       await loadDetail();
     } catch (err) {
       statusEl.className = "refreshStatus error";
-      statusEl.textContent = `Klarte ikke å oppdatere fra ${source.toUpperCase()}: ${err.message}`;
+      statusEl.textContent = wteFormat(WTE_I18N.detail.refresh_error_prefix, source.toUpperCase(), err.message);
       allButtons.forEach(b => b.disabled = false);
     }
   }
@@ -781,7 +793,7 @@ $sectionAccess = [
     coverModalOverlay.style.display = "flex";
     coverModalGrid.innerHTML = "";
     coverModalStatus.className = "refreshStatus";
-    coverModalStatus.textContent = "Laster postere…";
+    coverModalStatus.textContent = WTE_I18N.detail.loading_posters;
 
     try {
       const res = await fetch("api.php?action=list_covers&id=" + encodeURIComponent(contentId));
@@ -789,16 +801,16 @@ $sectionAccess = [
       if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
 
       if (!json.posters || json.posters.length === 0){
-        coverModalStatus.textContent = "Ingen alternative postere funnet fra TMDB for denne filmen.";
+        coverModalStatus.textContent = WTE_I18N.detail.no_alt_posters;
         return;
       }
 
-      coverModalStatus.textContent = `${json.posters.length} postere tilgjengelig - klikk for å velge.`;
+      coverModalStatus.textContent = wteFormat(WTE_I18N.detail.posters_available, json.posters.length);
       coverModalGrid.innerHTML = json.posters.map(p => `
         <div class="coverThumb ${p.is_current ? "current" : ""}"
              style="background-image:url('${p.cover_image.replace(/'/g, "%27")}')"
              data-file-path="${escapeHtml(p.file_path)}">
-          ${p.is_current ? '<div class="currentLabel">Gjeldende</div>' : ""}
+          ${p.is_current ? `<div class="currentLabel">${WTE_I18N.detail.current_label}</div>` : ""}
         </div>
       `).join("");
 
@@ -807,13 +819,13 @@ $sectionAccess = [
       });
     } catch (err) {
       coverModalStatus.className = "refreshStatus error";
-      coverModalStatus.textContent = "Klarte ikke å hente postere: " + err.message;
+      coverModalStatus.textContent = WTE_I18N.detail.fetch_posters_error_prefix + err.message;
     }
   }
 
   async function setCover(filePath){
     coverModalStatus.className = "refreshStatus";
-    coverModalStatus.textContent = "Setter nytt cover…";
+    coverModalStatus.textContent = WTE_I18N.detail.setting_cover;
     try {
       const res = await fetch("api.php?action=set_cover&id=" + encodeURIComponent(contentId), {
         method: "POST",
@@ -824,12 +836,12 @@ $sectionAccess = [
       if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
 
       coverModalStatus.className = "refreshStatus success";
-      coverModalStatus.textContent = "Cover oppdatert.";
+      coverModalStatus.textContent = WTE_I18N.detail.cover_updated;
       await loadDetail();
       closeCoverModal();
     } catch (err) {
       coverModalStatus.className = "refreshStatus error";
-      coverModalStatus.textContent = "Klarte ikke å sette cover: " + err.message;
+      coverModalStatus.textContent = WTE_I18N.detail.set_cover_error_prefix + err.message;
     }
   }
 
