@@ -347,7 +347,9 @@ $sectionAccess = [
       <div class="poster" id="posterBox">
         <div class="coverBadge" id="posterBadge"></div>
       </div>
+      <?php if ($isLoggedIn): ?>
       <button class="refreshBtn" id="btnChooseCover" type="button" style="margin-top:8px; width:100%;" disabled><?= htmlspecialchars(t('wte.detail.choose_cover_btn')) ?></button>
+      <?php endif; ?>
       <div class="ownershipBadges" id="ownershipBadges"></div>
     </div>
 
@@ -355,11 +357,13 @@ $sectionAccess = [
       <div class="titleBlock">
         <h1 id="dTitle"></h1>
         <div class="originalTitle" id="dOriginalTitle"></div>
+        <?php if ($isLoggedIn): ?>
         <div class="refreshButtons">
           <button class="refreshBtn" id="btnRefreshTmdb" type="button" disabled><?= htmlspecialchars(t('wte.detail.refresh_tmdb_btn')) ?></button>
           <button class="refreshBtn" id="btnRefreshTvdb" type="button" disabled><?= htmlspecialchars(t('wte.detail.refresh_tvdb_btn')) ?></button>
           <span class="refreshStatus" id="refreshStatus"></span>
         </div>
+        <?php endif; ?>
         <div class="refreshStatus" id="lastMergedInfo"></div>
       </div>
 
@@ -673,13 +677,19 @@ $sectionAccess = [
 
     // Knappene for å bytte data fra TMDB/TVDB er bare aktive når kilden
     // finnes fra før (content_external_source-raden må allerede finnes -
-    // se update_content_external_source() i backend).
+    // se update_content_external_source() i backend). Knappene finnes
+    // ikke i det hele tatt i DOM-en for ikke-innloggede besøkende (se
+    // $isLoggedIn i HTML-delen over) - derfor null-sjekk her.
     const btnTmdb = document.getElementById("btnRefreshTmdb");
     const btnTvdb = document.getElementById("btnRefreshTvdb");
-    btnTmdb.disabled = !tmdbSource?.external_id;
-    btnTmdb.dataset.externalId = tmdbSource?.external_id || "";
-    btnTvdb.disabled = !tvdbSource?.external_id;
-    btnTvdb.dataset.externalId = tvdbSource?.external_id || "";
+    if (btnTmdb) {
+      btnTmdb.disabled = !tmdbSource?.external_id;
+      btnTmdb.dataset.externalId = tmdbSource?.external_id || "";
+    }
+    if (btnTvdb) {
+      btnTvdb.disabled = !tvdbSource?.external_id;
+      btnTvdb.dataset.externalId = tvdbSource?.external_id || "";
+    }
 
     // Viser hvilken kilde/tidspunkt content-dataene sist ble flettet
     // inn fra, slik at det alltid er synlig - siden content-tabellen
@@ -711,8 +721,10 @@ $sectionAccess = [
     renderCollectionTab(item);
 
     // "Bytt cover"-knappen krever bare at content finnes (contentId er
-    // allerede kjent fra URL-en) - ingen ekstra betingelse.
-    document.getElementById("btnChooseCover").disabled = false;
+    // allerede kjent fra URL-en) - ingen ekstra betingelse. Finnes ikke
+    // i DOM-en for ikke-innloggede besøkende, derfor null-sjekk.
+    const btnChooseCover = document.getElementById("btnChooseCover");
+    if (btnChooseCover) btnChooseCover.disabled = false;
 
     detailStatus.style.display = "none";
     detailLayout.style.display = "grid";
@@ -747,7 +759,7 @@ $sectionAccess = [
     const statusEl = document.getElementById("refreshStatus");
     if (!externalId) return;
 
-    const allButtons = [document.getElementById("btnRefreshTmdb"), document.getElementById("btnRefreshTvdb")];
+    const allButtons = [document.getElementById("btnRefreshTmdb"), document.getElementById("btnRefreshTvdb")].filter(Boolean);
     allButtons.forEach(b => b.disabled = true);
     statusEl.className = "refreshStatus";
     statusEl.textContent = wteFormat(WTE_I18N.detail.fetching_from, source.toUpperCase());
@@ -795,8 +807,10 @@ $sectionAccess = [
     }
   }
 
-  document.getElementById("btnRefreshTmdb").addEventListener("click", (e) => refreshSource("tmdb", e.currentTarget));
-  document.getElementById("btnRefreshTvdb").addEventListener("click", (e) => refreshSource("tvdb", e.currentTarget));
+  // Knappene finnes ikke i DOM-en for ikke-innloggede besøkende (se
+  // $isLoggedIn i HTML-delen over) - derfor null-sjekk før addEventListener.
+  document.getElementById("btnRefreshTmdb")?.addEventListener("click", (e) => refreshSource("tmdb", e.currentTarget));
+  document.getElementById("btnRefreshTvdb")?.addEventListener("click", (e) => refreshSource("tvdb", e.currentTarget));
 
   // "Bytt cover"-modal: henter alle tilgjengelige TMDB-postere for
   // filmen (fra sist lagrede data_json - ingen nye TMDB-kall) og lar
@@ -868,7 +882,7 @@ $sectionAccess = [
     }
   }
 
-  document.getElementById("btnChooseCover").addEventListener("click", openCoverModal);
+  document.getElementById("btnChooseCover")?.addEventListener("click", openCoverModal);
   document.getElementById("btnCloseCoverModal").addEventListener("click", closeCoverModal);
   coverModalOverlay.addEventListener("click", (e) => {
     if (e.target === coverModalOverlay) closeCoverModal();
