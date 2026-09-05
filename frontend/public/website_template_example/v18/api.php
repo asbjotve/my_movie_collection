@@ -66,6 +66,10 @@ function with_api_key_header(array $curlHttpHeaders): array
 // PATCH /media/external-source/{source}/{external_id} i
 // backend/app/routes/media_catalog_route.py.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refresh_external_source') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
     $source = (string)($_GET['source'] ?? '');
     $externalId = (string)($_GET['external_id'] ?? '');
 
@@ -81,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 20, // henting fra TMDB/TVDB kan ta noen sekunder
     ]);
     $response = curl_exec($ch);
@@ -105,6 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
 // POST /media/external-source/{source}/{external_id}/merge i
 // backend/app/routes/media_catalog_route.py.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_external_source') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
     $source = (string)($_GET['source'] ?? '');
     $externalId = (string)($_GET['external_id'] ?? '');
 
@@ -120,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 10,
     ]);
     $response = curl_exec($ch);
@@ -179,6 +189,10 @@ if (($_GET['action'] ?? '') === 'list_covers') {
 // overskriver valget - se POST /media/content/{id}/cover i
 // backend/app/routes/media_catalog_route.py.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_cover') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
     $contentId = (string)($_GET['id'] ?? '');
     if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
         http_response_code(400);
@@ -201,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => json_encode(['file_path' => $filePath]),
         CURLOPT_TIMEOUT => 10,
     ]);

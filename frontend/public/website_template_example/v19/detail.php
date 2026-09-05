@@ -1,6 +1,26 @@
 <?php
 declare(strict_types=1);
 
+require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
+
+$isLoggedIn = is_logged_in();
+
+// Same lock-icon/login-state logic as index.php, so the top nav here
+// (a set of static links back to index.php, not JS-driven panels)
+// reflects real login state instead of always showing a hardcoded
+// lock icon regardless of whether the user is logged in.
+$sectionRequiresLogin = fetch_section_access([
+    'mine_filmer'    => false,
+    'onskeliste'     => true,
+    'andre_lister'   => true,
+    'administrering' => true,
+]);
+$sectionAccess = [
+    'onskeliste'     => $sectionRequiresLogin['onskeliste'] && !$isLoggedIn,
+    'andre_lister'   => $sectionRequiresLogin['andre_lister'] && !$isLoggedIn,
+    'administrering' => $sectionRequiresLogin['administrering'] && !$isLoggedIn,
+];
+
 /**
  * detail.php – detaljside for én film/serie (website_template_example v18).
  *
@@ -278,13 +298,18 @@ declare(strict_types=1);
   <div class="brand">🎬 Media-katalog</div>
   <nav class="mainnav">
     <a href="index.php" class="active">Mine filmer</a>
-    <a href="index.php">Ønskeliste<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span></a>
-    <a href="index.php">Andre lister<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span></a>
-    <a href="index.php">Administrering<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span></a>
+    <a href="index.php">Ønskeliste<?= $sectionAccess['onskeliste'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php">Andre lister<?= $sectionAccess['andre_lister'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php">Administrering<?= $sectionAccess['administrering'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
   </nav>
   <div class="authState">
     <span class="dot"></span>
-    Ikke innlogget (kommer senere)
+    <?php if ($isLoggedIn): ?>
+      Innlogget som <strong><?= htmlspecialchars(current_username()) ?></strong>
+      · <a href="<?= BASE_PATH ?>/logout.php" style="color:inherit;">Logg ut</a>
+    <?php else: ?>
+      Ikke innlogget · <a href="<?= BASE_PATH ?>/login.php" style="color:inherit;">Logg inn</a>
+    <?php endif; ?>
   </div>
 </div>
 
