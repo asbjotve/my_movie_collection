@@ -647,16 +647,31 @@ $sectionAccess = [
 
   // ---- Toppmeny: bytt synlig panel ----
   const navButtons = document.querySelectorAll("#mainnav button");
+
+  function activatePanel(panelName){
+    const targetBtn = document.querySelector('#mainnav button[data-panel="' + panelName + '"]');
+    const targetPanel = document.getElementById("panel-" + panelName);
+    if (!targetBtn || !targetPanel) return;
+
+    navButtons.forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+
+    targetBtn.classList.add("active");
+    targetPanel.classList.add("active");
+  }
+
   navButtons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      navButtons.forEach(b => b.classList.remove("active"));
-      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-
-
-      btn.classList.add("active");
-      document.getElementById("panel-" + btn.dataset.panel).classList.add("active");
-    });
+    btn.addEventListener("click", () => activatePanel(btn.dataset.panel));
   });
+
+  // Støtte for å lenke direkte til et bestemt panel (f.eks.
+  // index.php?panel=onskeliste fra detail.php sin toppmeny) - uten
+  // dette endte man alltid opp på "Mine filmer" (standardpanelet i
+  // HTML-en), uansett hvilken meny-lenke man faktisk klikket på.
+  const requestedPanel = new URLSearchParams(window.location.search).get("panel");
+  if (requestedPanel) {
+    activatePanel(requestedPanel);
+  }
 </script>
 </body>
 </html>

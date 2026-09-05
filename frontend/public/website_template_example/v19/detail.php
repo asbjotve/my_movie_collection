@@ -298,9 +298,9 @@ $sectionAccess = [
   <div class="brand">🎬 Media-katalog</div>
   <nav class="mainnav">
     <a href="index.php" class="active">Mine filmer</a>
-    <a href="index.php">Ønskeliste<?= $sectionAccess['onskeliste'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
-    <a href="index.php">Andre lister<?= $sectionAccess['andre_lister'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
-    <a href="index.php">Administrering<?= $sectionAccess['administrering'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php?panel=onskeliste">Ønskeliste<?= $sectionAccess['onskeliste'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php?panel=andre_lister">Andre lister<?= $sectionAccess['andre_lister'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
+    <a href="index.php?panel=administrering">Administrering<?= $sectionAccess['administrering'] ? '<span style="margin-left:6px; opacity:.7; font-size:12px;">🔒</span>' : '' ?></a>
   </nav>
   <div class="authState">
     <span class="dot"></span>
