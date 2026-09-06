@@ -394,12 +394,10 @@ if ($listsResponse === false || $listsCurlError) {
 
     main{
       padding:24px 18px 40px;
-      display:grid;
-      place-items:start center;
     }
 
     .card{
-      width:min(100%, 640px);
+      width:100%;
       background: rgba(18,26,51,.65);
       border:1px solid rgba(37,48,87,.8);
       border-radius: 16px;
@@ -411,10 +409,6 @@ if ($listsResponse === false || $listsCurlError) {
          readable against our dark background. */
       color: var(--text);
     }
-    /* The "edit list" tab shows a multi-column table, so it needs more
-       horizontal room than the create-list form (unlike .card above,
-       which stays narrow for the create tab's simple layout). */
-    .card:has(#tab-edit.active){ width:min(100%, 980px); }
 
     .card h2{ margin:0 0 6px; font-size:20px; }
     .card p.lead{ margin:0 0 20px; color:var(--muted); font-size:13px; line-height:1.5; }
