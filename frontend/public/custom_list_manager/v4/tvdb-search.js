@@ -326,7 +326,7 @@ function displayTvdbInfoPage(rec, type, tvdbId, fallbackName) {
 // see items-editor.js), the result is applied to THAT row's inputs instead
 // of the "+ Nytt element" panel's fixed #title/#tvdb_id/etc fields. This
 // lets a row's own "🔎" TVDB button reuse this same modal/search flow.
-function getApplyFields() {
+function getApplyFieldsTvdb() {
   const row = window.clmActiveEditRow;
   if (row) {
     return {
@@ -345,7 +345,7 @@ function getApplyFields() {
 }
 
 function applyTvdbDetailsToForm(payload) {
-  const fields = getApplyFields();
+  const fields = getApplyFieldsTvdb();
 
   if (fields.title && payload.title) {
     fields.title.value = payload.title;

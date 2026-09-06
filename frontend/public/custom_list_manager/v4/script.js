@@ -293,7 +293,7 @@ function displayInfoPage(details, type) {
 // see items-editor.js), the result is applied to THAT row's inputs instead
 // of the "+ Nytt element" panel's fixed #title/#tmdb_id/etc fields. This
 // lets a row's own "🔍" TMDB button reuse this same modal/search flow.
-function getApplyFields() {
+function getApplyFieldsTmdb() {
   const row = window.clmActiveEditRow;
   if (row) {
     return {
@@ -314,7 +314,7 @@ function getApplyFields() {
 }
 
 function applyDetailsToForm(payload) {
-  const fields = getApplyFields();
+  const fields = getApplyFieldsTmdb();
 
   if (fields.title && payload.title) {
     fields.title.value = payload.title;
