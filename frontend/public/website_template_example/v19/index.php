@@ -552,7 +552,7 @@ $sectionAccess = [
       </div>
       <?php if ($isLoggedIn): ?>
       <div class="adminCard card">
-        <a href="/custom_list_manager/v3/index.php" style="color:inherit; text-decoration:none; display:block;">
+        <a href="/custom_list_manager/v4/index.php" style="color:inherit; text-decoration:none; display:block;">
           <h3><?= htmlspecialchars(t('wte.index.administrering.card_edit_lists_title')) ?></h3>
           <p><?= htmlspecialchars(t('wte.index.administrering.card_edit_lists_desc')) ?></p>
         </a>

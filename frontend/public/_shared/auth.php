@@ -10,7 +10,7 @@ declare(strict_types=1);
  * Used by website_template_example/v18 (login.php/logout.php/index.php/
  * 2fa_setup.php/admin_tilganger.php) as well as several standalone
  * tools that share the same PHP session/login
- * (custom_list_manager/v3, add_to_wishlist/v4, bulk_add_movies_form/v14,
+ * (custom_list_manager/v4, add_to_wishlist/v4, bulk_add_movies_form/v14,
  * temp_add_movie_barcode/v1).
  *
  * ============================================================
