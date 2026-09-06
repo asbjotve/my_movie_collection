@@ -44,6 +44,15 @@ function h(?string $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+// Cache-busting query string for local JS assets (?v=<mtime>), so browsers
+// pick up new script.js/items-editor.js/etc without needing a hard refresh
+// every time we deploy a change.
+function assetVersion(string $relativePath): string
+{
+    $mtime = @filemtime(__DIR__ . '/' . $relativePath);
+    return $mtime !== false ? (string) $mtime : '0';
+}
+
 function uploadErrorMessage(int $errorCode): string
 {
     return match ($errorCode) {
@@ -1067,8 +1076,8 @@ if ($listsResponse === false || $listsCurlError) {
     preview.style.display = 'block';
   });
 </script>
-<script src="script.js"></script>
-<script src="tvdb-search.js"></script>
-<script src="items-editor.js"></script>
+<script src="script.js?v=<?= h(assetVersion('script.js')) ?>"></script>
+<script src="tvdb-search.js?v=<?= h(assetVersion('tvdb-search.js')) ?>"></script>
+<script src="items-editor.js?v=<?= h(assetVersion('items-editor.js')) ?>"></script>
 </body>
 </html>
