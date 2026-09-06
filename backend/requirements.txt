@@ -8,3 +8,6 @@ argon2-cffi
 PyMySQL
 pydantic-settings
 requests
+pillow
+pyotp
+qrcode
