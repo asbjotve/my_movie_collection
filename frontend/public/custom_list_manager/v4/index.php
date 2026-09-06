@@ -404,6 +404,12 @@ if ($listsResponse === false || $listsCurlError) {
       border:1px solid rgba(37,48,87,.8);
       border-radius: 16px;
       padding:20px;
+      /* Bootstrap's own .card rule sets color:var(--bs-body-color) (dark
+         text), which otherwise wins since it's the only rule touching the
+         `color` property on this selector - explicitly override it here so
+         all plain text nested inside (headings, table cells, etc.) stays
+         readable against our dark background. */
+      color: var(--text);
     }
     /* The "edit list" tab shows a multi-column table, so it needs more
        horizontal room than the create-list form (unlike .card above,
@@ -552,6 +558,7 @@ if ($listsResponse === false || $listsCurlError) {
       word-break: break-word;
       overflow-wrap: anywhere;
       white-space: normal;
+      color: var(--text);
     }
     table.items-table tr.row-editing{ background: rgba(122,162,255,.06); }
     table.items-table input[type="text"], table.items-table input[type="number"]{
@@ -581,6 +588,8 @@ if ($listsResponse === false || $listsCurlError) {
     @media (max-width: 480px){
       .kv{ grid-template-columns: 1fr; }
       .k{ margin-top:6px; }
+      main{ padding:16px 8px 32px; }
+      .card{ padding:16px 14px; border-radius:12px; }
     }
 
     /* On narrow screens, reflow the items table into a stacked list of
@@ -617,8 +626,8 @@ if ($listsResponse === false || $listsCurlError) {
     }
 
     /* --- TMDB search: dark-theme Bootstrap modal overrides --- */
-    .title-row{ display:flex; gap:10px; align-items:flex-end; }
-    .title-row label{ flex:1; }
+    .title-row{ display:flex; gap:10px; align-items:flex-end; flex-wrap: wrap; }
+    .title-row label{ flex:1 1 200px; min-width:0; }
     .btn-tmdb{
       appearance:none;
       border:1px solid rgba(122,162,255,.5);
