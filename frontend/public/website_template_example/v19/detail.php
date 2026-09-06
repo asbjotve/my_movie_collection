@@ -1084,6 +1084,30 @@ $sectionAccess = [
     editFieldContext = null;
   }
 
+  // Henter alle eksisterende filmgruppenavn (GET /media/groups) og
+  // fyller <datalist id="groupNameOptions"> i redigerings-popupen, slik
+  // at brukeren kan velge en gruppe som allerede finnes fremfor å måtte
+  // huske/skrive nøyaktig samme navn på nytt (unngår f.eks.
+  // "Olsenbanden" vs. "olsenbanden" som to forskjellige grupper).
+  // Skriver man inn noe som ikke finnes i listen, blir det uansett en
+  // ny gruppe (se _get_or_create_group_id() i backend) - datalist
+  // tvinger ikke brukeren til å velge et av forslagene.
+  async function loadGroupNameOptions(){
+    const datalist = document.getElementById("groupNameOptions");
+    if (!datalist) return;
+    try {
+      const res = await fetch("api.php?action=list_groups");
+      if (!res.ok) return;
+      const groups = await res.json();
+      datalist.innerHTML = groups.map(
+        (g) => `<option value="${escapeHtml(g.name)}"></option>`
+      ).join("");
+    } catch (err) {
+      // Stille feil - autofullføring er en bekvemmelighet, ikke
+      // nødvendig for at redigeringen skal fungere.
+    }
+  }
+
   function openEditFieldModal(ctx){
     editFieldContext = ctx;
     editFieldModalStatus.textContent = "";
@@ -1114,10 +1138,15 @@ $sectionAccess = [
     } else if (ctx.type === "groupGroup") {
       // Filmgruppe (navn) og rekkefølge innenfor gruppen redigeres
       // samlet i én pop-up (ett penne-ikon), samme resonnement som
-      // "titleGroup"/"purchaseGroup".
+      // "titleGroup"/"purchaseGroup". Autofullføring av navnet skjer
+      // via <datalist> (populeres fra GET /media/groups i
+      // loadGroupNameOptions() rett under) - skriver man inn et navn
+      // som ikke finnes fra før, opprettes automatisk en ny gruppe (se
+      // _get_or_create_group_id() i backend).
       inputHtml = `
         <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_group)}</label>
-        <input id="editFieldInputGroup" type="text" value="${escapeHtml(ctx.value.group ?? "")}" style="${inputStyle}">
+        <input id="editFieldInputGroup" type="text" list="groupNameOptions" autocomplete="off" value="${escapeHtml(ctx.value.group ?? "")}" style="${inputStyle}">
+        <datalist id="groupNameOptions"></datalist>
         <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_group_sort_order)}</label>
         <input id="editFieldInputGroupSortOrder" type="number" value="${escapeHtml(ctx.value.group_sort_order ?? "")}" style="${inputStyle}">
       `;
@@ -1146,6 +1175,7 @@ $sectionAccess = [
     }
     editFieldModalBody.innerHTML = inputHtml;
     editFieldModalOverlay.style.display = "flex";
+    if (ctx.type === "groupGroup") loadGroupNameOptions();
     const focusTarget = document.getElementById("editFieldInput")
       || document.getElementById("editFieldInputTitle")
       || document.getElementById("editFieldInputGroup")

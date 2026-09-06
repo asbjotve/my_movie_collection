@@ -1104,19 +1104,39 @@ def _get_or_create_group_id(db: Session, name: str | None) -> int | None:
     filmer som naturlig hører sammen uten å være en formell
     "saga"/franchise), IKKE knyttet til noe fysisk eksemplar (derfor
     på content, ikke physical_copy).
+
+    Oppslaget er case-insensitive (LOWER(name) = LOWER(:name)), i
+    motsetning til owner/store - dette er for å unngå at "Olsenbanden"
+    og "olsenbanden" ved en inkurie blir to forskjellige grupper bare
+    fordi brukeren skrev inn navnet litt ulikt (frontend tilbyr uansett
+    autofullføring, se GET /media/groups, men dette er et ekstra
+    sikkerhetsnett).
     """
     name = (name or "").strip()
     if not name:
         return None
 
     existing = db.execute(
-        text("SELECT group_id FROM movie_group WHERE name = :name"), {"name": name}
+        text("SELECT group_id FROM movie_group WHERE LOWER(name) = LOWER(:name)"), {"name": name}
     ).fetchone()
     if existing:
         return existing.group_id
 
     result = db.execute(text("INSERT INTO movie_group (name) VALUES (:name)"), {"name": name})
     return result.lastrowid
+
+
+def list_group_names(db: Session) -> list[dict]:
+    """Alle filmgrupper (kun group_id/name) - brukes til autofullføring
+    i redigerings-popupen for "group"-feltet på detaljsiden (se
+    GET /media/groups), slik at brukeren kan velge en eksisterende
+    gruppe i stedet for å skrive inn navnet på nytt (og risikere
+    stave-/kasus-varianter av samme gruppe, f.eks. "Olsenbanden" vs.
+    "olsenbanden"). Skriver man inn et navn som ikke finnes i listen,
+    opprettes automatisk en ny gruppe (se _get_or_create_group_id()).
+    """
+    rows = db.execute(text("SELECT group_id, name FROM movie_group ORDER BY name ASC")).fetchall()
+    return [{"group_id": r.group_id, "name": r.name} for r in rows]
 
 
 def update_content_external_source(

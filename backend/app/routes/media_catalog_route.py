@@ -17,6 +17,7 @@ from app.services.media_catalog import (
     get_content_by_id,
     list_content,
     list_content_covers,
+    list_group_names,
     merge_content_from_source,
     set_content_cover_image,
     set_content_field_lock,
@@ -46,6 +47,15 @@ def get_content(db: Session = Depends(get_media_db)):
     som mer av frontend flyttes over til dette API-et.
     """
     return list_content(db)
+
+
+@router.get("/groups", dependencies=[Depends(require_api_key)])
+def get_groups(db: Session = Depends(get_media_db)):
+    """Alle filmgrupper (movie_group), for autofullføring i
+    redigerings-popupen for "group"-feltet på detaljsiden - se
+    list_group_names().
+    """
+    return list_group_names(db)
 
 
 @router.get("/content/{content_id}", dependencies=[Depends(require_api_key)])
