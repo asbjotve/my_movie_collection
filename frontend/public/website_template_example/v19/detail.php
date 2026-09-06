@@ -265,9 +265,20 @@ $sectionAccess = [
     .groupMovieCard{
       display:block; width:100px; text-decoration:none; color:var(--text);
     }
+    .groupMovieCoverWrap{ position:relative; }
     .groupMovieCover{
       width:100px; height:150px; border-radius:8px; background-color: var(--bg,#0d0f14);
       background-size:cover; background-position:center; border:1px solid var(--line);
+    }
+    /* Rekkefølge-plassering vises som egen sirkel-badge oppå coveret,
+       ADSKILT fra tittelen - unngår forveksling med tall som er en del
+       av selve filmtittelen (f.eks. "Politiskolen 4"). */
+    .groupOrderBadge{
+      position:absolute; top:4px; left:4px;
+      min-width:20px; height:20px; padding:0 4px;
+      border-radius:999px; background: var(--accent); color:#fff;
+      font-size:11px; font-weight:700; line-height:20px; text-align:center;
+      box-shadow: 0 1px 3px rgba(0,0,0,.5);
     }
     .groupMovieTitle{ font-size:12px; margin-top:6px; line-height:1.3; }
     .groupMovieCard.current .groupMovieCover{ border-color: var(--accent); border-width:2px; }
@@ -817,13 +828,18 @@ $sectionAccess = [
       const cover = m.cover_image
         ? `<div class="groupMovieCover" style="background-image:url('${m.cover_image.replace(/'/g, "%27")}')"></div>`
         : `<div class="groupMovieCover"></div>`;
-      const order = m.group_sort_order != null ? `#${m.group_sort_order} · ` : "";
-      const title = `${order}${escapeHtml(m.title || WTE_I18N.detail.untitled)}${m.isCurrent ? ` (${WTE_I18N.detail.group_movies_current_tag})` : ""}`;
+      // Rekkefølge-tallet vises som en egen sirkel-badge OVENPÅ coveret
+      // (ikke foran tittelen) - "#4 · Politiskolen 4" ble lett forvekslet
+      // med filmtittelen selv når tittelen allerede inneholder et tall.
+      const orderBadge = m.group_sort_order != null
+        ? `<span class="groupOrderBadge" title="${escapeHtml(WTE_I18N.detail.group_order_badge_title)}">${m.group_sort_order}</span>`
+        : "";
+      const title = `${escapeHtml(m.title || WTE_I18N.detail.untitled)}${m.isCurrent ? ` (${WTE_I18N.detail.group_movies_current_tag})` : ""}`;
       const cardClass = "groupMovieCard" + (m.isCurrent ? " current" : "");
       // Selve filmen (denne siden) er ikke en lenke - man er jo allerede her.
       const tag = m.isCurrent ? "div" : "a";
       const href = m.isCurrent ? "" : ` href="detail.php?id=${encodeURIComponent(m.content_id)}"`;
-      return `<${tag} class="${cardClass}" data-id="${escapeHtml(m.content_id)}"${href}>${cover}<div class="groupMovieTitle">${title}</div></${tag}>`;
+      return `<${tag} class="${cardClass}" data-id="${escapeHtml(m.content_id)}"${href}><div class="groupMovieCoverWrap">${cover}${orderBadge}</div><div class="groupMovieTitle">${title}</div></${tag}>`;
     }).join("");
     box.style.display = "";
     applyGroupSortMode();
@@ -932,10 +948,16 @@ $sectionAccess = [
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || res.statusText);
-      // Oppdater #-tallene i DOM-en uten å re-fetche hele siden.
+      // Oppdater tall-badgene i DOM-en uten å re-fetche hele siden.
       groupMoviesListEl.querySelectorAll(".groupMovieCard").forEach((card, i) => {
-        const titleEl = card.querySelector(".groupMovieTitle");
-        titleEl.innerHTML = titleEl.innerHTML.replace(/^#\d+ · /, `#${i + 1} · `);
+        let badge = card.querySelector(".groupOrderBadge");
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "groupOrderBadge";
+          badge.title = WTE_I18N.detail.group_order_badge_title;
+          card.querySelector(".groupMovieCoverWrap")?.appendChild(badge);
+        }
+        badge.textContent = i + 1;
       });
       if (statusEl) {
         statusEl.textContent = WTE_I18N.detail.group_sort_saved;

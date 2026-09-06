@@ -202,6 +202,7 @@ return [
             'group_sort_error_prefix'=> 'Klarte ikke å lagre rekkefølgen: ',
             'group_sort_saving'      => 'Lagrer rekkefølge…',
             'group_sort_saved'       => 'Lagret ✓',
+            'group_order_badge_title'=> 'Plassering i filmgruppen (ikke en del av filmtittelen)',
         ],
 
         'login' => [

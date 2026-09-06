@@ -199,6 +199,7 @@ return [
             'group_sort_error_prefix'=> 'Failed to save order: ',
             'group_sort_saving'      => 'Saving order…',
             'group_sort_saved'       => 'Saved ✓',
+            'group_order_badge_title'=> 'Position in the movie group (not part of the movie title)',
         ],
 
         'login' => [
