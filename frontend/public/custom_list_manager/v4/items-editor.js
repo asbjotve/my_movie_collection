@@ -95,11 +95,22 @@
       return;
     }
 
+    const toolbar = document.createElement('div');
+    toolbar.className = 'sort-toolbar';
+    toolbar.innerHTML = `
+      <button type="button" class="btn-sort-alpha" title="${escapeHtml(tr('btn_sort_alpha_title'))}">${escapeHtml(tr('btn_sort_alpha'))}</button>
+      <button type="button" class="btn-sort-year" title="${escapeHtml(tr('btn_sort_year_title'))}">${escapeHtml(tr('btn_sort_year'))}</button>
+      <span class="sort-hint">${escapeHtml(tr('drag_hint'))}</span>
+    `;
+    toolbar.querySelector('.btn-sort-alpha').addEventListener('click', () => sortAndPersist(listId, 'alpha'));
+    toolbar.querySelector('.btn-sort-year').addEventListener('click', () => sortAndPersist(listId, 'year'));
+
     const table = document.createElement('table');
     table.className = 'items-table';
     table.innerHTML = `
       <thead>
         <tr>
+          <th class="col-drag"></th>
           <th>${escapeHtml(tr('col_cover'))}</th>
           <th>${escapeHtml(tr('col_title'))}</th>
           <th>${escapeHtml(tr('col_original_title'))}</th>
@@ -116,9 +127,111 @@
 
     const tbody = table.querySelector('tbody');
     items.forEach((item) => tbody.appendChild(buildRow(item, listId, false)));
+    wireRowDragging(tbody, listId);
 
     tableContainer.innerHTML = '';
+    tableContainer.appendChild(toolbar);
     tableContainer.appendChild(table);
+  }
+
+  // Drag-and-drop row reordering. Only the small "⠿" handle cell is
+  // draggable (not the whole row), so inputs/buttons elsewhere in an
+  // editing row stay fully clickable/selectable - only mousedown on the
+  // handle itself starts a drag (see buildRow()'s '.row-drag-handle').
+  // Rows are reordered live as you drag (closest-row-by-vertical-position,
+  // same idea as the group reorder drag-and-drop on the movie detail
+  // page), then the new order is persisted once on drop/dragend.
+  let draggedRow = null;
+
+  function wireRowDragging(tbody, listId) {
+    tbody.addEventListener('dragstart', (e) => {
+      const handle = e.target.closest('.row-drag-handle');
+      if (!handle) {
+        e.preventDefault();
+        return;
+      }
+      draggedRow = handle.closest('tr');
+      if (!draggedRow) return;
+      draggedRow.classList.add('row-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    tbody.addEventListener('dragover', (e) => {
+      if (!draggedRow) return;
+      e.preventDefault();
+      const rows = [...tbody.querySelectorAll('tr:not(.row-dragging)')];
+      let target = null;
+      for (const row of rows) {
+        const box = row.getBoundingClientRect();
+        const midY = box.top + box.height / 2;
+        if (e.clientY < midY) {
+          target = row;
+          break;
+        }
+      }
+      if (target) {
+        tbody.insertBefore(draggedRow, target);
+      } else {
+        tbody.appendChild(draggedRow);
+      }
+    });
+
+    tbody.addEventListener('dragend', async () => {
+      if (!draggedRow) return;
+      draggedRow.classList.remove('row-dragging');
+      draggedRow = null;
+      await persistOrder(tbody, listId);
+    });
+  }
+
+  async function persistOrder(tbody, listId) {
+    const orderedIds = [...tbody.querySelectorAll('tr')].map((row) => row.dataset.itemId);
+    setStatus(statusEl, tr('sort_saving'), 'info');
+    try {
+      const res = await fetch(ajaxUrl('reorder_items'), {
+        method: 'POST',
+        body: new URLSearchParams({
+          list_id: listId,
+          list_item_ids: JSON.stringify(orderedIds),
+        }),
+        keepalive: true,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      // Keep the in-memory cache in the same order the table now shows,
+      // so switching a row to edit mode and back (which re-renders from
+      // currentItems) doesn't jump back to the old order.
+      const byId = new Map(currentItems.map((it) => [it.list_item_id, it]));
+      currentItems = orderedIds.map((id) => byId.get(id)).filter(Boolean);
+      setStatus(statusEl, tr('sort_saved'), 'success');
+      setTimeout(() => setStatus(statusEl, '', 'info'), 1500);
+    } catch (err) {
+      setStatus(statusEl, tr('sort_error_prefix', err.message || err), 'error');
+    }
+  }
+
+  // "Sorter alfabetisk"/"Sorter etter år" quick actions - sort the current
+  // items client-side, re-render the table in that order, then persist
+  // it exactly like a manual drag would (same persistOrder() call).
+  async function sortAndPersist(listId, mode) {
+    const sorted = [...currentItems].sort((a, b) => {
+      if (mode === 'year') {
+        const ay = a.first_release_year;
+        const by = b.first_release_year;
+        if (ay == null && by == null) return 0;
+        if (ay == null) return 1;
+        if (by == null) return -1;
+        if (ay !== by) return ay - by;
+        return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
+      }
+      return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
+    });
+    currentItems = sorted;
+    renderTable(currentItems, listId);
+    const tbody = tableContainer.querySelector('tbody');
+    if (tbody) await persistOrder(tbody, listId);
   }
 
   // Builds a single <tr>, either as a read-only display row (editing=false)
@@ -135,6 +248,7 @@
 
     if (editing) {
       tr_.innerHTML = `
+        <td class="cell-drag"><span class="row-drag-handle" draggable="true" title="${label('drag_handle_title')}">⠿</span></td>
         <td class="cell-cover" data-label="${label('col_cover')}">
           ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : ''}
           <input type="file" class="row-cover-input" accept="image/*">
@@ -174,6 +288,7 @@
       });
     } else {
       tr_.innerHTML = `
+        <td class="cell-drag"><span class="row-drag-handle" draggable="true" title="${label('drag_handle_title')}">⠿</span></td>
         <td class="cell-cover" data-label="${label('col_cover')}">
           ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : '\u2014'}
         </td>

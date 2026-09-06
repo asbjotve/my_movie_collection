@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api_key import require_api_key
@@ -11,6 +11,7 @@ from app.services.add_data.custom_list_manager import (
     delete_list_item,
     get_list_items,
     list_custom_lists,
+    reorder_list_items,
     update_list_item,
 )
 from app.services.add_data.list_item_shared import ListItemUploadError
@@ -84,6 +85,19 @@ async def get_list_items_route(
 ):
     try:
         return get_list_items(db, list_id=list_id)
+    except ListItemUploadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/{list_id}/items/reorder")
+async def patch_reorder_list_items(
+    list_id: str,
+    list_item_ids: list[str] = Body(..., embed=True),
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return reorder_list_items(db, list_id=list_id, list_item_ids=list_item_ids)
     except ListItemUploadError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

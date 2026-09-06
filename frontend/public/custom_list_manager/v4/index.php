@@ -90,7 +90,7 @@ function apiRequest(string $url, array $postFields): array
  * supports GET (with X-API-Key, for reads) and PATCH/DELETE (with JWT
  * bearer, for writes), unlike apiRequest() above which is POST-only.
  */
-function apiCall(string $method, string $url, array $postFields = [], bool $useApiKey = false): array
+function apiCall(string $method, string $url, array $postFields = [], bool $useApiKey = false, ?string $jsonBody = null): array
 {
     $ch = curl_init($url);
     $headers = $useApiKey ? ['X-API-Key: ' . internalApiKey()] : [auth_bearer_header()];
@@ -98,13 +98,17 @@ function apiCall(string $method, string $url, array $postFields = [], bool $useA
     $options = [
         CURLOPT_CUSTOMREQUEST => $method,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => $headers,
         CURLOPT_TIMEOUT => 30,
     ];
 
-    if ($method !== 'GET' && $postFields !== []) {
+    if ($jsonBody !== null) {
+        $headers[] = 'Content-Type: application/json';
+        $options[CURLOPT_POSTFIELDS] = $jsonBody;
+    } elseif ($method !== 'GET' && $postFields !== []) {
         $options[CURLOPT_POSTFIELDS] = $postFields;
     }
+
+    $options[CURLOPT_HTTPHEADER] = $headers;
 
     curl_setopt_array($ch, $options);
 
@@ -232,6 +236,26 @@ if (($_GET['ajax'] ?? '') !== '') {
         $postFields['season'] = $season;
 
         [$rawResponse, $curlError, $httpCode] = apiCall('PATCH', "$listsBaseEndpoint/items/" . rawurlencode($listItemId), $postFields);
+        $forwardResult($rawResponse, $curlError, $httpCode);
+    }
+
+    if ($ajaxAction === 'reorder_items' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $listId = trim((string) ($_POST['list_id'] ?? ''));
+        $itemIdsRaw = $_POST['list_item_ids'] ?? '';
+        $itemIds = is_string($itemIdsRaw) ? json_decode($itemIdsRaw, true) : null;
+
+        if ($listId === '' || !is_array($itemIds)) {
+            $respond(400, ['error' => t('clm.messages.item_id_required')]);
+        }
+
+        $body = json_encode(['list_item_ids' => array_values($itemIds)], JSON_UNESCAPED_UNICODE);
+        [$rawResponse, $curlError, $httpCode] = apiCall(
+            'PATCH',
+            "$listsBaseEndpoint/" . rawurlencode($listId) . '/items/reorder',
+            [],
+            false,
+            $body
+        );
         $forwardResult($rawResponse, $curlError, $httpCode);
     }
 
@@ -595,6 +619,31 @@ if ($listsResponse === false || $listsCurlError) {
       box-sizing: border-box;
     }
     table.items-table .cell-cover{ width:64px; }
+    table.items-table .cell-drag{ width:28px; text-align:center; }
+    table.items-table .row-drag-handle{
+      cursor: grab;
+      user-select: none;
+      color: var(--muted);
+      font-size:16px;
+      display:inline-block;
+      padding:2px 4px;
+    }
+    table.items-table .row-drag-handle:hover{ color: var(--text); }
+    table.items-table tr.row-dragging{ opacity:.4; }
+
+    /* Quick "sort by X" actions above the items table - persist the same
+       way a manual drag does (see items-editor.js sortAndPersist()). */
+    .sort-toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin: 4px 0 10px; }
+    .sort-toolbar button{
+      appearance:none;
+      font: inherit; font-weight:700; font-size:12px;
+      border-radius:8px;
+      padding:6px 10px;
+      cursor:pointer;
+      background: rgba(122,162,255,.12); border:1px solid rgba(122,162,255,.5); color: var(--accent);
+    }
+    .sort-toolbar button:hover{ background: rgba(122,162,255,.2); }
+    .sort-toolbar .sort-hint{ font-size:11px; color: var(--muted); }
     table.items-table .cell-title, table.items-table .cell-original-title{ max-width: 220px; }
     table.items-table .row-cover-preview{
       display:block; width:44px; height:auto; border-radius:6px; margin-bottom:4px;
@@ -694,6 +743,7 @@ if ($listsResponse === false || $listsCurlError) {
         font-weight:600;
       }
       table.items-table .cell-cover{ width:auto; }
+      table.items-table .cell-drag{ width:auto; text-align:left; }
       table.items-table .cell-title, table.items-table .cell-original-title{ max-width:none; }
     }
 

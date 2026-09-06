@@ -134,6 +134,17 @@ return [
             'btn_search_tmdb_title' => 'Search TMDB to fill in this row',
             'btn_search_tvdb_title' => 'Search TVDB to fill in this row',
 
+            'drag_handle_title' => 'Drag to reorder',
+            'drag_hint'          => 'Drag ⠿ to reorder manually',
+            'btn_sort_alpha'     => '🔤 Sort alphabetically',
+            'btn_sort_alpha_title' => 'Sort the list alphabetically by title (A-Z)',
+            'btn_sort_year'      => '📅 Sort by year',
+            'btn_sort_year_title' => 'Sort the list chronologically by release year',
+            'sort_saving'        => 'Saving order…',
+            'sort_saved'         => 'Order saved ✓',
+            'sort_error_prefix'  => 'Could not save the order: %s',
+
+
             'saving'             => 'Saving…',
             'saved'              => 'Saved ✓',
             'save_error_prefix'  => 'Could not save: %s',

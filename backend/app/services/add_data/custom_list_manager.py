@@ -250,11 +250,12 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
                 li.tmdb_id,
                 li.tvdb_id,
                 li.season,
-                li.cover_image
+                li.cover_image,
+                cle.sort_order
             FROM custom_list_entries cle
             JOIN list_items li ON li.list_item_id = cle.list_item_id
             WHERE cle.list_id = :list_id
-            ORDER BY li.title ASC
+            ORDER BY (cle.sort_order IS NULL) ASC, cle.sort_order ASC, li.title ASC
             """
         ),
         {"list_id": parsed_list_id},
@@ -271,9 +272,53 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
             "tvdb_id": row.tvdb_id,
             "season": row.season,
             "cover_image": row.cover_image,
+            "sort_order": row.sort_order,
         }
         for row in rows
     ]
+
+
+def reorder_list_items(db: Session, list_id: str, list_item_ids: list[str]) -> dict[str, bool | int]:
+    """Persists a new manual order for a list's items (drag-and-drop
+    reordering / "sort by X" quick actions in the v4 "Rediger liste" view).
+    Assigns sort_order = 1, 2, 3... in the given order; items not present
+    in list_item_ids (shouldn't normally happen) keep their existing
+    sort_order untouched."""
+    parsed_list_id = _parse_list_id(list_id)
+
+    list_row = db.execute(
+        text("SELECT list_id FROM custom_lists WHERE list_id = :list_id"),
+        {"list_id": parsed_list_id},
+    ).fetchone()
+
+    if list_row is None:
+        raise ListItemUploadError("Fant ikke listen.", status_code=404)
+
+    try:
+        updated = 0
+        for position, list_item_id in enumerate(list_item_ids, start=1):
+            parsed_item_id = _parse_list_item_id(list_item_id)
+            result = db.execute(
+                text(
+                    """
+                    UPDATE custom_list_entries
+                    SET sort_order = :sort_order
+                    WHERE list_id = :list_id AND list_item_id = :list_item_id
+                    """
+                ),
+                {
+                    "sort_order": position,
+                    "list_id": parsed_list_id,
+                    "list_item_id": parsed_item_id,
+                },
+            )
+            updated += result.rowcount
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
+    return {"reordered": True, "updated": updated}
 
 
 def update_list_item(

@@ -133,6 +133,16 @@ return [
             'btn_search_tmdb_title' => 'Søk i TMDB for å fylle ut denne raden',
             'btn_search_tvdb_title' => 'Søk i TVDB for å fylle ut denne raden',
 
+            'drag_handle_title' => 'Dra for å endre rekkefølge',
+            'drag_hint'          => 'Dra ⠿ for å endre rekkefølgen manuelt',
+            'btn_sort_alpha'     => '🔤 Sorter alfabetisk',
+            'btn_sort_alpha_title' => 'Sorter listen alfabetisk etter tittel (A-Å)',
+            'btn_sort_year'      => '📅 Sorter etter år',
+            'btn_sort_year_title' => 'Sorter listen kronologisk etter utgivelsesår',
+            'sort_saving'        => 'Lagrer rekkefølge…',
+            'sort_saved'         => 'Rekkefølge lagret ✓',
+            'sort_error_prefix'  => 'Kunne ikke lagre rekkefølgen: %s',
+
             'saving'             => 'Lagrer…',
             'saved'              => 'Lagret ✓',
             'save_error_prefix'  => 'Kunne ikke lagre: %s',
