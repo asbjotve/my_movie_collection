@@ -238,6 +238,20 @@ $sectionAccess = [
     .titleEditRow{ display:flex; align-items:center; gap:6px; }
     .factCard .vRow{ display:flex; align-items:center; gap:6px; }
 
+    /* ---- Hengelås-ikon for å låse/åpne content-felter mot TMDB/TVDB-
+       fletting (se content.locked_fields). Samme skjul/vis-mønster som
+       .editPencilBtn, men styrt av en egen "Lås felter"-knapp/klasse,
+       siden man ofte vil redigere UTEN å samtidig se låseikonene. ---- */
+    .lockToggleBtn{
+      appearance:none; cursor:pointer; background:none; border:none;
+      color: var(--muted); font-size:13px; padding:0 0 0 6px; line-height:1;
+      vertical-align:middle;
+      display:none;
+    }
+    body.lockModeActive .lockToggleBtn{ display:inline-block; }
+    .lockToggleBtn:hover{ color: var(--accent, #5b8def); }
+    .lockToggleBtn.isLocked{ color: var(--danger, #e0554a); }
+
     .sourcesBox{
       background: var(--panel);
       border:1px solid var(--line);
@@ -356,7 +370,10 @@ $sectionAccess = [
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
     <a class="backLink" href="index.php"><?= t('wte.detail.back_link') ?></a>
     <?php if ($isLoggedIn): ?>
-    <button type="button" class="refreshBtn" id="btnToggleEditMode"><?= htmlspecialchars(t('wte.detail.toggle_edit_mode_btn')) ?></button>
+    <div style="display:flex; gap:8px;">
+      <button type="button" class="refreshBtn" id="btnToggleEditMode"><?= htmlspecialchars(t('wte.detail.toggle_edit_mode_btn')) ?></button>
+      <button type="button" class="refreshBtn" id="btnToggleLockMode"><?= htmlspecialchars(t('wte.detail.toggle_lock_mode_btn')) ?></button>
+    </div>
     <?php endif; ?>
   </div>
 
@@ -379,6 +396,7 @@ $sectionAccess = [
           <h1 id="dTitle"></h1>
           <?php if ($isLoggedIn): ?>
           <button type="button" class="editPencilBtn" data-field="title_group" data-type="titleGroup" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
+          <button type="button" class="lockToggleBtn" data-lock-fields="title,original_title" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button>
           <?php endif; ?>
         </div>
         <div class="originalTitle" id="dOriginalTitle"></div>
@@ -393,21 +411,21 @@ $sectionAccess = [
       </div>
 
       <div class="factsGrid" id="idsGrid">
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="vRow"><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="vRow"><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="imdb_id" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="v" id="fTmdb">-</div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="v" id="fTvdb">-</div></div>
       </div>
 
       <div class="factsGrid">
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_release')) ?></div><div class="vRow"><div class="v" id="fRelease">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="first_release" data-type="date" data-target="fRelease" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_runtime')) ?></div><div class="vRow"><div class="v" id="fRuntime">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="runtime" data-type="number" data-target="fRuntime" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="vRow"><div class="v" id="fAge">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="age_restriction" data-type="text" data-target="fAge" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="vRow"><div class="v" id="fType">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="content_type" data-type="select" data-target="fType" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_release')) ?></div><div class="vRow"><div class="v" id="fRelease">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="first_release" data-type="date" data-target="fRelease" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="first_release" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_runtime')) ?></div><div class="vRow"><div class="v" id="fRuntime">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="runtime" data-type="number" data-target="fRuntime" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="runtime" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="vRow"><div class="v" id="fAge">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="age_restriction" data-type="text" data-target="fAge" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="age_restriction" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="vRow"><div class="v" id="fType">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="content_type" data-type="select" data-target="fType" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="content_type" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_prod_company')) ?></div><div class="v" id="fProdCompany">-</div></div>
       </div>
 
       <div class="sourcesBox">
-        <h3><?= htmlspecialchars(t('wte.detail.summary_heading')) ?><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="overview" data-type="textarea" data-target="overviewText" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></h3>
+        <h3><?= htmlspecialchars(t('wte.detail.summary_heading')) ?><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="overview" data-type="textarea" data-target="overviewText" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="overview" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></h3>
         <div id="overviewText" style="color:var(--muted); font-size:13px; line-height:1.5;"><?= htmlspecialchars(t('wte.detail.no_overview')) ?></div>
       </div>
     </div>
@@ -822,6 +840,7 @@ $sectionAccess = [
     renderOwnershipBadges(item);
     renderCollectionTab(item);
     renderPurchaseTab(item);
+    renderLockIcons(item);
 
     // "Bytt cover"-knappen krever bare at content finnes (contentId er
     // allerede kjent fra URL-en) - ingen ekstra betingelse. Finnes ikke
@@ -1137,6 +1156,57 @@ $sectionAccess = [
     }
   }
 
+  // ---- Hengelås-ikoner: viser om et content-felt står i
+  // content.locked_fields (låst mot TMDB/TVDB-fletting) og lar
+  // innloggede brukere låse/åpne det manuelt, uten å endre verdien.
+  // .lockToggleBtn-knappene finnes bare for content-felter (ikke
+  // physical_copy-felter - locked_fields er en kolonne på
+  // content-tabellen). ----
+  function renderLockIcons(item){
+    const lockedFields = new Set(item.locked_fields || []);
+    document.querySelectorAll(".lockToggleBtn").forEach((btn) => {
+      const fields = btn.dataset.lockFields.split(",");
+      const isLocked = fields.every((f) => lockedFields.has(f));
+      btn.textContent = isLocked ? "🔒" : "🔓";
+      btn.classList.toggle("isLocked", isLocked);
+      btn.title = isLocked
+        ? WTE_I18N.detail.unlock_field_btn
+        : WTE_I18N.detail.lock_field_btn;
+    });
+  }
+
+  document.addEventListener("click", async (e) => {
+    const lockBtn = e.target.closest(".lockToggleBtn");
+    if (!lockBtn || !currentItem) return;
+
+    const fields = lockBtn.dataset.lockFields.split(",");
+    const currentlyLocked = lockBtn.classList.contains("isLocked");
+    const nextLocked = !currentlyLocked;
+
+    lockBtn.disabled = true;
+    try {
+      for (const field of fields) {
+        const res = await fetch(
+          "api.php?action=set_content_field_lock&id=" + encodeURIComponent(contentId),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field, locked: nextLocked }),
+          }
+        );
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.detail || json.error || ("HTTP " + res.status));
+        }
+      }
+      await loadDetail();
+    } catch (err) {
+      alert(WTE_I18N.detail.save_field_error_prefix + err.message);
+    } finally {
+      lockBtn.disabled = false;
+    }
+  });
+
   // Event delegation - penne-ikonene for fysiske eksemplarer finnes
   // ikke i DOM-en før renderCollectionTab()/renderPurchaseTab() har
   // kjørt, så en vanlig addEventListener pr. knapp fungerer ikke der.
@@ -1197,6 +1267,32 @@ $sectionAccess = [
 
     btnToggleEditMode.addEventListener("click", () => {
       setEditMode(!document.body.classList.contains("editModeActive"));
+    });
+  }
+
+  // "Lås felter"-knapp: viser/skjuler hengelås-ikonene, samme mønster
+  // som "Rediger"-knappen over (egen klasse på <body>, egen
+  // localStorage-nøkkel - de to modusene er uavhengige av hverandre).
+  const btnToggleLockMode = document.getElementById("btnToggleLockMode");
+  if (btnToggleLockMode) {
+    const LOCK_MODE_STORAGE_KEY = "wte_lock_mode_active";
+
+    function updateLockModeBtnLabel(active) {
+      btnToggleLockMode.textContent = active
+        ? WTE_I18N.detail.toggle_lock_mode_done_btn
+        : WTE_I18N.detail.toggle_lock_mode_btn;
+    }
+
+    function setLockMode(active) {
+      document.body.classList.toggle("lockModeActive", active);
+      updateLockModeBtnLabel(active);
+      localStorage.setItem(LOCK_MODE_STORAGE_KEY, active ? "1" : "0");
+    }
+
+    setLockMode(localStorage.getItem(LOCK_MODE_STORAGE_KEY) === "1");
+
+    btnToggleLockMode.addEventListener("click", () => {
+      setLockMode(!document.body.classList.contains("lockModeActive"));
     });
   }
 

@@ -280,6 +280,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
     exit;
 }
 
+// PATCH ?action=set_content_field_lock&id=<hex content_id>
+// (body: {"field": "runtime", "locked": true})
+// Brukes av hengelås-ikon-redigering på detaljsiden for å låse/åpne
+// ett content-felt mot TMDB/TVDB-fletting, uten å endre selve verdien
+// - se PATCH /media/content/{id}/lock i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_content_field_lock') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $contentId = (string)($_GET['id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $lockUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/lock';
+
+    $ch = curl_init($lockUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // PATCH ?action=update_physical_copy_field&collection_id=<hex>&copy_id=<int>
 // (body: kun feltet(ene) som redigeres, f.eks. {"price": 179})
 // Brukes av penne-ikon-redigering for eier-/kjøpsinformasjon på ett

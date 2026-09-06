@@ -42,6 +42,19 @@ class ContentFieldUpdateRequest(BaseModel):
     imdb_id: str | None = None
 
 
+class ContentFieldLockRequest(BaseModel):
+    """Body for PATCH /media/content/{content_id}/lock.
+
+    Låser/åpner ett enkelt content-felt manuelt (hengelås-ikon på
+    detaljsiden), uten å endre selve feltverdien - se
+    set_content_field_lock() i media_catalog.py for hvorfor dette er
+    et eget endepunkt fra selve redigeringen.
+    """
+
+    field: str
+    locked: bool
+
+
 class PhysicalCopyFieldUpdateRequest(BaseModel):
     """Body for PATCH /media/physical-copy/{collection_id}/{copy_id}.
 

@@ -591,7 +591,8 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
                 overview,
                 cover_image,
                 last_merged_source,
-                last_merged_at
+                last_merged_at,
+                locked_fields
             FROM content
             WHERE content_id = :content_id
             """
@@ -660,6 +661,9 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
         "last_merged_source": row.last_merged_source,
         "last_merged_at": (
             str(row.last_merged_at)[:19] if row.last_merged_at is not None else None
+        ),
+        "locked_fields": (
+            json.loads(row.locked_fields) if row.locked_fields else []
         ),
         "collections": collections,
         "physical_copies": physical_copies,
@@ -866,6 +870,69 @@ def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
     db.commit()
 
     return {"status": "ok", "content_id": content_id, "updated_fields": sorted(fields.keys())}
+
+
+def set_content_field_lock(db: Session, content_id: str, field: str, locked: bool) -> dict:
+    """Låser eller låser opp ett enkelt content-felt manuelt (hengelås-
+    ikon på detaljsiden), UTEN å endre selve verdien i feltet.
+
+    Dette er selve grunnen til at content.locked_fields finnes: et felt
+    kan låses uten at man samtidig redigerer det (f.eks. hvis TMDB sin
+    verdi tilfeldigvis allerede er riktig, men man likevel vil hindre
+    at en senere "flett inn fra TMDB/TVDB" overskriver det).
+
+    Kaster ContentExternalSourceError (400) hvis feltnavnet ikke er
+    blant de redigerbare feltene (se EDITABLE_CONTENT_FIELDS), (404)
+    hvis content ikke finnes.
+    """
+
+    if field not in EDITABLE_CONTENT_FIELDS:
+        raise ContentExternalSourceError(
+            f"Feltet '{field}' kan ikke låses/åpnes her", status_code=400
+        )
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        raise ContentExternalSourceError("Ugyldig content_id", status_code=404)
+
+    content_row = db.execute(
+        text("SELECT content_id, locked_fields FROM content WHERE content_id = :content_id"),
+        {"content_id": raw_id},
+    ).fetchone()
+
+    if content_row is None:
+        raise ContentExternalSourceError(
+            "Fant ikke content med denne IDen", status_code=404
+        )
+
+    locked_fields = set(
+        json.loads(content_row.locked_fields) if content_row.locked_fields else []
+    )
+    if locked:
+        locked_fields.add(field)
+    else:
+        locked_fields.discard(field)
+
+    db.execute(
+        text(
+            """
+            UPDATE content
+            SET locked_fields = :locked_fields
+            WHERE content_id = :content_id
+            """
+        ),
+        {"content_id": raw_id, "locked_fields": json.dumps(sorted(locked_fields))},
+    )
+    db.commit()
+
+    return {
+        "status": "ok",
+        "content_id": content_id,
+        "field": field,
+        "locked": locked,
+        "locked_fields": sorted(locked_fields),
+    }
 
 
 def update_physical_copy_fields(

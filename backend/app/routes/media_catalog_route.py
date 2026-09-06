@@ -6,6 +6,7 @@ from app.api_key import require_api_key
 from app.db import AppSetting, User, get_db
 from app.media_db import get_media_db
 from app.schemas.media_catalog import (
+    ContentFieldLockRequest,
     ContentFieldUpdateRequest,
     PhysicalCopyFieldUpdateRequest,
 )
@@ -18,6 +19,7 @@ from app.services.media_catalog import (
     list_content_covers,
     merge_content_from_source,
     set_content_cover_image,
+    set_content_field_lock,
     update_content_external_source,
     update_content_fields,
     update_physical_copy_fields,
@@ -87,6 +89,23 @@ def patch_content_fields(
     fields = payload.model_dump(exclude_unset=True)
     try:
         return update_content_fields(db, content_id, fields)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/content/{content_id}/lock")
+def patch_content_field_lock(
+    content_id: str,
+    payload: ContentFieldLockRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Låser eller åpner ett enkelt content-felt manuelt (hengelås-ikon
+    på detaljsiden), UTEN å endre selve verdien. Krever innlogging
+    (get_current_user). Se set_content_field_lock() for detaljer.
+    """
+    try:
+        return set_content_field_lock(db, content_id, payload.field, payload.locked)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
