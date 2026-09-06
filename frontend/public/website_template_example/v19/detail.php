@@ -466,7 +466,7 @@ $sectionAccess = [
 
       <!-- Vises kun når filmen faktisk tilhører en filmgruppe (se renderDetail()) - andre filmer i samme gruppe (movie_group/content.group_id), for enkel navigering mellom f.eks. en trilogi. -->
       <div class="sourcesBox" id="groupMoviesBox" style="display:none;">
-        <h3><span id="groupMoviesHeadingText"></span><?php if ($isLoggedIn): ?><button type="button" class="groupSortToggleBtn" id="btnToggleGroupSort"><?= htmlspecialchars(t('wte.detail.group_sort_toggle_btn')) ?></button><span id="groupSortStatus" class="groupSortStatus"></span><?php endif; ?></h3>
+        <h3><span id="groupMoviesHeadingText"></span><?php if ($isLoggedIn): ?><button type="button" class="groupSortToggleBtn" id="btnSortGroupByYear"><?= htmlspecialchars(t('wte.detail.group_sort_by_year_btn')) ?></button><button type="button" class="groupSortToggleBtn" id="btnToggleGroupSort"><?= htmlspecialchars(t('wte.detail.group_sort_toggle_btn')) ?></button><span id="groupSortStatus" class="groupSortStatus"></span><?php endif; ?></h3>
         <div id="groupMoviesList" class="groupMoviesList"></div>
       </div>
     </div>
@@ -839,7 +839,7 @@ $sectionAccess = [
       // Selve filmen (denne siden) er ikke en lenke - man er jo allerede her.
       const tag = m.isCurrent ? "div" : "a";
       const href = m.isCurrent ? "" : ` href="detail.php?id=${encodeURIComponent(m.content_id)}"`;
-      return `<${tag} class="${cardClass}" data-id="${escapeHtml(m.content_id)}"${href}><div class="groupMovieCoverWrap">${cover}${orderBadge}</div><div class="groupMovieTitle">${title}</div></${tag}>`;
+      return `<${tag} class="${cardClass}" data-id="${escapeHtml(m.content_id)}" data-first-release="${escapeHtml(m.first_release || "")}"${href}><div class="groupMovieCoverWrap">${cover}${orderBadge}</div><div class="groupMovieTitle">${title}</div></${tag}>`;
     }).join("");
     box.style.display = "";
     applyGroupSortMode();
@@ -976,6 +976,25 @@ $sectionAccess = [
       ? WTE_I18N.detail.group_sort_toggle_done_btn
       : WTE_I18N.detail.group_sort_toggle_btn;
     applyGroupSortMode();
+  });
+
+  // Snarvei: sorterer alle kortene i DOM-en (inkl. denne filmen selv)
+  // kronologisk etter first_release med ett klikk, i stedet for å
+  // måtte dra hvert kort manuelt til riktig plass. Filmer uten
+  // first_release havner sist. Lagres samme vei som vanlig
+  // dra-og-slipp (saveGroupOrder()).
+  document.getElementById("btnSortGroupByYear")?.addEventListener("click", async () => {
+    const cards = [...groupMoviesListEl.querySelectorAll(".groupMovieCard")];
+    cards.sort((a, b) => {
+      const aDate = a.dataset.firstRelease || "";
+      const bDate = b.dataset.firstRelease || "";
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return 1;
+      if (!bDate) return -1;
+      return aDate < bDate ? -1 : (aDate > bDate ? 1 : 0);
+    });
+    cards.forEach(card => groupMoviesListEl.appendChild(card));
+    await saveGroupOrder();
   });
 
   // Holder siste innlastede item tilgjengelig for penne-ikon-

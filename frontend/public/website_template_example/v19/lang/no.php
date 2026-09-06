@@ -198,6 +198,7 @@ return [
             'group_movies_heading'   => 'Filmer i denne filmgruppen',
             'group_movies_current_tag' => 'denne filmen',
             'group_sort_toggle_btn'  => '🔀 Sorter',
+            'group_sort_by_year_btn' => '📅 Sorter etter år',
             'group_sort_toggle_done_btn' => '✓ Ferdig',
             'group_sort_error_prefix'=> 'Klarte ikke å lagre rekkefølgen: ',
             'group_sort_saving'      => 'Lagrer rekkefølge…',
