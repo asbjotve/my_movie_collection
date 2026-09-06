@@ -67,6 +67,38 @@ class ContentFieldLockRequest(BaseModel):
     locked: bool
 
 
+class BulkGroupAssignRequest(BaseModel):
+    """Body for POST /media/content/bulk-group.
+
+    Brukes av "velg-modus" i Mine filmer (index.php): tildeler flere
+    valgte filmer til samme filmgruppe i ett kall, i stedet for at
+    frontend må gjøre ett PATCH /media/content/{id}-kall pr. film.
+    Samme get-or-create-oppførsel på "group" som i
+    ContentFieldUpdateRequest (se _get_or_create_group_id()) - tom/kun
+    whitespace-navn er ikke tillatt her (i motsetning til den vanlige
+    redigeringen, hvor tom streng brukes for å FJERNE koblingen - det
+    gir ikke mening ved bulk-tillegg, se validate_group()).
+    """
+
+    content_ids: list[str]
+    group: str
+
+    @field_validator("group")
+    @classmethod
+    def validate_group(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("group kan ikke være tom")
+        return value
+
+    @field_validator("content_ids")
+    @classmethod
+    def validate_content_ids(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("content_ids kan ikke være tom")
+        return value
+
+
 class PhysicalCopyFieldUpdateRequest(BaseModel):
     """Body for PATCH /media/physical-copy/{collection_id}/{copy_id}.
 

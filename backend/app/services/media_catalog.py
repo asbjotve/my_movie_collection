@@ -923,6 +923,48 @@ def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
     return {"status": "ok", "content_id": content_id, "updated_fields": sorted(fields.keys())}
 
 
+def bulk_assign_group(db: Session, content_ids: list[str], group_name: str) -> dict:
+    """Tildeler flere content-rader samme filmgruppe i ett kall - brukt
+    av "velg-modus" i Mine filmer (index.php), hvor man kan
+    huke av flere filmer og legge dem til samme gruppe i én operasjon i
+    stedet for ett PATCH /media/content/{id}-kall pr. film.
+
+    Gjør ÉN get-or-create mot movie_group (samme gruppe for alle valgte
+    filmer), deretter én bulk UPDATE mot content. Ugyldige content_id-
+    verdier hoppes stille over (samme "best effort"-tankegang som andre
+    steder i UI-et der brukeren uansett ikke kan sende inn en id som
+    ikke kommer fra en reell liste) - responsen forteller hvor mange
+    rader som faktisk ble oppdatert.
+
+    Rekkefølgen (group_sort_order) settes IKKE her - det er en egen,
+    separat justering brukeren gjør manuelt etterpå (se
+    edit_field_label_group_sort_order/groupGroup-modalen på
+    detaljsiden).
+    """
+
+    raw_ids = []
+    for content_id in content_ids:
+        try:
+            raw_ids.append(_parse_hex_id(content_id))
+        except (ValueError, AttributeError):
+            continue
+
+    if not raw_ids:
+        raise ContentExternalSourceError("Ingen gyldige content_id-er", status_code=400)
+
+    group_id = _get_or_create_group_id(db, group_name)
+
+    result = db.execute(
+        text("UPDATE content SET group_id = :group_id WHERE content_id IN :content_ids").bindparams(
+            bindparam("content_ids", expanding=True)
+        ),
+        {"group_id": group_id, "content_ids": raw_ids},
+    )
+    db.commit()
+
+    return {"status": "ok", "group_id": group_id, "updated_count": result.rowcount}
+
+
 def set_content_field_lock(db: Session, content_id: str, field: str, locked: bool) -> dict:
     """Låser eller låser opp ett enkelt content-felt manuelt (hengelås-
     ikon på detaljsiden), UTEN å endre selve verdien i feltet.

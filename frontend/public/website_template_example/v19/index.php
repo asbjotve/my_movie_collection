@@ -211,6 +211,7 @@ $sectionAccess = [
       gap:14px;
     }
     .card{
+      position: relative;
       background: var(--panel);
       border:1px solid var(--line);
       border-radius: 14px;
@@ -293,6 +294,48 @@ $sectionAccess = [
       background: rgba(111,141,255,.15);
       border-color: rgba(111,141,255,.5);
     }
+
+    /* ---- Velg-modus: avkrysningsbokser + flytende handlingslinje for
+       å legge flere valgte filmer til samme filmgruppe på én gang.
+       Sjekkboksene er skjult med mindre body har klassen
+       "selectModeActive" (se toggleSelectMode() i JS). ---- */
+    .selectCol{ width:32px; }
+    .cardSelectCheckbox{
+      position:absolute; top:8px; left:8px; z-index:2;
+      width:20px; height:20px; display:none;
+    }
+    body.selectModeActive .cardSelectCheckbox{ display:block; }
+    body.selectModeActive .rowSelectCheckbox{ display:inline-block; }
+    .rowSelectCheckbox{ display:none; }
+    #btnToggleSelectMode.active{
+      color: var(--text);
+      background: rgba(111,141,255,.15);
+      border-color: rgba(111,141,255,.5);
+    }
+    .bulkActionBar{
+      position: fixed; left:50%; bottom:24px; transform:translateX(-50%);
+      z-index: 900;
+      display:flex; align-items:center; gap:14px;
+      background: var(--panel); border:1px solid var(--line);
+      border-radius: 12px; padding:10px 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      font-size:13px; color: var(--text);
+    }
+    .modalOverlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modalBox {
+      background: var(--panel); border:1px solid var(--line); border-radius: 12px;
+      padding: 18px; width: 90%;
+    }
+    .modalHeader{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+    .modalHeader h3{ margin:0; font-size:15px; }
+    .modalCloseBtn{
+      background:none; border:none; color: var(--muted); font-size:20px; cursor:pointer; line-height:1;
+    }
+    .refreshStatus{ font-size:12px; color: var(--muted); min-height:16px; }
+    .refreshStatus.error{ color: var(--danger); }
     table.dataTable{
       width:100%;
       border-collapse: collapse;
@@ -414,6 +457,9 @@ $sectionAccess = [
         <button type="button" data-view="grid" class="btn active"><?= htmlspecialchars(t('wte.index.mine_filmer.view_grid')) ?></button>
         <button type="button" data-view="list" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.view_list')) ?></button>
       </div>
+      <?php if ($isLoggedIn): ?>
+      <button type="button" class="btn" id="btnToggleSelectMode"><?= htmlspecialchars(t('wte.index.mine_filmer.select_mode_btn')) ?></button>
+      <?php endif; ?>
     </div>
 
     <div id="mineFilmerStatus" style="color:var(--muted); font-size:13px;"><?= htmlspecialchars(t('wte.index.mine_filmer.loading')) ?></div>
@@ -421,6 +467,7 @@ $sectionAccess = [
     <table class="dataTable table table-dark table-hover" id="mineFilmerTable" style="display:none;">
       <thead>
         <tr>
+          <th class="selectCol"></th>
           <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_title')) ?></th>
           <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_original_title')) ?></th>
           <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_year')) ?></th>
@@ -429,6 +476,38 @@ $sectionAccess = [
       </thead>
       <tbody id="mineFilmerTableBody"></tbody>
     </table>
+
+    <?php if ($isLoggedIn): ?>
+    <!--
+      Flytende handlingslinje - vises bare i velg-modus når minst én
+      film er huket av (se toggleSelectMode()/updateBulkActionBar() i
+      JS lenger ned). "Legg til i filmgruppe" sender alle valgte
+      content_id-er samlet til POST /media/content/bulk-group (via
+      api.php?action=bulk_add_to_group) - se bulkGroupModal-en under.
+    -->
+    <div id="bulkActionBar" class="bulkActionBar" style="display:none;">
+      <span id="bulkActionBarCount"></span>
+      <button type="button" class="btn" id="btnBulkAddToGroup"><?= htmlspecialchars(t('wte.index.mine_filmer.bulk_add_to_group_btn')) ?></button>
+    </div>
+
+    <div id="bulkGroupModalOverlay" class="modalOverlay" style="display:none;">
+      <div class="modalBox" style="max-width:420px;">
+        <div class="modalHeader">
+          <h3><?= htmlspecialchars(t('wte.index.mine_filmer.bulk_group_modal_title')) ?></h3>
+          <button type="button" id="btnCloseBulkGroupModal" class="modalCloseBtn">&times;</button>
+        </div>
+        <div id="bulkGroupModalStatus" class="refreshStatus"></div>
+        <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.index.mine_filmer.bulk_group_input_label')) ?></label>
+        <input id="bulkGroupInput" type="text" list="bulkGroupNameOptions" autocomplete="off" style="width:100%; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+        <datalist id="bulkGroupNameOptions"></datalist>
+        <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+          <button type="button" id="btnCancelBulkGroup" class="btn"><?= htmlspecialchars(t('wte.detail.cancel_btn')) ?></button>
+          <button type="button" id="btnSaveBulkGroup" class="btn"><?= htmlspecialchars(t('wte.detail.save_btn')) ?></button>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <?php endif; ?>
   </section>
 
@@ -558,6 +637,7 @@ $sectionAccess = [
   function renderMineFilmerGrid(items){
     mineFilmerGrid.innerHTML = items.map(item => `
       <div class="card" data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
+        <input type="checkbox" class="cardSelectCheckbox" data-id="${escapeHtml(item.content_id)}" ${selectedMineFilmerIds.has(item.content_id) ? "checked" : ""} />
         <div class="cover" ${item.cover_image ? `style="background-image:url('${escapeHtml(item.cover_image)}');background-size:cover;background-position:center;"` : ""}>
           <div class="coverBadge badge">${escapeHtml((item.content_type || "").toUpperCase())}</div>
         </div>
@@ -570,8 +650,18 @@ $sectionAccess = [
         </div>
       </div>
     `).join("");
+    mineFilmerGrid.querySelectorAll(".cardSelectCheckbox").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", () => toggleMineFilmerSelection(cb.dataset.id, cb.checked));
+    });
     mineFilmerGrid.querySelectorAll(".card").forEach(el => {
-      el.addEventListener("click", () => {
+      el.addEventListener("click", (e) => {
+        if (selectModeActive) {
+          const cb = el.querySelector(".cardSelectCheckbox");
+          cb.checked = !cb.checked;
+          toggleMineFilmerSelection(cb.dataset.id, cb.checked);
+          return;
+        }
         window.location.href = "detail.php?id=" + encodeURIComponent(el.dataset.id);
       });
     });
@@ -585,6 +675,7 @@ $sectionAccess = [
         : "-";
       return `
         <tr data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
+          <td><input type="checkbox" class="rowSelectCheckbox" data-id="${escapeHtml(item.content_id)}" ${selectedMineFilmerIds.has(item.content_id) ? "checked" : ""} /></td>
           <td>${escapeHtml(item.title)}</td>
           <td>${escapeHtml(item.original_title || "-")}</td>
           <td>${year}</td>
@@ -592,9 +683,19 @@ $sectionAccess = [
         </tr>
       `;
     }).join("");
+    mineFilmerTableBody.querySelectorAll(".rowSelectCheckbox").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", () => toggleMineFilmerSelection(cb.dataset.id, cb.checked));
+    });
     mineFilmerTableBody.querySelectorAll("tr").forEach(el => {
       el.addEventListener("click", (e) => {
         if (e.target.closest(".imdbLink")) return; // ikke naviger hvis man klikket IMDb-lenken
+        if (selectModeActive) {
+          const cb = el.querySelector(".rowSelectCheckbox");
+          cb.checked = !cb.checked;
+          toggleMineFilmerSelection(cb.dataset.id, cb.checked);
+          return;
+        }
         window.location.href = "detail.php?id=" + encodeURIComponent(el.dataset.id);
       });
     });
@@ -682,6 +783,108 @@ $sectionAccess = [
   }
 
   loadMineFilmer();
+
+  // ---- Velg-modus: markere flere filmer og legge dem til samme
+  // filmgruppe med ett klikk (se bulk_assign_group() i backend). ----
+  let selectModeActive = false;
+  const selectedMineFilmerIds = new Set();
+  const btnToggleSelectMode = document.getElementById("btnToggleSelectMode");
+  const bulkActionBar = document.getElementById("bulkActionBar");
+  const bulkActionBarCount = document.getElementById("bulkActionBarCount");
+  const bulkGroupModalOverlay = document.getElementById("bulkGroupModalOverlay");
+  const bulkGroupModalStatus = document.getElementById("bulkGroupModalStatus");
+  const bulkGroupInput = document.getElementById("bulkGroupInput");
+  const bulkGroupNameOptions = document.getElementById("bulkGroupNameOptions");
+
+  function toggleMineFilmerSelection(contentId, isSelected){
+    if (isSelected) selectedMineFilmerIds.add(contentId);
+    else selectedMineFilmerIds.delete(contentId);
+    updateBulkActionBar();
+  }
+
+  function updateBulkActionBar(){
+    const count = selectedMineFilmerIds.size;
+    if (selectModeActive && count > 0) {
+      bulkActionBar.style.display = "flex";
+      bulkActionBarCount.textContent = wteFormat(WTE_I18N.mine_filmer.bulk_selected_count, count);
+    } else {
+      bulkActionBar.style.display = "none";
+    }
+  }
+
+  if (btnToggleSelectMode) {
+    btnToggleSelectMode.addEventListener("click", () => {
+      selectModeActive = !selectModeActive;
+      btnToggleSelectMode.classList.toggle("active", selectModeActive);
+      btnToggleSelectMode.textContent = selectModeActive
+        ? WTE_I18N.mine_filmer.select_mode_done_btn
+        : WTE_I18N.mine_filmer.select_mode_btn;
+      document.body.classList.toggle("selectModeActive", selectModeActive);
+      if (!selectModeActive) {
+        selectedMineFilmerIds.clear();
+        renderMineFilmer(); // fjern avmerkinger fra DOM-en
+      }
+      updateBulkActionBar();
+    });
+  }
+
+  async function loadBulkGroupNameOptions(){
+    try {
+      const res = await fetch("api.php?action=list_groups");
+      const json = await res.json();
+      if (!Array.isArray(json)) return;
+      bulkGroupNameOptions.innerHTML = json.map(g => `<option value="${escapeHtml(g.name)}"></option>`).join("");
+    } catch (err) {
+      // stille feil - autofullføring er kun en bekvemmelighet, ikke kritisk
+    }
+  }
+
+  const btnBulkAddToGroup = document.getElementById("btnBulkAddToGroup");
+  if (btnBulkAddToGroup) {
+    btnBulkAddToGroup.addEventListener("click", () => {
+      bulkGroupInput.value = "";
+      bulkGroupModalStatus.textContent = "";
+      bulkGroupModalStatus.classList.remove("error");
+      bulkGroupModalOverlay.style.display = "flex";
+      loadBulkGroupNameOptions();
+      bulkGroupInput.focus();
+    });
+  }
+
+  function closeBulkGroupModal(){
+    bulkGroupModalOverlay.style.display = "none";
+  }
+  document.getElementById("btnCloseBulkGroupModal")?.addEventListener("click", closeBulkGroupModal);
+  document.getElementById("btnCancelBulkGroup")?.addEventListener("click", closeBulkGroupModal);
+
+  document.getElementById("btnSaveBulkGroup")?.addEventListener("click", async () => {
+    const groupName = bulkGroupInput.value.trim();
+    if (!groupName) {
+      bulkGroupModalStatus.textContent = WTE_I18N.mine_filmer.bulk_group_name_required;
+      bulkGroupModalStatus.classList.add("error");
+      return;
+    }
+    try {
+      const res = await fetch("api.php?action=bulk_add_to_group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content_ids: [...selectedMineFilmerIds], group: groupName }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || res.statusText);
+      closeBulkGroupModal();
+      selectedMineFilmerIds.clear();
+      selectModeActive = false;
+      btnToggleSelectMode?.classList.remove("active");
+      if (btnToggleSelectMode) btnToggleSelectMode.textContent = WTE_I18N.mine_filmer.select_mode_btn;
+      document.body.classList.remove("selectModeActive");
+      updateBulkActionBar();
+      renderMineFilmer();
+    } catch (err) {
+      bulkGroupModalStatus.textContent = WTE_I18N.mine_filmer.fetch_error_prefix + err.message;
+      bulkGroupModalStatus.classList.add("error");
+    }
+  });
   } // end if (!mineFilmerLocked)
 
 

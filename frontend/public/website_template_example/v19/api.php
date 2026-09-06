@@ -264,6 +264,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
     exit;
 }
 
+// POST ?action=bulk_add_to_group
+// (body: {"content_ids": ["<hex id>", ...], "group": "Navn"})
+// Brukes av "velg-modus" i Mine filmer (index.php) - tildeler flere
+// valgte filmer samme filmgruppe i ett kall. Kroppen sendes bare videre
+// uendret - validering (tomme lister/navn, ukjente id-er) skjer i
+// BulkGroupAssignRequest/bulk_assign_group() på backend-siden. Se
+// POST /media/content/bulk-group i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_add_to_group') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $body = file_get_contents('php://input');
+
+    $bulkGroupUrl = MEDIA_API_BASE_URL . '/media/content/bulk-group';
+
+    $ch = curl_init($bulkGroupUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // PATCH ?action=update_content_field&id=<hex content_id>
 // (body: kun feltet(ene) som redigeres, f.eks. {"runtime": 92})
 // Brukes av penne-ikon-redigering på detaljsiden for felter som ligger

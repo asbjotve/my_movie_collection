@@ -43,6 +43,13 @@ return [
                 'watched'             => 'Watched',
                 'unwatched'           => 'Unwatched',
                 'fetch_error_prefix'  => 'Failed to fetch data: ',
+                'select_mode_btn'         => '☑️ Select movies',
+                'select_mode_done_btn'    => '✓ Done',
+                'bulk_add_to_group_btn'   => 'Add to movie group',
+                'bulk_selected_count'     => '%d movie(s) selected',
+                'bulk_group_modal_title'  => 'Add to movie group',
+                'bulk_group_input_label'  => 'Movie group (type a new name or pick from the list)',
+                'bulk_group_name_required'=> 'You must enter a movie group name.',
             ],
 
             'onskeliste' => [

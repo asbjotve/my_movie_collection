@@ -46,6 +46,13 @@ return [
                 'watched'             => 'Sett',
                 'unwatched'           => 'Ikke sett',
                 'fetch_error_prefix'  => 'Klarte ikke å hente data: ',
+                'select_mode_btn'         => '☑️ Velg filmer',
+                'select_mode_done_btn'    => '✓ Ferdig',
+                'bulk_add_to_group_btn'   => 'Legg til i filmgruppe',
+                'bulk_selected_count'     => '%d film(er) valgt',
+                'bulk_group_modal_title'  => 'Legg til i filmgruppe',
+                'bulk_group_input_label'  => 'Filmgruppe (skriv nytt navn eller velg fra listen)',
+                'bulk_group_name_required'=> 'Du må oppgi et navn på filmgruppen.',
             ],
 
             'onskeliste' => [

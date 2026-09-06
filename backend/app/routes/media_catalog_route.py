@@ -6,6 +6,7 @@ from app.api_key import require_api_key
 from app.db import AppSetting, User, get_db
 from app.media_db import get_media_db
 from app.schemas.media_catalog import (
+    BulkGroupAssignRequest,
     ContentFieldLockRequest,
     ContentFieldUpdateRequest,
     PhysicalCopyFieldUpdateRequest,
@@ -14,6 +15,7 @@ from app.security import get_current_user
 from app.services.media_catalog import (
     ContentExternalSourceError,
     backfill_tmdb_cover_images,
+    bulk_assign_group,
     get_content_by_id,
     list_content,
     list_content_covers,
@@ -99,6 +101,23 @@ def patch_content_fields(
     fields = payload.model_dump(exclude_unset=True)
     try:
         return update_content_fields(db, content_id, fields)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/content/bulk-group")
+def post_bulk_assign_group(
+    payload: BulkGroupAssignRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Tildeler flere valgte filmer samme filmgruppe i ett kall - brukt
+    av "velg-modus" i Mine filmer (index.php). Krever innlogging
+    (get_current_user), samme som den vanlige content-redigeringen. Se
+    bulk_assign_group() for detaljer.
+    """
+    try:
+        return bulk_assign_group(db, payload.content_ids, payload.group)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
