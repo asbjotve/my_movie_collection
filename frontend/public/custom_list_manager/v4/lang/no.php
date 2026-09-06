@@ -123,7 +123,9 @@ return [
             'col_season'         => 'Sesong',
             'col_actions'        => 'Handlinger',
 
+            'btn_edit'           => 'Rediger',
             'btn_save'           => 'Lagre',
+            'btn_cancel'         => 'Avbryt',
             'btn_delete'         => 'Slett',
             'btn_replace_cover'  => 'Bytt cover',
 

@@ -102,40 +102,75 @@
     `;
 
     const tbody = table.querySelector('tbody');
-
-    items.forEach((item) => {
-      const tr_ = document.createElement('tr');
-      tr_.dataset.itemId = item.list_item_id;
-      tr_.innerHTML = `
-        <td class="cell-cover">
-          ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : ''}
-          <input type="file" class="row-cover-input" accept="image/*">
-        </td>
-        <td><input type="text" class="row-title" value="${escapeHtml(item.title)}" required></td>
-        <td><input type="text" class="row-original-title" value="${escapeHtml(item.original_title)}"></td>
-        <td><input type="number" class="row-year" inputmode="numeric" min="1888" max="2100" value="${escapeHtml(item.first_release_year)}"></td>
-        <td><input type="text" class="row-imdb" value="${escapeHtml(item.imdb_id)}"></td>
-        <td><input type="text" class="row-tmdb" value="${escapeHtml(item.tmdb_id)}"></td>
-        <td><input type="text" class="row-tvdb" value="${escapeHtml(item.tvdb_id)}"></td>
-        <td><input type="text" class="row-season" value="${escapeHtml(item.season)}"></td>
-        <td class="cell-actions">
-          <button type="button" class="btn-row-save">${escapeHtml(tr('btn_save'))}</button>
-          <button type="button" class="btn-row-delete">${escapeHtml(tr('btn_delete'))}</button>
-          <span class="row-status"></span>
-        </td>
-      `;
-
-      tr_.querySelector('.btn-row-save').addEventListener('click', () => saveRow(tr_, listId));
-      tr_.querySelector('.btn-row-delete').addEventListener('click', () => deleteRow(tr_, listId, item.title));
-
-      tbody.appendChild(tr_);
-    });
+    items.forEach((item) => tbody.appendChild(buildRow(item, listId, false)));
 
     tableContainer.innerHTML = '';
     tableContainer.appendChild(table);
   }
 
-  async function saveRow(rowEl, listId) {
+  // Builds a single <tr>, either as a read-only display row (editing=false)
+  // or as an inline-editable row with inputs (editing=true). Each row
+  // starts read-only; clicking "Rediger" swaps it to edit mode in place,
+  // "Avbryt"/"Lagre" swap it back.
+  function buildRow(item, listId, editing) {
+    const tr_ = document.createElement('tr');
+    tr_.dataset.itemId = item.list_item_id;
+    tr_.className = editing ? 'row-editing' : '';
+
+    const label = (key) => escapeHtml(tr(key));
+    const val = (v) => escapeHtml(v ?? '') || '\u2014'; // em dash for empty values in read mode
+
+    if (editing) {
+      tr_.innerHTML = `
+        <td class="cell-cover" data-label="${label('col_cover')}">
+          ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : ''}
+          <input type="file" class="row-cover-input" accept="image/*">
+        </td>
+        <td data-label="${label('col_title')}"><input type="text" class="row-title" value="${escapeHtml(item.title)}" required></td>
+        <td data-label="${label('col_original_title')}"><input type="text" class="row-original-title" value="${escapeHtml(item.original_title)}"></td>
+        <td data-label="${label('col_year')}"><input type="number" class="row-year" inputmode="numeric" min="1888" max="2100" value="${escapeHtml(item.first_release_year)}"></td>
+        <td data-label="${label('col_imdb')}"><input type="text" class="row-imdb" value="${escapeHtml(item.imdb_id)}"></td>
+        <td data-label="${label('col_tmdb')}"><input type="text" class="row-tmdb" value="${escapeHtml(item.tmdb_id)}"></td>
+        <td data-label="${label('col_tvdb')}"><input type="text" class="row-tvdb" value="${escapeHtml(item.tvdb_id)}"></td>
+        <td data-label="${label('col_season')}"><input type="text" class="row-season" value="${escapeHtml(item.season)}"></td>
+        <td class="cell-actions" data-label="${label('col_actions')}">
+          <button type="button" class="btn-row-save">${label('btn_save')}</button>
+          <button type="button" class="btn-row-cancel">${label('btn_cancel')}</button>
+          <span class="row-status"></span>
+        </td>
+      `;
+      tr_.querySelector('.btn-row-save').addEventListener('click', () => saveRow(tr_, listId, item));
+      tr_.querySelector('.btn-row-cancel').addEventListener('click', () => {
+        tr_.replaceWith(buildRow(item, listId, false));
+      });
+    } else {
+      tr_.innerHTML = `
+        <td class="cell-cover" data-label="${label('col_cover')}">
+          ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : '\u2014'}
+        </td>
+        <td class="cell-title" data-label="${label('col_title')}"><span class="row-text">${val(item.title)}</span></td>
+        <td class="cell-original-title" data-label="${label('col_original_title')}"><span class="row-text">${val(item.original_title)}</span></td>
+        <td data-label="${label('col_year')}"><span class="row-text">${val(item.first_release_year)}</span></td>
+        <td data-label="${label('col_imdb')}"><span class="row-text">${val(item.imdb_id)}</span></td>
+        <td data-label="${label('col_tmdb')}"><span class="row-text">${val(item.tmdb_id)}</span></td>
+        <td data-label="${label('col_tvdb')}"><span class="row-text">${val(item.tvdb_id)}</span></td>
+        <td data-label="${label('col_season')}"><span class="row-text">${val(item.season)}</span></td>
+        <td class="cell-actions" data-label="${label('col_actions')}">
+          <button type="button" class="btn-row-edit">${label('btn_edit')}</button>
+          <button type="button" class="btn-row-delete">${label('btn_delete')}</button>
+          <span class="row-status"></span>
+        </td>
+      `;
+      tr_.querySelector('.btn-row-edit').addEventListener('click', () => {
+        tr_.replaceWith(buildRow(item, listId, true));
+      });
+      tr_.querySelector('.btn-row-delete').addEventListener('click', () => deleteRow(tr_, listId, item.title));
+    }
+
+    return tr_;
+  }
+
+  async function saveRow(rowEl, listId, item) {
     const statusSpan = rowEl.querySelector('.row-status');
     const title = rowEl.querySelector('.row-title').value.trim();
 
@@ -148,15 +183,26 @@
     statusSpan.textContent = tr('saving');
     statusSpan.className = 'row-status info';
 
+    const updated = {
+      ...item,
+      title,
+      original_title: rowEl.querySelector('.row-original-title').value.trim(),
+      first_release_year: rowEl.querySelector('.row-year').value.trim(),
+      imdb_id: rowEl.querySelector('.row-imdb').value.trim(),
+      tmdb_id: rowEl.querySelector('.row-tmdb').value.trim(),
+      tvdb_id: rowEl.querySelector('.row-tvdb').value.trim(),
+      season: rowEl.querySelector('.row-season').value.trim(),
+    };
+
     const formData = new FormData();
     formData.append('list_item_id', rowEl.dataset.itemId);
-    formData.append('title', title);
-    formData.append('original_title', rowEl.querySelector('.row-original-title').value.trim());
-    formData.append('first_release_year', rowEl.querySelector('.row-year').value.trim());
-    formData.append('imdb_id', rowEl.querySelector('.row-imdb').value.trim());
-    formData.append('tmdb_id', rowEl.querySelector('.row-tmdb').value.trim());
-    formData.append('tvdb_id', rowEl.querySelector('.row-tvdb').value.trim());
-    formData.append('season', rowEl.querySelector('.row-season').value.trim());
+    formData.append('title', updated.title);
+    formData.append('original_title', updated.original_title);
+    formData.append('first_release_year', updated.first_release_year);
+    formData.append('imdb_id', updated.imdb_id);
+    formData.append('tmdb_id', updated.tmdb_id);
+    formData.append('tvdb_id', updated.tvdb_id);
+    formData.append('season', updated.season);
 
     const coverFile = rowEl.querySelector('.row-cover-input').files?.[0];
     if (coverFile) {
@@ -175,21 +221,18 @@
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
 
-      statusSpan.textContent = tr('saved');
-      statusSpan.className = 'row-status success';
-
       if (data.cover_image) {
-        const preview = rowEl.querySelector('.row-cover-preview');
-        if (preview) {
-          preview.src = data.cover_image;
-        } else {
-          const cell = rowEl.querySelector('.cell-cover');
-          const img = document.createElement('img');
-          img.className = 'row-cover-preview';
-          img.src = data.cover_image;
-          cell.prepend(img);
-        }
+        updated.cover_image = data.cover_image;
       }
+
+      // Reflect the change in the local cache, then swap the row back to
+      // a read-only view showing the freshly-saved values.
+      const idx = currentItems.findIndex((it) => it.list_item_id === updated.list_item_id);
+      if (idx !== -1) currentItems[idx] = updated;
+
+      rowEl.replaceWith(buildRow(updated, listId, false));
+      setStatus(statusEl, tr('saved'), 'success');
+      setTimeout(() => setStatus(statusEl, '', 'info'), 2000);
     } catch (err) {
       statusSpan.textContent = tr('save_error_prefix', err.message || err);
       statusSpan.className = 'row-status error';

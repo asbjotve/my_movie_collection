@@ -537,6 +537,7 @@ if ($listsResponse === false || $listsCurlError) {
       width:100%;
       border-collapse: collapse;
       font-size:13px;
+      table-layout: fixed;
     }
     table.items-table th, table.items-table td{
       border-bottom: 1px solid rgba(37,48,87,.6);
@@ -545,23 +546,33 @@ if ($listsResponse === false || $listsCurlError) {
       vertical-align: top;
     }
     table.items-table th{ color: var(--muted); font-weight:600; white-space:nowrap; }
+    /* Read-mode text: wrap long titles instead of clipping/hiding them. */
+    table.items-table .row-text{
+      display:block;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+    table.items-table tr.row-editing{ background: rgba(122,162,255,.06); }
     table.items-table input[type="text"], table.items-table input[type="number"]{
       width: 100%;
-      min-width: 80px;
+      min-width: 60px;
       padding:6px 8px;
       border-radius:8px;
       border:1px solid rgba(37,48,87,.8);
       background: rgba(11,16,32,.6);
       color: var(--text);
       font-size:13px;
+      box-sizing: border-box;
     }
     table.items-table .cell-cover{ width:64px; }
+    table.items-table .cell-title, table.items-table .cell-original-title{ max-width: 220px; }
     table.items-table .row-cover-preview{
       display:block; width:44px; height:auto; border-radius:6px; margin-bottom:4px;
     }
     table.items-table .row-cover-input{ font-size:11px; max-width:64px; }
     table.items-table .cell-actions{ white-space:nowrap; }
-    table.items-table .cell-actions button{ font-size:12px; padding:6px 8px; margin-right:4px; }
+    table.items-table .cell-actions button{ font-size:12px; padding:6px 8px; margin-right:4px; margin-bottom:4px; }
     table.items-table .row-status{ display:block; font-size:11px; margin-top:4px; }
     table.items-table .row-status.success{ color: var(--good); }
     table.items-table .row-status.error{ color: var(--bad); }
@@ -570,6 +581,39 @@ if ($listsResponse === false || $listsCurlError) {
     @media (max-width: 480px){
       .kv{ grid-template-columns: 1fr; }
       .k{ margin-top:6px; }
+    }
+
+    /* On narrow screens, reflow the items table into a stacked list of
+       "cards" (one per item) instead of a horizontally-scrolling table -
+       this keeps long titles fully readable without truncation. */
+    @media (max-width: 720px){
+      table.items-table{ table-layout: auto; }
+      table.items-table thead{ display:none; }
+      table.items-table, table.items-table tbody, table.items-table tr, table.items-table td{
+        display:block;
+        width:100%;
+      }
+      table.items-table tr{
+        border:1px solid rgba(37,48,87,.8);
+        border-radius:12px;
+        padding:8px 10px;
+        margin-bottom:12px;
+      }
+      table.items-table td{
+        border-bottom:none;
+        padding:4px 0;
+        display:flex;
+        gap:10px;
+        align-items:flex-start;
+      }
+      table.items-table td[data-label]::before{
+        content: attr(data-label);
+        flex:0 0 110px;
+        color: var(--muted);
+        font-weight:600;
+      }
+      table.items-table .cell-cover{ width:auto; }
+      table.items-table .cell-title, table.items-table .cell-original-title{ max-width:none; }
     }
 
     /* --- TMDB search: dark-theme Bootstrap modal overrides --- */

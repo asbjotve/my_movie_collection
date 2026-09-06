@@ -124,7 +124,9 @@ return [
             'col_season'         => 'Season',
             'col_actions'        => 'Actions',
 
+            'btn_edit'           => 'Edit',
             'btn_save'           => 'Save',
+            'btn_cancel'         => 'Cancel',
             'btn_delete'         => 'Delete',
             'btn_replace_cover'  => 'Replace cover',
 
