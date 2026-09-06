@@ -704,6 +704,7 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
             json.loads(row.locked_fields) if row.locked_fields else []
         ),
         "group_name": row.group_name,
+        "group_id": row.group_id,
         "group_sort_order": row.group_sort_order,
         "group_movies": group_movies,
         "collections": collections,
@@ -918,6 +919,8 @@ def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
         ),
         params,
     )
+    if "group" in fields and params.get("group_id") is not None:
+        _auto_assign_group_sort_order(db, params["group_id"], [raw_id])
     db.commit()
 
     return {"status": "ok", "content_id": content_id, "updated_fields": sorted(fields.keys())}
@@ -936,10 +939,11 @@ def bulk_assign_group(db: Session, content_ids: list[str], group_name: str) -> d
     ikke kommer fra en reell liste) - responsen forteller hvor mange
     rader som faktisk ble oppdatert.
 
-    Rekkefølgen (group_sort_order) settes IKKE her - det er en egen,
-    separat justering brukeren gjør manuelt etterpå (se
-    edit_field_label_group_sort_order/groupGroup-modalen på
-    detaljsiden).
+    Rekkefølgen (group_sort_order) foreslås automatisk basert på
+    first_release rett etter tildelingen (se
+    _auto_assign_group_sort_order()) - brukeren kan justere videre med
+    dra-og-slipp i filmgruppe-listen på detaljsiden (se
+    reorder_group()).
     """
 
     raw_ids = []
@@ -960,9 +964,108 @@ def bulk_assign_group(db: Session, content_ids: list[str], group_name: str) -> d
         ),
         {"group_id": group_id, "content_ids": raw_ids},
     )
+    _auto_assign_group_sort_order(db, group_id, raw_ids)
     db.commit()
 
     return {"status": "ok", "group_id": group_id, "updated_count": result.rowcount}
+
+
+def _auto_assign_group_sort_order(db: Session, group_id: int | None, content_ids: list) -> None:
+    """Foreslår automatisk group_sort_order for filmer som nettopp er
+    lagt til en filmgruppe (enkelt-redigering via "group"-feltet, eller
+    bulk_assign_group()) og som IKKE allerede har en verdi der.
+
+    Rekkefølgen foreslås kronologisk etter first_release (eldste
+    film = lavest tall), og legges til ETTER høyeste group_sort_order
+    som allerede er i bruk i gruppen fra før - slik at en manuelt
+    justert rekkefølge for eksisterende medlemmer aldri overskrives.
+    Filmer uten first_release havner sist blant de som får nytt
+    forslag.
+
+    Dette er kun et startpunkt - brukeren kan justere videre med
+    dra-og-slipp (se reorder_group()). Kalles fra update_content_fields()
+    og bulk_assign_group() rett etter at group_id er satt/opprettet;
+    caller har ansvar for commit().
+
+    `content_ids` skal være en liste med RÅ (binære) content_id-verdier
+    (samme format som _parse_hex_id() returnerer), ikke hex-strenger.
+    """
+
+    if group_id is None or not content_ids:
+        return
+
+    max_row = db.execute(
+        text("SELECT MAX(group_sort_order) AS max_order FROM content WHERE group_id = :group_id"),
+        {"group_id": group_id},
+    ).fetchone()
+    next_order = (max_row.max_order or 0) + 1
+
+    rows = db.execute(
+        text(
+            """
+            SELECT content_id, first_release FROM content
+            WHERE content_id IN :content_ids
+              AND group_id = :group_id
+              AND group_sort_order IS NULL
+            ORDER BY (first_release IS NULL) ASC, first_release ASC
+            """
+        ).bindparams(bindparam("content_ids", expanding=True)),
+        {"content_ids": content_ids, "group_id": group_id},
+    ).fetchall()
+
+    for offset, row in enumerate(rows):
+        db.execute(
+            text("UPDATE content SET group_sort_order = :order WHERE content_id = :content_id"),
+            {"order": next_order + offset, "content_id": row.content_id},
+        )
+
+
+def reorder_group(db: Session, group_id: int, content_ids: list[str]) -> dict:
+    """Setter group_sort_order = 1, 2, 3, ... i henhold til rekkefølgen
+    på content_ids-listen - brukt av dra-og-slipp-sortering av
+    filmgruppe-listen på detaljsiden (se renderGroupMovies() i
+    detail.php).
+
+    Kun content-rader som faktisk tilhører group_id blir oppdatert;
+    ukjente/ugyldige id-er eller id-er som tilhører en ANNEN gruppe
+    hoppes stille over (samme "best effort"-mønster som
+    bulk_assign_group()). Kaster ContentExternalSourceError (400) hvis
+    ingen gyldige id-er ble oppdatert, ellers (404) hvis group_id ikke
+    finnes i det hele tatt.
+    """
+
+    group_row = db.execute(
+        text("SELECT group_id FROM movie_group WHERE group_id = :group_id"),
+        {"group_id": group_id},
+    ).fetchone()
+    if group_row is None:
+        raise ContentExternalSourceError("Fant ikke filmgruppen", status_code=404)
+
+    raw_ids = []
+    for content_id in content_ids:
+        try:
+            raw_ids.append(_parse_hex_id(content_id))
+        except (ValueError, AttributeError):
+            continue
+
+    if not raw_ids:
+        raise ContentExternalSourceError("Ingen gyldige content_id-er", status_code=400)
+
+    updated_count = 0
+    for order, raw_id in enumerate(raw_ids, start=1):
+        result = db.execute(
+            text(
+                """
+                UPDATE content SET group_sort_order = :order
+                WHERE content_id = :content_id AND group_id = :group_id
+                """
+            ),
+            {"order": order, "content_id": raw_id, "group_id": group_id},
+        )
+        updated_count += result.rowcount
+    db.commit()
+
+    return {"status": "ok", "group_id": group_id, "updated_count": updated_count}
 
 
 def set_content_field_lock(db: Session, content_id: str, field: str, locked: bool) -> dict:

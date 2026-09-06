@@ -194,7 +194,15 @@ return [
             'cancel_btn'             => 'Cancel',
             'saving_field'           => 'Saving…',
             'save_field_error_prefix'=> 'Failed to save: ',
-            'group_movies_heading'   => 'Other movies in this group',
+            'group_movies_heading'   => 'Movies in this group',
+            'group_movies_current_tag' => 'this movie',
+            'group_sort_toggle_btn'  => '🔀 Sort',
+            'group_sort_by_year_btn' => '📅 Sort by year',
+            'group_sort_toggle_done_btn' => '✓ Done',
+            'group_sort_error_prefix'=> 'Failed to save order: ',
+            'group_sort_saving'      => 'Saving order…',
+            'group_sort_saved'       => 'Saved ✓',
+            'group_order_badge_title'=> 'Position in the movie group (not part of the movie title)',
         ],
 
         'login' => [
