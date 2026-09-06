@@ -662,14 +662,17 @@ $sectionAccess = [
       const b = formatBadge(c.format);
       const hasInfo = c.store || c.purchased_at || (c.price !== null && c.price !== undefined);
       const collId = escapeHtml(c.collection_id);
-      const editBtn = (field, type) => IS_LOGGED_IN
-        ? `<button type="button" class="editPencilBtn" data-field="${field}" data-type="${type}" data-collection-id="${collId}" data-copy-id="${c.copy_id}" title="${escapeHtml(WTE_I18N.detail.edit_field_btn)}">✏️</button>`
+      // Butikk/kjøpsdato/pris/valuta redigeres samlet i én pop-up (ett
+      // penne-ikon pr. eksemplar), samme resonnement som for
+      // tittel/original tittel - se "titleGroup" lenger opp.
+      const purchaseEditBtn = IS_LOGGED_IN
+        ? `<button type="button" class="editPencilBtn" data-field="purchase_group" data-type="purchaseGroup" data-collection-id="${collId}" data-copy-id="${c.copy_id}" title="${escapeHtml(WTE_I18N.detail.edit_field_btn)}">✏️</button>`
         : "";
 
       const lines = [
-        (c.store ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_store_label, escapeHtml(c.store))}</span>` : "") + editBtn("store", "text"),
-        (c.purchased_at ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_date_label, escapeHtml(c.purchased_at))}</span>` : "") + editBtn("purchased_at", "date"),
-        ((c.price !== null && c.price !== undefined) ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_price_label, escapeHtml(String(c.price)), escapeHtml(c.currency || "NOK"))}</span>` : "") + editBtn("price", "number") + editBtn("currency", "text"),
+        c.store ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_store_label, escapeHtml(c.store))}</span>` : "",
+        c.purchased_at ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_date_label, escapeHtml(c.purchased_at))}</span>` : "",
+        (c.price !== null && c.price !== undefined) ? `<span class="meta">${wteFormat(WTE_I18N.detail.purchase_price_label, escapeHtml(String(c.price)), escapeHtml(c.currency || "NOK"))}</span>` : "",
       ].filter(Boolean).join("");
 
       return `
@@ -678,6 +681,7 @@ $sectionAccess = [
           ${c.is_box_set ? `<span class="boxTag">${WTE_I18N.detail.box_set_tag}</span>` : ""}
           ${hasInfo ? "" : `<span class="meta">${WTE_I18N.detail.purchase_no_info_for_copy}</span>`}
           ${lines}
+          ${purchaseEditBtn}
         </div>
       `;
     }).join("");
@@ -1014,6 +1018,8 @@ $sectionAccess = [
     editFieldModalStatus.className = "refreshStatus";
     const label = ctx.field === "title_group"
       ? WTE_I18N.detail.edit_field_label_title
+      : ctx.field === "purchase_group"
+      ? WTE_I18N.detail.tab_purchase
       : (WTE_I18N.detail["edit_field_label_" + ctx.field] || ctx.field);
     editFieldModalTitle.textContent = wteFormat(WTE_I18N.detail.edit_field_title, label);
 
@@ -1031,6 +1037,19 @@ $sectionAccess = [
         <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(originalTitleLabel)}</label>
         <input id="editFieldInputOriginalTitle" type="text" value="${escapeHtml(ctx.value.original_title ?? "")}" style="${inputStyle}">
       `;
+    } else if (ctx.type === "purchaseGroup") {
+      // Butikk/kjøpsdato/pris/valuta redigeres samlet i én pop-up (ett
+      // penne-ikon pr. eksemplar) - samme resonnement som "titleGroup".
+      inputHtml = `
+        <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_store)}</label>
+        <input id="editFieldInputStore" type="text" value="${escapeHtml(ctx.value.store ?? "")}" style="${inputStyle}">
+        <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_purchased_at)}</label>
+        <input id="editFieldInputPurchasedAt" type="date" value="${escapeHtml(ctx.value.purchased_at ?? "")}" style="${inputStyle}">
+        <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_price)}</label>
+        <input id="editFieldInputPrice" type="number" value="${escapeHtml(ctx.value.price ?? "")}" style="${inputStyle}">
+        <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_currency)}</label>
+        <input id="editFieldInputCurrency" type="text" value="${escapeHtml(ctx.value.currency ?? "")}" style="${inputStyle}">
+      `;
     } else if (ctx.type === "textarea") {
       inputHtml = `<textarea id="editFieldInput" rows="6" style="${inputStyle}">${escapeHtml(ctx.value ?? "")}</textarea>`;
     } else if (ctx.type === "select" && ctx.field === "content_type") {
@@ -1043,7 +1062,10 @@ $sectionAccess = [
     }
     editFieldModalBody.innerHTML = inputHtml;
     editFieldModalOverlay.style.display = "flex";
-    document.getElementById("editFieldInput").focus();
+    const focusTarget = document.getElementById("editFieldInput")
+      || document.getElementById("editFieldInputTitle")
+      || document.getElementById("editFieldInputStore");
+    if (focusTarget) focusTarget.focus();
   }
 
   async function saveEditField(){
@@ -1057,6 +1079,17 @@ $sectionAccess = [
       body = {
         title: titleVal === "" ? null : titleVal,
         original_title: originalTitleVal === "" ? null : originalTitleVal,
+      };
+    } else if (type === "purchaseGroup") {
+      const storeVal = document.getElementById("editFieldInputStore").value;
+      const purchasedAtVal = document.getElementById("editFieldInputPurchasedAt").value;
+      const priceVal = document.getElementById("editFieldInputPrice").value;
+      const currencyVal = document.getElementById("editFieldInputCurrency").value;
+      body = {
+        store: storeVal === "" ? null : storeVal,
+        purchased_at: purchasedAtVal === "" ? null : purchasedAtVal,
+        price: priceVal === "" ? null : parseFloat(priceVal),
+        currency: currencyVal === "" ? null : currencyVal,
       };
     } else {
       const inputEl = document.getElementById("editFieldInput");
@@ -1121,7 +1154,10 @@ $sectionAccess = [
         c => c.collection_id === collectionId && String(c.copy_id) === copyId
       );
       if (!copy) return;
-      openEditFieldModal({ kind: "physical_copy", field, type, collectionId, copyId, value: copy[field] });
+      const value = field === "purchase_group"
+        ? { store: copy.store, purchased_at: copy.purchased_at, price: copy.price, currency: copy.currency }
+        : copy[field];
+      openEditFieldModal({ kind: "physical_copy", field, type, collectionId, copyId, value });
     } else if (type === "titleGroup") {
       openEditFieldModal({ kind: "content", field, type, value: { title: currentItem.title, original_title: currentItem.original_title } });
     } else {
