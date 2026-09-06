@@ -77,6 +77,8 @@ return [
                 'card_add_movie_desc'    => 'Manuell registrering av nye filmer/serier i katalogen.',
                 'card_edit_lists_title'  => 'Rediger lister',
                 'card_edit_lists_desc'   => 'Opprett, endre eller slett egendefinerte lister.',
+                'card_bulk_add_title'    => 'Bulk-registrering av filmer',
+                'card_bulk_add_desc'     => 'Registrer flere filmer/serier samtidig, inkludert fysiske eksemplarer (åpnes i eget verktøy).',
                 'card_2fa_title'         => 'To-faktor autentisering (2FA)',
                 'card_2fa_desc'          => 'Sett opp eller deaktiver 2FA for din bruker.',
                 'card_access_title'      => 'Tilgangs- og språkstyring',

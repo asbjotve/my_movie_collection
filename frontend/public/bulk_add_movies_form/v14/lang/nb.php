@@ -13,6 +13,9 @@ return [
             'en' => 'English',
             'nb' => 'Norsk (Bokmål)',
         ],
+        'nav' => [
+            'back_to_admin' => '← Til Administrering',
+        ],
         'btn' => [
             'apply' => 'Bruk',
             'reset' => 'Nullstill',

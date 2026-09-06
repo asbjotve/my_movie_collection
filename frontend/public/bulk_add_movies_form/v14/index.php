@@ -50,6 +50,8 @@ function h(string $s): string
     a{ color:var(--accent); }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .page{ max-width:1460px; margin:0 auto; padding:24px 18px 48px; }
+    .backToAdminRow{ margin-bottom:14px; }
+    .backToAdminRow .btn{ text-decoration:none; display:inline-block; }
     .hero{
       display:flex;
       justify-content:space-between;
@@ -404,6 +406,18 @@ function h(string $s): string
 </head>
 <body>
   <main class="page">
+    <!--
+      Lenke tilbake til website_template_example sin Administrering-
+      side (index.php?panel=administrering) - dette skjemaet er ikke
+      bygd inn i selve website_template_example (større jobb, se
+      REVISION_HISTORY), så inntil videre er dette eneste veien
+      tilbake herfra. Se det tilsvarende "Rediger lister"-kortet på
+      Administrering-siden (website_template_example/v19/index.php)
+      som lenker hit.
+    -->
+    <div class="backToAdminRow">
+      <a href="/website_template_example/v19/index.php?panel=administrering" class="btn btnTiny"><?= h(tr($t, 'nav.back_to_admin')) ?></a>
+    </div>
     <section class="hero">
       <div>
         <h1><?= h(tr($t, 'page.h1')) ?> <span class="tag">v14</span></h1>

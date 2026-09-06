@@ -74,6 +74,8 @@ return [
                 'card_add_movie_desc'    => 'Manually register new movies/shows in the catalog.',
                 'card_edit_lists_title'  => 'Edit lists',
                 'card_edit_lists_desc'   => 'Create, edit or delete custom lists.',
+                'card_bulk_add_title'    => 'Bulk-add movies',
+                'card_bulk_add_desc'     => 'Register multiple movies/shows at once, including physical copies (opens in a separate tool).',
                 'card_2fa_title'         => 'Two-factor authentication (2FA)',
                 'card_2fa_desc'          => 'Set up or disable 2FA for your account.',
                 'card_access_title'      => 'Access & language control',
