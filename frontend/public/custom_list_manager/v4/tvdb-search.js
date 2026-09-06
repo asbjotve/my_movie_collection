@@ -321,13 +321,31 @@ function displayTvdbInfoPage(rec, type, tvdbId, fallbackName) {
 }
 
 // Fill add-item form fields + close modal
-function applyTvdbDetailsToForm(payload) {
-  const fields = {
+//
+// If window.clmActiveEditRow is set (a <tr> in the "Rediger liste" table -
+// see items-editor.js), the result is applied to THAT row's inputs instead
+// of the "+ Nytt element" panel's fixed #title/#tvdb_id/etc fields. This
+// lets a row's own "🔎" TVDB button reuse this same modal/search flow.
+function getApplyFields() {
+  const row = window.clmActiveEditRow;
+  if (row) {
+    return {
+      title: row.querySelector('.row-title'),
+      first_release_year: row.querySelector('.row-year'),
+      imdb_id: row.querySelector('.row-imdb'),
+      tvdb_id: row.querySelector('.row-tvdb'),
+    };
+  }
+  return {
     title: document.getElementById('title'),
     first_release_year: document.getElementById('first_release_year'),
     imdb_id: document.getElementById('imdb_id'),
     tvdb_id: document.getElementById('tvdb_id'),
   };
+}
+
+function applyTvdbDetailsToForm(payload) {
+  const fields = getApplyFields();
 
   if (fields.title && payload.title) {
     fields.title.value = payload.title;

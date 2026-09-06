@@ -41,6 +41,19 @@
   const addStatusEl = document.getElementById('addItemStatus');
   const btnAddItem = document.getElementById('btnAddItem');
 
+  // window.clmActiveEditRow tells script.js/tvdb-search.js which row's
+  // inputs a TMDB/TVDB search result should be applied to (set right
+  // before the modal opens, from a row's search button - see buildRow()
+  // below). Reset it whenever either search modal closes, so a later
+  // search from the "+ Nytt element" panel falls back to its own fixed
+  // #title/#tmdb_id/etc fields again.
+  document.getElementById('searchModal')?.addEventListener('hidden.bs.modal', () => {
+    window.clmActiveEditRow = null;
+  });
+  document.getElementById('tvdbSearchModal')?.addEventListener('hidden.bs.modal', () => {
+    window.clmActiveEditRow = null;
+  });
+
   let initialised = false;
   let currentItems = [];
 
@@ -126,7 +139,13 @@
           ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : ''}
           <input type="file" class="row-cover-input" accept="image/*">
         </td>
-        <td data-label="${label('col_title')}"><input type="text" class="row-title" value="${escapeHtml(item.title)}" required></td>
+        <td data-label="${label('col_title')}">
+          <div class="row-title-wrap">
+            <input type="text" class="row-title" value="${escapeHtml(item.title)}" required>
+            <button type="button" class="btn-row-tmdb" data-bs-toggle="modal" data-bs-target="#searchModal" title="${label('btn_search_tmdb_title')}">${label('btn_search_tmdb')}</button>
+            <button type="button" class="btn-row-tvdb" data-bs-toggle="modal" data-bs-target="#tvdbSearchModal" title="${label('btn_search_tvdb_title')}">${label('btn_search_tvdb')}</button>
+          </div>
+        </td>
         <td data-label="${label('col_original_title')}"><input type="text" class="row-original-title" value="${escapeHtml(item.original_title)}"></td>
         <td data-label="${label('col_year')}"><input type="number" class="row-year" inputmode="numeric" min="1888" max="2100" value="${escapeHtml(item.first_release_year)}"></td>
         <td data-label="${label('col_imdb')}"><input type="text" class="row-imdb" value="${escapeHtml(item.imdb_id)}"></td>
@@ -142,6 +161,16 @@
       tr_.querySelector('.btn-row-save').addEventListener('click', () => saveRow(tr_, listId, item));
       tr_.querySelector('.btn-row-cancel').addEventListener('click', () => {
         tr_.replaceWith(buildRow(item, listId, false));
+      });
+      // Let script.js / tvdb-search.js know that a search result should be
+      // applied to THIS row's inputs instead of the "+ Nytt element" panel's
+      // fixed #title/#tmdb_id/etc fields (see the shared getFormFields()
+      // helpers in those files, and the modal "hidden.bs.modal" reset below).
+      tr_.querySelector('.btn-row-tmdb').addEventListener('click', () => {
+        window.clmActiveEditRow = tr_;
+      });
+      tr_.querySelector('.btn-row-tvdb').addEventListener('click', () => {
+        window.clmActiveEditRow = tr_;
       });
     } else {
       tr_.innerHTML = `

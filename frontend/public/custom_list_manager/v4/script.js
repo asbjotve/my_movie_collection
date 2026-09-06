@@ -288,14 +288,33 @@ function displayInfoPage(details, type) {
 }
 
 // Fill wishlist form fields + close modal
-function applyDetailsToForm(payload) {
-  const fields = {
+//
+// If window.clmActiveEditRow is set (a <tr> in the "Rediger liste" table -
+// see items-editor.js), the result is applied to THAT row's inputs instead
+// of the "+ Nytt element" panel's fixed #title/#tmdb_id/etc fields. This
+// lets a row's own "🔍" TMDB button reuse this same modal/search flow.
+function getApplyFields() {
+  const row = window.clmActiveEditRow;
+  if (row) {
+    return {
+      title: row.querySelector('.row-title'),
+      original_title: row.querySelector('.row-original-title'),
+      first_release_year: row.querySelector('.row-year'),
+      imdb_id: row.querySelector('.row-imdb'),
+      tmdb_id: row.querySelector('.row-tmdb'),
+    };
+  }
+  return {
     title: document.getElementById('title'),
     original_title: document.getElementById('original_title'),
     first_release_year: document.getElementById('first_release_year'),
     imdb_id: document.getElementById('imdb_id'),
     tmdb_id: document.getElementById('tmdb_id'),
   };
+}
+
+function applyDetailsToForm(payload) {
+  const fields = getApplyFields();
 
   if (fields.title && payload.title) {
     fields.title.value = payload.title;

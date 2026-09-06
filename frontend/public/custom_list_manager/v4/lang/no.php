@@ -128,6 +128,10 @@ return [
             'btn_cancel'         => 'Avbryt',
             'btn_delete'         => 'Slett',
             'btn_replace_cover'  => 'Bytt cover',
+            'btn_search_tmdb'    => '🔍',
+            'btn_search_tvdb'    => '🔎',
+            'btn_search_tmdb_title' => 'Søk i TMDB for å fylle ut denne raden',
+            'btn_search_tvdb_title' => 'Søk i TVDB for å fylle ut denne raden',
 
             'saving'             => 'Lagrer…',
             'saved'              => 'Lagret ✓',

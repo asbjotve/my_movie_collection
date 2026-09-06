@@ -129,6 +129,10 @@ return [
             'btn_cancel'         => 'Cancel',
             'btn_delete'         => 'Delete',
             'btn_replace_cover'  => 'Replace cover',
+            'btn_search_tmdb'    => '🔍',
+            'btn_search_tvdb'    => '🔎',
+            'btn_search_tmdb_title' => 'Search TMDB to fill in this row',
+            'btn_search_tvdb_title' => 'Search TVDB to fill in this row',
 
             'saving'             => 'Saving…',
             'saved'              => 'Saved ✓',

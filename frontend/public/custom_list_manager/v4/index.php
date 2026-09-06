@@ -618,6 +618,31 @@ if ($listsResponse === false || $listsCurlError) {
       background: rgba(255,107,129,.12); border-color: rgba(255,107,129,.5); color: var(--bad);
     }
     table.items-table .btn-row-delete:hover{ background: rgba(255,107,129,.2); }
+
+    /* Compact TMDB/TVDB search buttons next to the title input while a row
+       is being edited - reuses the same #searchModal/#tvdbSearchModal and
+       script.js/tvdb-search.js apply-logic as the "+ Nytt element" panel,
+       just targeting this row's inputs instead (see items-editor.js). */
+    .row-title-wrap{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .row-title-wrap .row-title{ flex:1 1 120px; min-width:0; }
+    table.items-table .btn-row-tmdb, table.items-table .btn-row-tvdb{
+      appearance:none;
+      font-size:14px;
+      line-height:1;
+      border-radius:8px;
+      padding:6px 8px;
+      cursor:pointer;
+      flex:0 0 auto;
+    }
+    table.items-table .btn-row-tmdb{
+      background: rgba(122,162,255,.12); border:1px solid rgba(122,162,255,.5); color: var(--accent);
+    }
+    table.items-table .btn-row-tmdb:hover{ background: rgba(122,162,255,.2); }
+    table.items-table .btn-row-tvdb{
+      background: rgba(255,193,102,.12); border:1px solid rgba(255,193,102,.5); color: #ffc166;
+    }
+    table.items-table .btn-row-tvdb:hover{ background: rgba(255,193,102,.2); }
+
     table.items-table .row-status{ display:block; font-size:11px; margin-top:4px; }
     table.items-table .row-status.success{ color: var(--good); }
     table.items-table .row-status.error{ color: var(--bad); }
