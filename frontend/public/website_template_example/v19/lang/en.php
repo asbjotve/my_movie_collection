@@ -197,6 +197,8 @@ return [
             'group_sort_toggle_btn'  => '🔀 Sort',
             'group_sort_toggle_done_btn' => '✓ Done',
             'group_sort_error_prefix'=> 'Failed to save order: ',
+            'group_sort_saving'      => 'Saving order…',
+            'group_sort_saved'       => 'Saved ✓',
         ],
 
         'login' => [

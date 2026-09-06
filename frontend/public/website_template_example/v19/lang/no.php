@@ -200,6 +200,8 @@ return [
             'group_sort_toggle_btn'  => '🔀 Sorter',
             'group_sort_toggle_done_btn' => '✓ Ferdig',
             'group_sort_error_prefix'=> 'Klarte ikke å lagre rekkefølgen: ',
+            'group_sort_saving'      => 'Lagrer rekkefølge…',
+            'group_sort_saved'       => 'Lagret ✓',
         ],
 
         'login' => [

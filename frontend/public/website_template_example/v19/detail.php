@@ -276,6 +276,7 @@ $sectionAccess = [
       margin-left:8px; text-decoration:underline;
     }
     .groupSortToggleBtn.active{ color: var(--accent); }
+    .groupSortStatus{ font-size:12px; color: var(--muted); margin-left:8px; }
     /* Dra-og-slipp-modus: håndtak-cursor og visuell tilbakemelding mens
        man drar (se renderGroupMovies()/dragstart-/dragover-handlerne). */
     body.groupSortModeActive .groupMovieCard{ cursor: grab; }
@@ -454,7 +455,7 @@ $sectionAccess = [
 
       <!-- Vises kun når filmen faktisk tilhører en filmgruppe (se renderDetail()) - andre filmer i samme gruppe (movie_group/content.group_id), for enkel navigering mellom f.eks. en trilogi. -->
       <div class="sourcesBox" id="groupMoviesBox" style="display:none;">
-        <h3><span id="groupMoviesHeadingText"></span><?php if ($isLoggedIn): ?><button type="button" class="groupSortToggleBtn" id="btnToggleGroupSort"><?= htmlspecialchars(t('wte.detail.group_sort_toggle_btn')) ?></button><?php endif; ?></h3>
+        <h3><span id="groupMoviesHeadingText"></span><?php if ($isLoggedIn): ?><button type="button" class="groupSortToggleBtn" id="btnToggleGroupSort"><?= htmlspecialchars(t('wte.detail.group_sort_toggle_btn')) ?></button><span id="groupSortStatus" class="groupSortStatus"></span><?php endif; ?></h3>
         <div id="groupMoviesList" class="groupMoviesList"></div>
       </div>
     </div>
@@ -913,12 +914,21 @@ $sectionAccess = [
 
   async function saveGroupOrder(){
     if (!currentGroupId) return;
+    const statusEl = document.getElementById("groupSortStatus");
     const ids = [...groupMoviesListEl.querySelectorAll(".groupMovieCard")].map(c => c.dataset.id);
+    if (statusEl) statusEl.textContent = WTE_I18N.detail.group_sort_saving;
     try {
+      // keepalive: true - sikrer at forespørselen fullføres selv om
+      // brukeren rekker å navigere bort fra siden rett etter at
+      // draget er sluppet (samme mekanisme som brukes til
+      // analytics-kall ved side-avslutning) - uten denne kunne
+      // rekkefølgen se ut til å bli lagret visuelt, men aldri faktisk
+      // nå fram til serveren.
       const res = await fetch(`api.php?action=reorder_group&group_id=${encodeURIComponent(currentGroupId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content_ids: ids }),
+        keepalive: true,
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || res.statusText);
@@ -927,7 +937,12 @@ $sectionAccess = [
         const titleEl = card.querySelector(".groupMovieTitle");
         titleEl.innerHTML = titleEl.innerHTML.replace(/^#\d+ · /, `#${i + 1} · `);
       });
+      if (statusEl) {
+        statusEl.textContent = WTE_I18N.detail.group_sort_saved;
+        setTimeout(() => { statusEl.textContent = ""; }, 1500);
+      }
     } catch (err) {
+      if (statusEl) statusEl.textContent = "";
       alert(WTE_I18N.detail.group_sort_error_prefix + err.message);
     }
   }
