@@ -280,7 +280,6 @@ $sectionAccess = [
        man drar (se renderGroupMovies()/dragstart-/dragover-handlerne). */
     body.groupSortModeActive .groupMovieCard{ cursor: grab; }
     .groupMovieCard.dragging{ opacity:.4; }
-    .groupMovieCard.dragOver{ outline:2px dashed var(--accent); outline-offset:2px; }
 
     /* ---- Faner: Rollebesetning / Samlingsopplysninger / Kjøpsinformasjon ---- */
     .tabSection{ margin-top:26px; }
@@ -859,31 +858,57 @@ $sectionAccess = [
     card.classList.add("dragging");
     e.dataTransfer.effectAllowed = "move";
   });
-  groupMoviesListEl.addEventListener("dragend", (e) => {
+  groupMoviesListEl.addEventListener("dragend", async (e) => {
     const card = e.target.closest(".groupMovieCard");
     if (card) card.classList.remove("dragging");
-    groupMoviesListEl.querySelectorAll(".dragOver").forEach(c => c.classList.remove("dragOver"));
+    if (draggedCard) {
+      draggedCard = null;
+      await saveGroupOrder();
+    }
   });
+
+  // Finner kortet som ligger nærmest musepekeren (2D-avstand, ikke bare
+  // venstre/høyre) og om det nye kortet skal settes inn før eller etter
+  // det - dette håndterer at kortene brytes over flere rader
+  // (flex-wrap) mye bedre enn en enkel venstre/høyre-sjekk av ett og
+  // ett kort. Det dragede kortet flyttes fortløpende mens man drar
+  // (samme mønster som SortableJS/de fleste dra-og-slipp-biblioteker),
+  // slik at man ser resultatet med én gang - man trenger ikke treffe
+  // nøyaktig og prøve flere ganger.
+  function findClosestCard(x, y){
+    const cards = [...groupMoviesListEl.querySelectorAll(".groupMovieCard:not(.dragging)")];
+    let closest = null;
+    let closestDistance = Infinity;
+    for (const card of cards) {
+      const box = card.getBoundingClientRect();
+      const centerX = box.left + box.width / 2;
+      const centerY = box.top + box.height / 2;
+      const distance = Math.hypot(x - centerX, y - centerY);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closest = { card, centerX };
+      }
+    }
+    return closest;
+  }
+
   groupMoviesListEl.addEventListener("dragover", (e) => {
     if (!groupSortModeActive || !draggedCard) return;
     e.preventDefault();
-    const target = e.target.closest(".groupMovieCard");
-    if (!target || target === draggedCard) return;
-    groupMoviesListEl.querySelectorAll(".dragOver").forEach(c => c.classList.remove("dragOver"));
-    target.classList.add("dragOver");
-  });
-  groupMoviesListEl.addEventListener("drop", async (e) => {
-    if (!groupSortModeActive || !draggedCard) return;
-    e.preventDefault();
-    const target = e.target.closest(".groupMovieCard");
-    groupMoviesListEl.querySelectorAll(".dragOver").forEach(c => c.classList.remove("dragOver"));
-    if (target && target !== draggedCard) {
-      const rect = target.getBoundingClientRect();
-      const insertAfter = e.clientX > rect.left + rect.width / 2;
-      target.insertAdjacentElement(insertAfter ? "afterend" : "beforebegin", draggedCard);
+    const closest = findClosestCard(e.clientX, e.clientY);
+    if (!closest) return;
+    const insertAfter = e.clientX > closest.centerX;
+    const targetSibling = insertAfter ? closest.card.nextElementSibling : closest.card;
+    if (targetSibling !== draggedCard) {
+      groupMoviesListEl.insertBefore(draggedCard, insertAfter ? closest.card.nextElementSibling : closest.card);
     }
-    draggedCard = null;
-    await saveGroupOrder();
+  });
+  groupMoviesListEl.addEventListener("drop", (e) => {
+    if (!groupSortModeActive) return;
+    e.preventDefault();
+    // Selve flyttingen/lagringen skjer allerede fortløpende i dragover/
+    // dragend - drop trenger bare å hindre nettleserens standard-
+    // oppførsel (f.eks. å åpne en lenke/fil).
   });
 
   async function saveGroupOrder(){
