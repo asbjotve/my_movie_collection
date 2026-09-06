@@ -159,6 +159,8 @@ return [
             'set_cover_error_prefix' => 'Klarte ikke å sette cover: ',
 
             'edit_field_btn'        => 'Rediger',
+            'toggle_edit_mode_btn'      => 'Rediger',
+            'toggle_edit_mode_done_btn' => 'Ferdig med redigering',
             'edit_field_title'      => 'Rediger %s',
             'edit_field_label_title'          => 'Tittel',
             'edit_field_label_original_title' => 'Original tittel',

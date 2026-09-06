@@ -156,6 +156,8 @@ return [
             'set_cover_error_prefix' => 'Failed to set cover: ',
 
             'edit_field_btn'        => 'Edit',
+            'toggle_edit_mode_btn'      => 'Edit',
+            'toggle_edit_mode_done_btn' => 'Done editing',
             'edit_field_title'      => 'Edit %s',
             'edit_field_label_title'          => 'Title',
             'edit_field_label_original_title' => 'Original title',

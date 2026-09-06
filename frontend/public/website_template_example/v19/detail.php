@@ -223,13 +223,20 @@ $sectionAccess = [
     .factCard .k{ color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
     .factCard .v{ font-size:14px; font-weight:600; }
 
-    /* ---- Penne-ikon for redigering av felter (content/physical_copy) ---- */
+    /* ---- Penne-ikon for redigering av felter (content/physical_copy) ----
+       Skjult som standard - vises kun når redigeringsmodus er slått på
+       via "Rediger"-knappen (se btnToggleEditMode), for å unngå at
+       siden virker rotete/forstyrrende når man bare skal se på info. */
     .editPencilBtn{
       appearance:none; cursor:pointer; background:none; border:none;
       color: var(--muted); font-size:13px; padding:0 0 0 6px; line-height:1;
       vertical-align:middle;
+      display:none;
     }
+    body.editModeActive .editPencilBtn{ display:inline-block; }
     .editPencilBtn:hover{ color: var(--accent, #5b8def); }
+    .titleEditRow{ display:flex; align-items:center; gap:6px; }
+    .factCard .vRow{ display:flex; align-items:center; gap:6px; }
 
     .sourcesBox{
       background: var(--panel);
@@ -346,7 +353,12 @@ $sectionAccess = [
 </div>
 
 <main>
-  <a class="backLink" href="index.php"><?= t('wte.detail.back_link') ?></a>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+    <a class="backLink" href="index.php"><?= t('wte.detail.back_link') ?></a>
+    <?php if ($isLoggedIn): ?>
+    <button type="button" class="refreshBtn" id="btnToggleEditMode"><?= htmlspecialchars(t('wte.detail.toggle_edit_mode_btn')) ?></button>
+    <?php endif; ?>
+  </div>
 
   <div id="detailStatus"><?= htmlspecialchars(t('wte.detail.loading')) ?></div>
 
@@ -363,11 +375,13 @@ $sectionAccess = [
 
     <div>
       <div class="titleBlock">
-        <h1 id="dTitle"></h1>
+        <div class="titleEditRow">
+          <h1 id="dTitle"></h1>
+          <?php if ($isLoggedIn): ?>
+          <button type="button" class="editPencilBtn" data-field="title_group" data-type="titleGroup" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
+          <?php endif; ?>
+        </div>
         <div class="originalTitle" id="dOriginalTitle"></div>
-        <?php if ($isLoggedIn): ?>
-        <button type="button" class="editPencilBtn" data-field="title_group" data-type="titleGroup" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button>
-        <?php endif; ?>
         <?php if ($isLoggedIn): ?>
         <div class="refreshButtons">
           <button class="refreshBtn" id="btnRefreshTmdb" type="button" disabled><?= htmlspecialchars(t('wte.detail.refresh_tmdb_btn')) ?></button>
@@ -379,16 +393,16 @@ $sectionAccess = [
       </div>
 
       <div class="factsGrid" id="idsGrid">
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="vRow"><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="v" id="fTmdb">-</div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="v" id="fTvdb">-</div></div>
       </div>
 
       <div class="factsGrid">
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_release')) ?></div><div class="v" id="fRelease">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="first_release" data-type="date" data-target="fRelease" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_runtime')) ?></div><div class="v" id="fRuntime">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="runtime" data-type="number" data-target="fRuntime" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="v" id="fAge">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="age_restriction" data-type="text" data-target="fAge" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="v" id="fType">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="content_type" data-type="select" data-target="fType" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_release')) ?></div><div class="vRow"><div class="v" id="fRelease">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="first_release" data-type="date" data-target="fRelease" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_runtime')) ?></div><div class="vRow"><div class="v" id="fRuntime">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="runtime" data-type="number" data-target="fRuntime" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="vRow"><div class="v" id="fAge">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="age_restriction" data-type="text" data-target="fAge" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="vRow"><div class="v" id="fType">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="content_type" data-type="select" data-target="fType" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_prod_company')) ?></div><div class="v" id="fProdCompany">-</div></div>
       </div>
 
@@ -1121,6 +1135,34 @@ $sectionAccess = [
   editFieldModalOverlay.addEventListener("click", (e) => {
     if (e.target === editFieldModalOverlay) closeEditFieldModal();
   });
+
+  // "Rediger"-knapp: viser/skjuler alle penne-ikonene via en klasse på
+  // <body> (se CSS: body.editModeActive .editPencilBtn). Kun relevant
+  // for innloggede, siden knappen bare finnes i DOM-en da. Valget
+  // huskes i localStorage slik at redigeringsmodus ikke slår seg av
+  // igjen ved neste sidevisning.
+  const btnToggleEditMode = document.getElementById("btnToggleEditMode");
+  if (btnToggleEditMode) {
+    const EDIT_MODE_STORAGE_KEY = "wte_edit_mode_active";
+
+    function updateEditModeBtnLabel(active) {
+      btnToggleEditMode.textContent = active
+        ? WTE_I18N.detail.toggle_edit_mode_done_btn
+        : WTE_I18N.detail.toggle_edit_mode_btn;
+    }
+
+    function setEditMode(active) {
+      document.body.classList.toggle("editModeActive", active);
+      updateEditModeBtnLabel(active);
+      localStorage.setItem(EDIT_MODE_STORAGE_KEY, active ? "1" : "0");
+    }
+
+    setEditMode(localStorage.getItem(EDIT_MODE_STORAGE_KEY) === "1");
+
+    btnToggleEditMode.addEventListener("click", () => {
+      setEditMode(!document.body.classList.contains("editModeActive"));
+    });
+  }
 
   loadDetail();
 </script>
