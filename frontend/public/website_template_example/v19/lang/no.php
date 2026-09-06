@@ -98,6 +98,7 @@ return [
             'fact_age'            => 'Aldersgrense',
             'fact_type'           => 'Type',
             'fact_prod_company'   => 'Produksjonsselskap',
+            'fact_group'          => 'Filmgruppe',
             'summary_heading'     => 'Sammendrag',
             'no_overview'         => 'Ingen sammendrag registrert.',
             'tab_cast'            => 'Rollebesetning',
@@ -174,6 +175,8 @@ return [
             'edit_field_label_age_restriction'=> 'Aldersgrense',
             'edit_field_label_content_type'   => 'Type',
             'edit_field_label_imdb_id'        => 'IMDB-ID',
+            'edit_field_label_group'          => 'Filmgruppe',
+            'edit_field_label_group_sort_order' => 'Rekkefølge i gruppen',
             'edit_field_label_owner'          => 'Eier',
             'edit_field_label_store'          => 'Butikk',
             'edit_field_label_purchased_at'   => 'Kjøpsdato',
@@ -185,6 +188,7 @@ return [
             'cancel_btn'             => 'Avbryt',
             'saving_field'           => 'Lagrer…',
             'save_field_error_prefix'=> 'Klarte ikke å lagre: ',
+            'group_movies_heading'   => 'Andre filmer i denne filmgruppen',
         ],
 
         'login' => [

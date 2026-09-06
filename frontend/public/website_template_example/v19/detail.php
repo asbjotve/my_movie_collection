@@ -260,6 +260,17 @@ $sectionAccess = [
     }
     .sourcesBox h3{ margin:0 0 10px; font-size:13px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; }
 
+    /* ---- Andre filmer i samme filmgruppe (se renderGroupMovies()) ---- */
+    .groupMoviesList{ display:flex; flex-wrap:wrap; gap:12px; }
+    .groupMovieCard{
+      display:block; width:100px; text-decoration:none; color:var(--text);
+    }
+    .groupMovieCover{
+      width:100px; height:150px; border-radius:8px; background-color: var(--bg,#0d0f14);
+      background-size:cover; background-position:center; border:1px solid var(--line);
+    }
+    .groupMovieTitle{ font-size:12px; margin-top:6px; line-height:1.3; }
+
     /* ---- Faner: Rollebesetning / Samlingsopplysninger / Kjøpsinformasjon ---- */
     .tabSection{ margin-top:26px; }
     .tabBar{
@@ -422,11 +433,19 @@ $sectionAccess = [
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="vRow"><div class="v" id="fAge">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="age_restriction" data-type="text" data-target="fAge" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="age_restriction" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="vRow"><div class="v" id="fType">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="content_type" data-type="select" data-target="fType" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="content_type" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_prod_company')) ?></div><div class="v" id="fProdCompany">-</div></div>
+        <!-- Filmgruppe har ingen hengelås - det er ikke et TMDB/TVDB-flettbart felt (se MERGEABLE_CONTENT_FIELDS i backend). Navn og rekkefølge redigeres samlet i én pop-up (samme mønster som titleGroup/purchaseGroup). -->
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_group')) ?></div><div class="vRow"><div class="v" id="fGroup">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="group_group" data-type="groupGroup" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
       </div>
 
       <div class="sourcesBox">
         <h3><?= htmlspecialchars(t('wte.detail.summary_heading')) ?><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="overview" data-type="textarea" data-target="overviewText" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="overview" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></h3>
         <div id="overviewText" style="color:var(--muted); font-size:13px; line-height:1.5;"><?= htmlspecialchars(t('wte.detail.no_overview')) ?></div>
+      </div>
+
+      <!-- Vises kun når filmen faktisk tilhører en filmgruppe (se renderDetail()) - andre filmer i samme gruppe (movie_group/content.group_id), for enkel navigering mellom f.eks. en trilogi. -->
+      <div class="sourcesBox" id="groupMoviesBox" style="display:none;">
+        <h3 id="groupMoviesHeading"></h3>
+        <div id="groupMoviesList" class="groupMoviesList"></div>
       </div>
     </div>
   </div>
@@ -742,6 +761,36 @@ $sectionAccess = [
       : `<span class="noOwnership">${WTE_I18N.detail.no_ownership}</span>`;
   }
 
+  // Viser andre filmer i samme filmgruppe (item.group_movies - allerede
+  // sortert av backend på group_sort_order, se get_content_by_id()).
+  // Boksen skjules helt hvis filmen ikke tilhører noen gruppe.
+  function renderGroupMovies(item){
+    const box = document.getElementById("groupMoviesBox");
+    const list = document.getElementById("groupMoviesList");
+    const movies = item.group_movies || [];
+
+    if (!item.group_name || movies.length === 0) {
+      box.style.display = "none";
+      list.innerHTML = "";
+      return;
+    }
+
+    document.getElementById("groupMoviesHeading").textContent = WTE_I18N.detail.group_movies_heading;
+    list.innerHTML = movies.map((m) => {
+      const cover = m.cover_image
+        ? `<div class="groupMovieCover" style="background-image:url('${m.cover_image.replace(/'/g, "%27")}')"></div>`
+        : `<div class="groupMovieCover"></div>`;
+      const order = m.group_sort_order != null ? `#${m.group_sort_order} · ` : "";
+      return `
+        <a class="groupMovieCard" href="detail.php?id=${encodeURIComponent(m.content_id)}">
+          ${cover}
+          <div class="groupMovieTitle">${order}${escapeHtml(m.title || WTE_I18N.detail.untitled)}</div>
+        </a>
+      `;
+    }).join("");
+    box.style.display = "";
+  }
+
   // Holder siste innlastede item tilgjengelig for penne-ikon-
   // redigeringen (se editPencilBtn-klikkhandleren lenger ned) - slik
   // slipper vi å re-fetche eller parse DOM-tekst for å finne "nåværende
@@ -777,6 +826,9 @@ $sectionAccess = [
     document.getElementById("fType").textContent = item.content_type || "-";
     // Produksjonsselskap finnes ikke i databasen ennå - se kommentar i toppen av filen.
     document.getElementById("fProdCompany").textContent = item.production_company || "-";
+    document.getElementById("fGroup").textContent = item.group_name
+      ? item.group_name + (item.group_sort_order != null ? ` (#${item.group_sort_order})` : "")
+      : "-";
 
     const fImdb = document.getElementById("fImdb");
     if (item.imdb_id){
@@ -841,6 +893,7 @@ $sectionAccess = [
     renderCollectionTab(item);
     renderPurchaseTab(item);
     renderLockIcons(item);
+    renderGroupMovies(item);
 
     // "Bytt cover"-knappen krever bare at content finnes (contentId er
     // allerede kjent fra URL-en) - ingen ekstra betingelse. Finnes ikke
@@ -1039,6 +1092,8 @@ $sectionAccess = [
       ? WTE_I18N.detail.edit_field_label_title
       : ctx.field === "purchase_group"
       ? WTE_I18N.detail.tab_purchase
+      : ctx.field === "group_group"
+      ? WTE_I18N.detail.fact_group
       : (WTE_I18N.detail["edit_field_label_" + ctx.field] || ctx.field);
     editFieldModalTitle.textContent = wteFormat(WTE_I18N.detail.edit_field_title, label);
 
@@ -1055,6 +1110,16 @@ $sectionAccess = [
         <input id="editFieldInputTitle" type="text" value="${escapeHtml(ctx.value.title ?? "")}" style="${inputStyle}">
         <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(originalTitleLabel)}</label>
         <input id="editFieldInputOriginalTitle" type="text" value="${escapeHtml(ctx.value.original_title ?? "")}" style="${inputStyle}">
+      `;
+    } else if (ctx.type === "groupGroup") {
+      // Filmgruppe (navn) og rekkefølge innenfor gruppen redigeres
+      // samlet i én pop-up (ett penne-ikon), samme resonnement som
+      // "titleGroup"/"purchaseGroup".
+      inputHtml = `
+        <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_group)}</label>
+        <input id="editFieldInputGroup" type="text" value="${escapeHtml(ctx.value.group ?? "")}" style="${inputStyle}">
+        <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;">${escapeHtml(WTE_I18N.detail.edit_field_label_group_sort_order)}</label>
+        <input id="editFieldInputGroupSortOrder" type="number" value="${escapeHtml(ctx.value.group_sort_order ?? "")}" style="${inputStyle}">
       `;
     } else if (ctx.type === "purchaseGroup") {
       // Butikk/kjøpsdato/pris/valuta redigeres samlet i én pop-up (ett
@@ -1083,6 +1148,7 @@ $sectionAccess = [
     editFieldModalOverlay.style.display = "flex";
     const focusTarget = document.getElementById("editFieldInput")
       || document.getElementById("editFieldInputTitle")
+      || document.getElementById("editFieldInputGroup")
       || document.getElementById("editFieldInputStore");
     if (focusTarget) focusTarget.focus();
   }
@@ -1098,6 +1164,13 @@ $sectionAccess = [
       body = {
         title: titleVal === "" ? null : titleVal,
         original_title: originalTitleVal === "" ? null : originalTitleVal,
+      };
+    } else if (type === "groupGroup") {
+      const groupVal = document.getElementById("editFieldInputGroup").value;
+      const sortOrderVal = document.getElementById("editFieldInputGroupSortOrder").value;
+      body = {
+        group: groupVal === "" ? null : groupVal,
+        group_sort_order: sortOrderVal === "" ? null : parseInt(sortOrderVal, 10),
       };
     } else if (type === "purchaseGroup") {
       const storeVal = document.getElementById("editFieldInputStore").value;
@@ -1230,6 +1303,8 @@ $sectionAccess = [
       openEditFieldModal({ kind: "physical_copy", field, type, collectionId, copyId, value });
     } else if (type === "titleGroup") {
       openEditFieldModal({ kind: "content", field, type, value: { title: currentItem.title, original_title: currentItem.original_title } });
+    } else if (type === "groupGroup") {
+      openEditFieldModal({ kind: "content", field, type, value: { group: currentItem.group_name, group_sort_order: currentItem.group_sort_order } });
     } else {
       openEditFieldModal({ kind: "content", field, type, value: currentItem[field] });
     }

@@ -95,6 +95,7 @@ return [
             'fact_age'            => 'Age rating',
             'fact_type'           => 'Type',
             'fact_prod_company'   => 'Production company',
+            'fact_group'          => 'Movie group',
             'summary_heading'     => 'Summary',
             'no_overview'         => 'No summary registered.',
             'tab_cast'            => 'Cast',
@@ -171,6 +172,8 @@ return [
             'edit_field_label_age_restriction'=> 'Age restriction',
             'edit_field_label_content_type'   => 'Type',
             'edit_field_label_imdb_id'        => 'IMDB ID',
+            'edit_field_label_group'          => 'Movie group',
+            'edit_field_label_group_sort_order' => 'Order within group',
             'edit_field_label_owner'          => 'Owner',
             'edit_field_label_store'          => 'Store',
             'edit_field_label_purchased_at'   => 'Purchase date',
@@ -182,6 +185,7 @@ return [
             'cancel_btn'             => 'Cancel',
             'saving_field'           => 'Saving…',
             'save_field_error_prefix'=> 'Failed to save: ',
+            'group_movies_heading'   => 'Other movies in this group',
         ],
 
         'login' => [

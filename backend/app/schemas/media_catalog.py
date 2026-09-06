@@ -27,9 +27,10 @@ class ContentFieldUpdateRequest(BaseModel):
     """Body for PATCH /media/content/{content_id}.
 
     Feltene her tilsvarer MERGEABLE_CONTENT_FIELDS i media_catalog.py
-    (+ content_type) - dvs. de samme feltene som kan komme fra TMDB/TVDB-
-    fletting kan også redigeres manuelt. cover_image redigeres IKKE her
-    - det har sitt eget endepunkt (POST /media/content/{id}/cover).
+    (+ content_type, + group) - dvs. de samme feltene som kan komme fra
+    TMDB/TVDB-fletting kan også redigeres manuelt. cover_image
+    redigeres IKKE her - det har sitt eget endepunkt
+    (POST /media/content/{id}/cover).
     """
 
     title: str | None = None
@@ -40,6 +41,17 @@ class ContentFieldUpdateRequest(BaseModel):
     age_restriction: str | None = None
     content_type: ContentType | None = None
     imdb_id: str | None = None
+    # Navn på filmgruppen denne filmen tilhører (f.eks. "Tilbake til
+    # fremtiden"-trilogien, eller bare filmer som hører naturlig
+    # sammen) - fritekst, backend gjør get-or-create mot movie_group
+    # (samme mønster som owner/store på physical_copy). Tom streng ("")
+    # fjerner koblingen (group_id=NULL).
+    group: str | None = None
+    # Manuell rekkefølge på filmen innenfor filmgruppen (f.eks. 1, 2, 3
+    # for en trilogi) - brukes til å sortere "andre filmer i denne
+    # gruppen"-listen på detaljsiden når utgivelsesrekkefølgen ikke
+    # stemmer med den tiltenkte seer-/kronologiske rekkefølgen.
+    group_sort_order: int | None = None
 
 
 class ContentFieldLockRequest(BaseModel):

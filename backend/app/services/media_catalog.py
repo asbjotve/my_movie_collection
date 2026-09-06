@@ -578,23 +578,27 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
         text(
             """
             SELECT
-                content_id,
-                title,
-                original_title,
-                first_release,
-                runtime,
-                age_restriction,
-                watched_flag,
-                temporary_flag,
-                content_type,
-                imdb_id,
-                overview,
-                cover_image,
-                last_merged_source,
-                last_merged_at,
-                locked_fields
-            FROM content
-            WHERE content_id = :content_id
+                c.content_id,
+                c.title,
+                c.original_title,
+                c.first_release,
+                c.runtime,
+                c.age_restriction,
+                c.watched_flag,
+                c.temporary_flag,
+                c.content_type,
+                c.imdb_id,
+                c.overview,
+                c.cover_image,
+                c.last_merged_source,
+                c.last_merged_at,
+                c.locked_fields,
+                c.group_id,
+                c.group_sort_order,
+                ms.name AS group_name
+            FROM content c
+            LEFT JOIN movie_group ms ON ms.group_id = c.group_id
+            WHERE c.content_id = :content_id
             """
         ),
         {"content_id": raw_id},
@@ -643,6 +647,40 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
         db, collections, [r.collection_id for r in collection_rows], raw_id, default_currency
     )
 
+    # Andre filmer i samme filmgruppe (f.eks. resten av "Tilbake til
+    # fremtiden"-trilogien), for visning på detaljsiden - se
+    # docstring/kommentar der. Utelater filmen selv. Tom liste hvis
+    # filmen ikke tilhører noen gruppe (group_id er NULL).
+    # Sorteres på group_sort_order (brukeren kan sette denne manuelt for
+    # å styre rekkefølgen, f.eks. for en trilogi som ikke ble utgitt i
+    # kronologisk rekkefølge) - rader uten group_sort_order (NULL) havner
+    # sist, deretter sortert på first_release som fallback.
+    group_movies = []
+    if row.group_id is not None:
+        group_movie_rows = db.execute(
+            text(
+                """
+                SELECT content_id, title, first_release, cover_image, group_sort_order
+                FROM content
+                WHERE group_id = :group_id AND content_id != :content_id
+                ORDER BY (group_sort_order IS NULL) ASC, group_sort_order ASC, first_release ASC
+                """
+            ),
+            {"group_id": row.group_id, "content_id": raw_id},
+        ).fetchall()
+        group_movies = [
+            {
+                "content_id": _hex_id(r.content_id),
+                "title": r.title,
+                "first_release": (
+                    str(r.first_release)[:10] if r.first_release is not None else None
+                ),
+                "cover_image": _to_proxied_cover_image(r.cover_image),
+                "group_sort_order": r.group_sort_order,
+            }
+            for r in group_movie_rows
+        ]
+
     return {
         "content_id": _hex_id(row.content_id),
         "title": row.title,
@@ -665,6 +703,9 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
         "locked_fields": (
             json.loads(row.locked_fields) if row.locked_fields else []
         ),
+        "group_name": row.group_name,
+        "group_sort_order": row.group_sort_order,
+        "group_movies": group_movies,
         "collections": collections,
         "physical_copies": physical_copies,
         "sources": [
@@ -847,13 +888,23 @@ def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
     locked_fields = set(
         json.loads(content_row.locked_fields) if content_row.locked_fields else []
     )
-    locked_fields.update(fields.keys())
+
+    # "group" er et eget spesialtilfelle (mappes til group_id via get-
+    # or-create, se _get_or_create_group_id()) - IKKE en rett kolonne-
+    # for-kolonne-oppdatering som resten av feltene, og legges heller
+    # ikke til i locked_fields, siden den ikke er en del av TMDB/TVDB-
+    # fletting (se MERGEABLE_CONTENT_FIELDS).
+    plain_fields = {k: v for k, v in fields.items() if k != "group"}
+    locked_fields.update(plain_fields.keys())
 
     # first_release er en `date` her (fra Pydantic) - SQLAlchemy/DBAPI
     # håndterer det direkte mot content.first_release (timestamp), så
     # ingen manuell str()-konvertering trengs.
-    set_clauses = ", ".join(f"{name} = :{name}" for name in fields)
-    params = dict(fields)
+    set_clauses = [f"{name} = :{name}" for name in plain_fields]
+    params = dict(plain_fields)
+    if "group" in fields:
+        set_clauses.append("group_id = :group_id")
+        params["group_id"] = _get_or_create_group_id(db, fields["group"])
     params["content_id"] = raw_id
     params["locked_fields"] = json.dumps(sorted(locked_fields))
 
@@ -861,7 +912,7 @@ def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
         text(
             f"""
             UPDATE content
-            SET {set_clauses}, locked_fields = :locked_fields
+            SET {", ".join(set_clauses)}, locked_fields = :locked_fields
             WHERE content_id = :content_id
             """
         ),
@@ -1046,6 +1097,28 @@ def _get_or_create_store_id(db: Session, name: str | None) -> int | None:
     return result.lastrowid
 
 
+def _get_or_create_group_id(db: Session, name: str | None) -> int | None:
+    """Samme get-or-create-mønster som owner/store, men for
+    movie_group - en fri gruppering av filmer en content-rad kan
+    tilhøre (f.eks. "Tilbake til fremtiden"-trilogien, eller bare
+    filmer som naturlig hører sammen uten å være en formell
+    "saga"/franchise), IKKE knyttet til noe fysisk eksemplar (derfor
+    på content, ikke physical_copy).
+    """
+    name = (name or "").strip()
+    if not name:
+        return None
+
+    existing = db.execute(
+        text("SELECT group_id FROM movie_group WHERE name = :name"), {"name": name}
+    ).fetchone()
+    if existing:
+        return existing.group_id
+
+    result = db.execute(text("INSERT INTO movie_group (name) VALUES (:name)"), {"name": name})
+    return result.lastrowid
+
+
 def update_content_external_source(
     db: Session,
     source: str,
@@ -1165,8 +1238,17 @@ MERGEABLE_CONTENT_FIELDS = {
 # minus cover_image (eget endepunkt, se set_content_cover_image())
 # pluss content_type (redigerbart manuelt, men kommer ikke fra
 # TMDB/TVDB-fletting siden det sjelden endrer seg for en eksisterende
-# rad).
-EDITABLE_CONTENT_FIELDS = (MERGEABLE_CONTENT_FIELDS - {"cover_image"}) | {"content_type"}
+# rad), group (filmgruppe - get-or-create på navn, samme mønster som
+# owner/store - se _get_or_create_group_id()) og group_sort_order
+# (manuell rekkefølge på filmer innenfor samme gruppe, f.eks. for en
+# trilogi - vanlig int-kolonne, ingen get-or-create-logikk). Verken
+# "group" eller "group_sort_order" er med i MERGEABLE_CONTENT_FIELDS,
+# siden de ikke kommer fra TMDB/TVDB-fletting i denne omgangen.
+EDITABLE_CONTENT_FIELDS = (MERGEABLE_CONTENT_FIELDS - {"cover_image"}) | {
+    "content_type",
+    "group",
+    "group_sort_order",
+}
 
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 
