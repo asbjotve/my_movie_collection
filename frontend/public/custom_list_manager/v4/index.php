@@ -393,7 +393,12 @@ if ($listsResponse === false || $listsCurlError) {
     }
 
     main{
-      padding:24px 18px 40px;
+      /* Match bulk_add_movies_form's ".page" container: a wide, centered
+         layout (max 1460px) rather than full edge-to-edge or a narrow
+         boxed form, so the two admin tools feel consistent. */
+      max-width:1460px;
+      margin:0 auto;
+      padding:24px 18px 48px;
     }
 
     .card{
@@ -402,6 +407,7 @@ if ($listsResponse === false || $listsCurlError) {
       border:1px solid rgba(37,48,87,.8);
       border-radius: 16px;
       padding:20px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.25);
       /* Bootstrap's own .card rule sets color:var(--bs-body-color) (dark
          text), which otherwise wins since it's the only rule touching the
          `color` property on this selector - explicitly override it here so
