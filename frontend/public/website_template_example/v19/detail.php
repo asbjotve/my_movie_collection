@@ -270,6 +270,17 @@ $sectionAccess = [
       background-size:cover; background-position:center; border:1px solid var(--line);
     }
     .groupMovieTitle{ font-size:12px; margin-top:6px; line-height:1.3; }
+    .groupMovieCard.current .groupMovieCover{ border-color: var(--accent); border-width:2px; }
+    .groupSortToggleBtn{
+      background:none; border:none; color: var(--muted); font-size:12px; cursor:pointer;
+      margin-left:8px; text-decoration:underline;
+    }
+    .groupSortToggleBtn.active{ color: var(--accent); }
+    /* Dra-og-slipp-modus: håndtak-cursor og visuell tilbakemelding mens
+       man drar (se renderGroupMovies()/dragstart-/dragover-handlerne). */
+    body.groupSortModeActive .groupMovieCard{ cursor: grab; }
+    .groupMovieCard.dragging{ opacity:.4; }
+    .groupMovieCard.dragOver{ outline:2px dashed var(--accent); outline-offset:2px; }
 
     /* ---- Faner: Rollebesetning / Samlingsopplysninger / Kjøpsinformasjon ---- */
     .tabSection{ margin-top:26px; }
@@ -444,7 +455,7 @@ $sectionAccess = [
 
       <!-- Vises kun når filmen faktisk tilhører en filmgruppe (se renderDetail()) - andre filmer i samme gruppe (movie_group/content.group_id), for enkel navigering mellom f.eks. en trilogi. -->
       <div class="sourcesBox" id="groupMoviesBox" style="display:none;">
-        <h3 id="groupMoviesHeading"></h3>
+        <h3><span id="groupMoviesHeadingText"></span><?php if ($isLoggedIn): ?><button type="button" class="groupSortToggleBtn" id="btnToggleGroupSort"><?= htmlspecialchars(t('wte.detail.group_sort_toggle_btn')) ?></button><?php endif; ?></h3>
         <div id="groupMoviesList" class="groupMoviesList"></div>
       </div>
     </div>
@@ -763,33 +774,147 @@ $sectionAccess = [
 
   // Viser andre filmer i samme filmgruppe (item.group_movies - allerede
   // sortert av backend på group_sort_order, se get_content_by_id()).
-  // Boksen skjules helt hvis filmen ikke tilhører noen gruppe.
+  // Boksen skjules helt hvis filmen ikke tilhører noen gruppe. Selve
+  // filmen (denne siden) tas med i listen (markert med "current") slik
+  // at hele gruppens rekkefølge kan justeres med dra-og-slipp (se
+  // groupSortModeActive/dragstart-/drop-handlerne lenger ned).
+  let groupSortModeActive = false;
+  let currentGroupId = null;
+
+  function groupMoviesWithSelf(item){
+    const self = {
+      content_id: item.content_id,
+      title: item.title,
+      cover_image: item.cover_image,
+      group_sort_order: item.group_sort_order,
+      first_release: item.first_release,
+      isCurrent: true,
+    };
+    const siblings = (item.group_movies || []).map(m => ({ ...m, isCurrent: false }));
+    return [self, ...siblings].sort((a, b) => {
+      const aNull = a.group_sort_order == null;
+      const bNull = b.group_sort_order == null;
+      if (aNull !== bNull) return aNull ? 1 : -1;
+      if (!aNull && a.group_sort_order !== b.group_sort_order) return a.group_sort_order - b.group_sort_order;
+      return (a.first_release || "") < (b.first_release || "") ? -1 : 1;
+    });
+  }
+
   function renderGroupMovies(item){
     const box = document.getElementById("groupMoviesBox");
     const list = document.getElementById("groupMoviesList");
-    const movies = item.group_movies || [];
 
-    if (!item.group_name || movies.length === 0) {
+    if (!item.group_name) {
       box.style.display = "none";
       list.innerHTML = "";
       return;
     }
 
-    document.getElementById("groupMoviesHeading").textContent = WTE_I18N.detail.group_movies_heading;
+    currentGroupId = item.group_id;
+    const movies = groupMoviesWithSelf(item);
+    document.getElementById("groupMoviesHeadingText").textContent = WTE_I18N.detail.group_movies_heading;
     list.innerHTML = movies.map((m) => {
       const cover = m.cover_image
         ? `<div class="groupMovieCover" style="background-image:url('${m.cover_image.replace(/'/g, "%27")}')"></div>`
         : `<div class="groupMovieCover"></div>`;
       const order = m.group_sort_order != null ? `#${m.group_sort_order} · ` : "";
-      return `
-        <a class="groupMovieCard" href="detail.php?id=${encodeURIComponent(m.content_id)}">
-          ${cover}
-          <div class="groupMovieTitle">${order}${escapeHtml(m.title || WTE_I18N.detail.untitled)}</div>
-        </a>
-      `;
+      const title = `${order}${escapeHtml(m.title || WTE_I18N.detail.untitled)}${m.isCurrent ? ` (${WTE_I18N.detail.group_movies_current_tag})` : ""}`;
+      const cardClass = "groupMovieCard" + (m.isCurrent ? " current" : "");
+      // Selve filmen (denne siden) er ikke en lenke - man er jo allerede her.
+      const tag = m.isCurrent ? "div" : "a";
+      const href = m.isCurrent ? "" : ` href="detail.php?id=${encodeURIComponent(m.content_id)}"`;
+      return `<${tag} class="${cardClass}" data-id="${escapeHtml(m.content_id)}"${href}>${cover}<div class="groupMovieTitle">${title}</div></${tag}>`;
     }).join("");
     box.style.display = "";
+    applyGroupSortMode();
   }
+
+  // Dra-og-slipp-sortering: aktiveres/deaktiveres med "Sorter"-knappen
+  // (btnToggleGroupSort). Rekkefølgen på ALLE kortene i DOM-en (inkl.
+  // denne filmen selv) sendes samlet til
+  // PATCH /media/groups/{group_id}/reorder (via api.php?action=reorder_group)
+  // hver gang et kort slippes.
+  let draggedCard = null;
+
+  function applyGroupSortMode(){
+    document.body.classList.toggle("groupSortModeActive", groupSortModeActive);
+    const cards = document.querySelectorAll("#groupMoviesList .groupMovieCard");
+    cards.forEach(card => {
+      card.draggable = groupSortModeActive;
+      if (groupSortModeActive) {
+        card.addEventListener("click", preventNavDuringSort);
+      } else {
+        card.removeEventListener("click", preventNavDuringSort);
+      }
+    });
+  }
+
+  function preventNavDuringSort(e){ e.preventDefault(); }
+
+  const groupMoviesListEl = document.getElementById("groupMoviesList");
+  groupMoviesListEl.addEventListener("dragstart", (e) => {
+    const card = e.target.closest(".groupMovieCard");
+    if (!card || !groupSortModeActive) return;
+    draggedCard = card;
+    card.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+  });
+  groupMoviesListEl.addEventListener("dragend", (e) => {
+    const card = e.target.closest(".groupMovieCard");
+    if (card) card.classList.remove("dragging");
+    groupMoviesListEl.querySelectorAll(".dragOver").forEach(c => c.classList.remove("dragOver"));
+  });
+  groupMoviesListEl.addEventListener("dragover", (e) => {
+    if (!groupSortModeActive || !draggedCard) return;
+    e.preventDefault();
+    const target = e.target.closest(".groupMovieCard");
+    if (!target || target === draggedCard) return;
+    groupMoviesListEl.querySelectorAll(".dragOver").forEach(c => c.classList.remove("dragOver"));
+    target.classList.add("dragOver");
+  });
+  groupMoviesListEl.addEventListener("drop", async (e) => {
+    if (!groupSortModeActive || !draggedCard) return;
+    e.preventDefault();
+    const target = e.target.closest(".groupMovieCard");
+    groupMoviesListEl.querySelectorAll(".dragOver").forEach(c => c.classList.remove("dragOver"));
+    if (target && target !== draggedCard) {
+      const rect = target.getBoundingClientRect();
+      const insertAfter = e.clientX > rect.left + rect.width / 2;
+      target.insertAdjacentElement(insertAfter ? "afterend" : "beforebegin", draggedCard);
+    }
+    draggedCard = null;
+    await saveGroupOrder();
+  });
+
+  async function saveGroupOrder(){
+    if (!currentGroupId) return;
+    const ids = [...groupMoviesListEl.querySelectorAll(".groupMovieCard")].map(c => c.dataset.id);
+    try {
+      const res = await fetch(`api.php?action=reorder_group&group_id=${encodeURIComponent(currentGroupId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content_ids: ids }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || res.statusText);
+      // Oppdater #-tallene i DOM-en uten å re-fetche hele siden.
+      groupMoviesListEl.querySelectorAll(".groupMovieCard").forEach((card, i) => {
+        const titleEl = card.querySelector(".groupMovieTitle");
+        titleEl.innerHTML = titleEl.innerHTML.replace(/^#\d+ · /, `#${i + 1} · `);
+      });
+    } catch (err) {
+      alert(WTE_I18N.detail.group_sort_error_prefix + err.message);
+    }
+  }
+
+  document.getElementById("btnToggleGroupSort")?.addEventListener("click", (e) => {
+    groupSortModeActive = !groupSortModeActive;
+    e.target.classList.toggle("active", groupSortModeActive);
+    e.target.textContent = groupSortModeActive
+      ? WTE_I18N.detail.group_sort_toggle_done_btn
+      : WTE_I18N.detail.group_sort_toggle_btn;
+    applyGroupSortMode();
+  });
 
   // Holder siste innlastede item tilgjengelig for penne-ikon-
   // redigeringen (se editPencilBtn-klikkhandleren lenger ned) - slik

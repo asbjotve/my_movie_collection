@@ -192,7 +192,11 @@ return [
             'cancel_btn'             => 'Cancel',
             'saving_field'           => 'Saving…',
             'save_field_error_prefix'=> 'Failed to save: ',
-            'group_movies_heading'   => 'Other movies in this group',
+            'group_movies_heading'   => 'Movies in this group',
+            'group_movies_current_tag' => 'this movie',
+            'group_sort_toggle_btn'  => '🔀 Sort',
+            'group_sort_toggle_done_btn' => '✓ Done',
+            'group_sort_error_prefix'=> 'Failed to save order: ',
         ],
 
         'login' => [

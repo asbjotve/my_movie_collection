@@ -195,7 +195,11 @@ return [
             'cancel_btn'             => 'Avbryt',
             'saving_field'           => 'Lagrer…',
             'save_field_error_prefix'=> 'Klarte ikke å lagre: ',
-            'group_movies_heading'   => 'Andre filmer i denne filmgruppen',
+            'group_movies_heading'   => 'Filmer i denne filmgruppen',
+            'group_movies_current_tag' => 'denne filmen',
+            'group_sort_toggle_btn'  => '🔀 Sorter',
+            'group_sort_toggle_done_btn' => '✓ Ferdig',
+            'group_sort_error_prefix'=> 'Klarte ikke å lagre rekkefølgen: ',
         ],
 
         'login' => [

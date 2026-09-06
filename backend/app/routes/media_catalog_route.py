@@ -9,6 +9,7 @@ from app.schemas.media_catalog import (
     BulkGroupAssignRequest,
     ContentFieldLockRequest,
     ContentFieldUpdateRequest,
+    GroupReorderRequest,
     PhysicalCopyFieldUpdateRequest,
 )
 from app.security import get_current_user
@@ -21,6 +22,7 @@ from app.services.media_catalog import (
     list_content_covers,
     list_group_names,
     merge_content_from_source,
+    reorder_group,
     set_content_cover_image,
     set_content_field_lock,
     update_content_external_source,
@@ -118,6 +120,24 @@ def post_bulk_assign_group(
     """
     try:
         return bulk_assign_group(db, payload.content_ids, payload.group)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/groups/{group_id}/reorder")
+def patch_reorder_group(
+    group_id: int,
+    payload: GroupReorderRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Setter manuell rekkefølge (group_sort_order) på filmene i en
+    filmgruppe - brukt av dra-og-slipp-sortering av filmgruppe-listen
+    på detaljsiden. Krever innlogging (get_current_user). Se
+    reorder_group() for detaljer.
+    """
+    try:
+        return reorder_group(db, group_id, payload.content_ids)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

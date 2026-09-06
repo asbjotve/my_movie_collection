@@ -99,6 +99,25 @@ class BulkGroupAssignRequest(BaseModel):
         return value
 
 
+class GroupReorderRequest(BaseModel):
+    """Body for PATCH /media/groups/{group_id}/reorder.
+
+    Brukes av dra-og-slipp-sortering av filmgruppe-listen på
+    detaljsiden: content_ids skal være ALLE filmene i gruppen, i den
+    nye ønskede rekkefølgen (indeks 0 = group_sort_order 1, osv.) - se
+    reorder_group().
+    """
+
+    content_ids: list[str]
+
+    @field_validator("content_ids")
+    @classmethod
+    def validate_content_ids(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("content_ids kan ikke være tom")
+        return value
+
+
 class PhysicalCopyFieldUpdateRequest(BaseModel):
     """Body for PATCH /media/physical-copy/{collection_id}/{copy_id}.
 

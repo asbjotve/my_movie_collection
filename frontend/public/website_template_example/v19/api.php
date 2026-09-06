@@ -304,6 +304,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_a
     exit;
 }
 
+// PATCH ?action=reorder_group&group_id=<int>
+// (body: {"content_ids": ["<hex id>", ...]} i ønsket rekkefølge)
+// Brukes av dra-og-slipp-sortering av filmgruppe-listen på
+// detaljsiden - se PATCH /media/groups/{group_id}/reorder i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'PATCH' && ($_GET['action'] ?? '') === 'reorder_group') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $groupId = (int)($_GET['group_id'] ?? 0);
+    if ($groupId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig group_id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $reorderUrl = MEDIA_API_BASE_URL . '/media/groups/' . $groupId . '/reorder';
+
+    $ch = curl_init($reorderUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // PATCH ?action=update_content_field&id=<hex content_id>
 // (body: kun feltet(ene) som redigeres, f.eks. {"runtime": 92})
 // Brukes av penne-ikon-redigering på detaljsiden for felter som ligger
