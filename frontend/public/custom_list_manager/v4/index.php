@@ -461,6 +461,18 @@ if ($listsResponse === false || $listsCurlError) {
       font: inherit;
     }
     input[type="file"]{ padding:10px; }
+    input[type="file"]::file-selector-button{
+      appearance:none;
+      border:1px solid rgba(122,162,255,.5);
+      background: rgba(122,162,255,.12);
+      color: var(--accent);
+      font: inherit; font-weight:700; font-size:12px;
+      border-radius:8px;
+      padding:6px 10px;
+      margin-right:8px;
+      cursor:pointer;
+    }
+    input[type="file"]::file-selector-button:hover{ background: rgba(122,162,255,.2); }
     input:focus, select:focus{
       outline: 3px solid rgba(122,162,255,.18);
       border-color: var(--accent);
@@ -485,7 +497,7 @@ if ($listsResponse === false || $listsCurlError) {
 
     .hint{ color: var(--muted); font-size:12px; margin-top:-6px; }
 
-    button[type="submit"]{
+    button[type="submit"], #btnAddItem{
       appearance:none; border:0;
       background: var(--accent);
       color: #0b1020;
@@ -494,8 +506,9 @@ if ($listsResponse === false || $listsCurlError) {
       padding:14px 16px;
       cursor:pointer;
     }
-    button[type="submit"]:active{ background: var(--accent-dark); }
-    button[type="submit"]:disabled{ opacity:.5; cursor:not-allowed; }
+    button[type="submit"]:hover, #btnAddItem:hover{ background: var(--accent-dark); }
+    button[type="submit"]:active, #btnAddItem:active{ background: var(--accent-dark); }
+    button[type="submit"]:disabled, #btnAddItem:disabled{ opacity:.5; cursor:not-allowed; }
 
     .preview{
       display:none;
@@ -573,7 +586,32 @@ if ($listsResponse === false || $listsCurlError) {
     }
     table.items-table .row-cover-input{ font-size:11px; max-width:64px; }
     table.items-table .cell-actions{ white-space:nowrap; }
-    table.items-table .cell-actions button{ font-size:12px; padding:6px 8px; margin-right:4px; margin-bottom:4px; }
+    table.items-table .cell-actions button{
+      appearance:none;
+      font: inherit; font-weight:700; font-size:12px;
+      border-radius:8px;
+      padding:6px 10px;
+      margin-right:4px;
+      margin-bottom:4px;
+      cursor:pointer;
+      border:1px solid transparent;
+    }
+    table.items-table .btn-row-edit{
+      background: rgba(122,162,255,.12); border-color: rgba(122,162,255,.5); color: var(--accent);
+    }
+    table.items-table .btn-row-edit:hover{ background: rgba(122,162,255,.2); }
+    table.items-table .btn-row-save{
+      background: var(--accent); border-color: var(--accent); color: #0b1020;
+    }
+    table.items-table .btn-row-save:hover{ background: var(--accent-dark); border-color: var(--accent-dark); }
+    table.items-table .btn-row-cancel{
+      background: rgba(168,178,216,.1); border-color: rgba(168,178,216,.4); color: var(--muted);
+    }
+    table.items-table .btn-row-cancel:hover{ background: rgba(168,178,216,.18); }
+    table.items-table .btn-row-delete{
+      background: rgba(255,107,129,.12); border-color: rgba(255,107,129,.5); color: var(--bad);
+    }
+    table.items-table .btn-row-delete:hover{ background: rgba(255,107,129,.2); }
     table.items-table .row-status{ display:block; font-size:11px; margin-top:4px; }
     table.items-table .row-status.success{ color: var(--good); }
     table.items-table .row-status.error{ color: var(--bad); }
