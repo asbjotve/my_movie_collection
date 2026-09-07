@@ -479,6 +479,7 @@ function h(string $s): string
               </div>
               <div class="btnRow">
                 <button class="btn btnPrimary" type="button" id="btnSingleAddRow"><?= h(tr($t, 'btn.add_row')) ?></button>
+                <button class="btn" type="button" id="btnSinglePasteList"><?= h(tr($t, 'btn.paste_list')) ?></button>
                 <button class="btn" type="button" id="btnSinglePreview"><?= h(tr($t, 'btn.preview_singles')) ?></button>
                 <button class="btn btnSuccess" type="button" id="btnSubmitSingles"><?= h(tr($t, 'btn.submit_singles')) ?></button>
               </div>

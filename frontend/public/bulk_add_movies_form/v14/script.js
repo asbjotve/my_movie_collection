@@ -10,6 +10,7 @@ let saveTimer = null;
 let bonusTarget = null;
 let discModalTargetSingleRow = null;
 let pasteTargetBoxSetId = null;
+let pasteTargetMode = 'boxset'; // 'boxset' | 'singles'
 let boxSetSeq = 0;
 
 window.__bulkActiveImdbInput = window.__bulkActiveImdbInput || null;
@@ -794,6 +795,7 @@ function createBoxSetCard() {
 
   root.querySelector('[data-action="add-movie"]').addEventListener('click', () => addBoxTitleRow(root));
   root.querySelector('[data-action="paste-movies"]').addEventListener('click', () => {
+    pasteTargetMode = 'boxset';
     pasteTargetBoxSetId = boxSetId;
     openModal('pasteModal');
   });
@@ -1364,6 +1366,11 @@ document.getElementById('btnSaveDiscsForSingle').addEventListener('click', () =>
 });
 
 document.getElementById('btnSingleAddRow').addEventListener('click', () => addSingleRow());
+document.getElementById('btnSinglePasteList').addEventListener('click', () => {
+  pasteTargetMode = 'singles';
+  pasteTargetBoxSetId = null;
+  openModal('pasteModal');
+});
 document.getElementById('btnSingleAddFromText').addEventListener('click', () => {
   const value = document.getElementById('singleQuickImport').value.trim();
   if (value) addSingleRow({ title: value });
@@ -1409,6 +1416,13 @@ document.getElementById('btnBoxPasteApply').addEventListener('click', () => {
     .filter(Boolean);
 
   document.getElementById('boxPasteArea').value = '';
+
+  if (pasteTargetMode === 'singles') {
+    lines.forEach(title => addSingleRow({ title }));
+    closeModal('pasteModal');
+    scheduleSave();
+    return;
+  }
 
   if (!pasteTargetBoxSetId) return;
   const target = boxSetsContainer.querySelector(`[data-boxset-id="${pasteTargetBoxSetId}"]`);
