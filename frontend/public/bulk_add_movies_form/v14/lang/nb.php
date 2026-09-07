@@ -138,8 +138,8 @@ return [
         'modal' => [
             'paste' => [
                 'title' => 'Lim inn filmliste',
-                'label' => 'Én film per linje',
-                'placeholder' => "Ringens brorskap\nTo tårn\nAtter en konge",
+                'label' => 'Én film per linje. Kan valgfritt følges av EAN-nummer på samme linje (adskilt med mellomrom/tab).',
+                'placeholder' => "Ringens brorskap\nTo tårn        8717418450342\nAtter en konge",
             ],
             'discs' => [
                 'title' => 'Discer for enkeltutgivelse',

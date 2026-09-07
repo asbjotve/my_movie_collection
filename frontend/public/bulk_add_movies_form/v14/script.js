@@ -55,6 +55,17 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
+function parsePasteLine(line) {
+  // Accepts "Title" or "Title <whitespace/tab> 8717418450342" (an
+  // 8-14 digit EAN/UPC barcode trailing the title on the same line).
+  const trimmed = line.trim();
+  const match = trimmed.match(/^(.*\S)\s+(\d{8,14})$/);
+  if (match) {
+    return { title: match[1].trim(), barcode: match[2] };
+  }
+  return { title: trimmed, barcode: '' };
+}
+
 function escapeAttr(value) {
   return String(value ?? '')
     .replaceAll('\\', '\\\\')
@@ -1413,12 +1424,13 @@ document.getElementById('btnBoxPasteApply').addEventListener('click', () => {
   const lines = document.getElementById('boxPasteArea').value
     .split('\n')
     .map(line => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(parsePasteLine);
 
   document.getElementById('boxPasteArea').value = '';
 
   if (pasteTargetMode === 'singles') {
-    lines.forEach(title => addSingleRow({ title }));
+    lines.forEach(({ title, barcode }) => addSingleRow({ title, barcode }));
     closeModal('pasteModal');
     scheduleSave();
     return;
@@ -1428,7 +1440,7 @@ document.getElementById('btnBoxPasteApply').addEventListener('click', () => {
   const target = boxSetsContainer.querySelector(`[data-boxset-id="${pasteTargetBoxSetId}"]`);
   if (!target) return;
 
-  lines.forEach(title => addBoxTitleRow(target, { title }));
+  lines.forEach(({ title, barcode }) => addBoxTitleRow(target, { title, inner_ean: barcode }));
   pasteTargetBoxSetId = null;
   closeModal('pasteModal');
   scheduleSave();

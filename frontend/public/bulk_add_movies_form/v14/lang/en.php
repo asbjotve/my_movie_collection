@@ -138,8 +138,8 @@ return [
         'modal' => [
             'paste' => [
                 'title' => 'Paste movie list',
-                'label' => 'One movie per line',
-                'placeholder' => "Fellowship of the Ring\nThe Two Towers\nThe Return of the King",
+                'label' => 'One movie per line. Optionally followed by an EAN barcode on the same line (separated by whitespace/tab).',
+                'placeholder' => "Fellowship of the Ring\nThe Two Towers        8717418450342\nThe Return of the King",
             ],
             'discs' => [
                 'title' => 'Discs for single release',
