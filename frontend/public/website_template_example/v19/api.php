@@ -348,6 +348,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'PATCH' && ($_GET['action'] ?? '') === 'reord
     exit;
 }
 
+// POST ?action=add_content_to_group&id=<hex content_id>
+// (body: {"group": "<navn>"})
+// Legger filmen til i én filmgruppe til (en film kan tilhøre flere
+// grupper samtidig) - se POST /media/content/{id}/groups i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'add_content_to_group') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $contentId = $_GET['id'] ?? '';
+    if ($contentId === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $addGroupUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/groups';
+
+    $ch = curl_init($addGroupUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=remove_content_from_group&id=<hex content_id>&group_id=<int>
+// Fjerner filmen fra én filmgruppe (beholder andre gruppetilhørigheter
+// uendret) - se DELETE /media/content/{id}/groups/{group_id} i
+// backend/app/routes/media_catalog_route.py. Bruker POST i stedet for
+// DELETE her (samme begrunnelse som andre steder i denne filen der
+// enkelte hostingmiljøer strupper DELETE-forespørsler via PHP) - selve
+// backend-kallet er fortsatt en ekte HTTP DELETE.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'remove_content_from_group') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $contentId = $_GET['id'] ?? '';
+    $groupId = (int)($_GET['group_id'] ?? 0);
+    if ($contentId === '' || $groupId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler id- eller group_id-parameter']);
+        exit;
+    }
+
+    $removeGroupUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/groups/' . $groupId;
+
+    $ch = curl_init($removeGroupUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // PATCH ?action=update_content_field&id=<hex content_id>
 // (body: kun feltet(ene) som redigeres, f.eks. {"runtime": 92})
 // Brukes av penne-ikon-redigering på detaljsiden for felter som ligger

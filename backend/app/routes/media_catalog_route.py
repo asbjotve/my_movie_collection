@@ -9,12 +9,14 @@ from app.schemas.media_catalog import (
     BulkGroupAssignRequest,
     ContentFieldLockRequest,
     ContentFieldUpdateRequest,
+    GroupMembershipAddRequest,
     GroupReorderRequest,
     PhysicalCopyFieldUpdateRequest,
 )
 from app.security import get_current_user
 from app.services.media_catalog import (
     ContentExternalSourceError,
+    add_content_to_group,
     backfill_tmdb_cover_images,
     bulk_assign_group,
     get_content_by_id,
@@ -22,6 +24,7 @@ from app.services.media_catalog import (
     list_content_covers,
     list_group_names,
     merge_content_from_source,
+    remove_content_from_group,
     reorder_group,
     set_content_cover_image,
     set_content_field_lock,
@@ -120,6 +123,43 @@ def post_bulk_assign_group(
     """
     try:
         return bulk_assign_group(db, payload.content_ids, payload.group)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/content/{content_id}/groups")
+def post_add_content_to_group(
+    content_id: str,
+    payload: GroupMembershipAddRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Legger én film til i én filmgruppe til (fritekst navn, get-or-
+    create) - brukt av "+ Legg til i gruppe"-knappen på detaljsiden.
+    En film kan tilhøre flere grupper samtidig; kalles denne med en
+    gruppe filmen allerede er medlem av, gjøres ingenting (idempotent).
+    Krever innlogging. Se add_content_to_group() for detaljer.
+    """
+    try:
+        return add_content_to_group(db, content_id, payload.group)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.delete("/content/{content_id}/groups/{group_id}")
+def delete_content_from_group(
+    content_id: str,
+    group_id: int,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Fjerner én film fra én filmgruppe - brukt av "×"-knappen ved
+    siden av hver gruppe på detaljsiden. Filmen beholder alle sine
+    ANDRE gruppetilhørigheter uendret. Krever innlogging. Se
+    remove_content_from_group() for detaljer.
+    """
+    try:
+        return remove_content_from_group(db, content_id, group_id)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
