@@ -20,11 +20,14 @@ have no outgoing foreign keys:
 - [x] Batch 2: `content`, `physical_copy`, `disc`, `wishlist`,
       `custom_lists` (skipped `list` on purpose - looks like an
       unused/legacy table, see TODO.md)
-- [ ] Remaining ~12 tables (`content_external_source`,
-      `content_group_membership`, `content_in_physical_collection`,
-      `disc_bonus_item`, `disc_in`, `disc_in_storage`,
-      `disc_related_content`, `custom_list_entries`, `list_items`,
-      etc.) - to be added in later batches.
+- [x] Batch 3: `content_external_source`, `content_group_membership`,
+      `content_in_physical_collection`, `disc_related_content`,
+      `list_items`
+- [x] Batch 4: `disc_bonus_item`, `disc_in_storage`, `disc_in`,
+      `custom_list_entries`
+
+All "real" tables in `db_mediearkiv` are now modeled. Only `list`
+remains unmodeled (deliberately - see TODO.md).
 
 Until every table is modeled, `alembic revision --autogenerate` WILL
 propose dropping every not-yet-modeled table - that's a false positive

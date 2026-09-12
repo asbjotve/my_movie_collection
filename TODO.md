@@ -16,7 +16,14 @@ backlog to pick from.
             `physical_collection`.
       - [x] Batch 2: `content`, `physical_copy`, `disc`, `wishlist`,
             `custom_lists`.
-      - [ ] Remaining ~12 tables.
+      - [x] Batch 3: `content_external_source`,
+            `content_group_membership`,
+            `content_in_physical_collection`, `disc_related_content`,
+            `list_items`.
+      - [x] Batch 4: `disc_bonus_item`, `disc_in_storage`, `disc_in`,
+            `custom_list_entries` - all "real" tables now modeled;
+            only the legacy `list` table remains (see dedicated item
+            below).
 - [ ] Investigate/remove the `list` table in `db_mediearkiv` - it
       looks like unused/legacy dead schema (no primary key, columns
       typed as `int` where text is clearly expected - `title`,
