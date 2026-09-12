@@ -7,7 +7,7 @@
   let seasonSeq = 0;
   let discSeq = 0;
 
-  const seasons = []; // { id, season_number, title, air_date, episodes: [{id, episode_number, title, runtime, original_air_date}] }
+  const seasons = []; // { id, season_number, title, air_date, inner_case_ean, episodes: [{episode_number, title, runtime, original_air_date}] }
   const discs = [];   // { id, order, format, label, storage_slot_no, add_to_storage, episode_refs: [{season_number, episode_number}] }
 
   const seasonsContainer = document.getElementById("seasonsContainer");
@@ -28,6 +28,7 @@
       season_number: seasons.length + 1,
       title: "",
       air_date: "",
+      inner_case_ean: "",
       episodes: [],
     };
     seasons.push(season);
@@ -90,10 +91,14 @@
             <input type="number" min="0" class="seasonEpisodeCountInput" value="${h(season.episodes.length)}">
           </div>
           <div class="field">
-            <label>&nbsp;</label>
-            <span class="muted">Episoder genereres automatisk (S${h(season.season_number)}E1 ... E${h(season.episodes.length)}).</span>
+            <label>Egen EAN (valgfritt)</label>
+            <input type="text" class="seasonInnerEanInput" value="${h(season.inner_case_ean)}" placeholder="ved samleboks med egen sesong-etui">
           </div>
         </div>
+        <p class="muted" style="margin:0;">
+          Episoder genereres automatisk (S${h(season.season_number)}E1 ... E${h(season.episodes.length)}).
+          «Egen EAN» brukes bare hvis denne sesongen ligger i sitt eget etui inni en samleboks med flere sesonger.
+        </p>
       `;
 
       block.querySelector(".seasonNumberInput").addEventListener("input", (e) => {
@@ -108,6 +113,9 @@
         setEpisodeCount(season, e.target.value);
         renderSeasons();
         renderDiscEpisodeOptions();
+      });
+      block.querySelector(".seasonInnerEanInput").addEventListener("input", (e) => {
+        season.inner_case_ean = e.target.value;
       });
       block.querySelector('[data-action="removeSeason"]').addEventListener("click", () => {
         removeSeason(season.id);
@@ -231,6 +239,7 @@
         season_number: s.season_number,
         title: s.title || null,
         air_date: s.air_date || null,
+        inner_case_ean: s.inner_case_ean || null,
         episodes: s.episodes.map((ep) => ({
           episode_number: ep.episode_number,
           title: ep.title || null,

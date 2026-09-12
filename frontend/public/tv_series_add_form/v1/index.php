@@ -16,8 +16,9 @@ declare(strict_types=1);
  * Payload shape ("kind": "tv_series_boxset"):
  *   series:  { title, imdb_id, tvdb_id }
  *   box:     { format, box_set_barcode, storage_id, copy_count }
- *   seasons: [ { season_number, title, air_date, episodes: [
- *                { episode_number, title, runtime, original_air_date } ] } ]
+ *   seasons: [ { season_number, title, air_date, inner_case_ean,
+ *                episodes: [ { episode_number, title, runtime,
+ *                original_air_date } ] } ]
  *   discs:   [ { order, format, label, storage_slot_no, add_to_storage,
  *                episode_refs: [ { season_number, episode_number } ] } ]
  */
