@@ -8,18 +8,11 @@ from sqlalchemy import pool
 from alembic import context
 
 # Make "app"/"config" importable when Alembic is run from backend/
-# (this file lives in backend/alembic/, so backend/ is one level up).
+# (this file lives in backend/alembic_media/, so backend/ is one level
+# up).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.db import Base  # noqa: E402  - only manages mmc_userdb tables
-                          # (users, section_access, app_settings); the
-                          # media catalog DB (db_mediearkiv) has no
-                          # SQLAlchemy ORM models yet, so it is NOT
-                          # covered by autogenerate - migrations for it
-                          # must still be written by hand (see
-                          # alembic/README-note in this project, or
-                          # backend/db_backups/ for the pre-Alembic
-                          # convention).
+from app.media_models import MediaBase  # noqa: E402
 from config.config import settings  # noqa: E402
 
 # this is the Alembic Config object, which provides
@@ -31,23 +24,19 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Use the project's own settings (config/.env) instead of the static
-# sqlalchemy.url in alembic.ini, so dev/prod both "just work" without
-# editing alembic.ini per environment.
-# Use the project's own settings (config/.env) instead of the static
-# sqlalchemy.url in alembic.ini, so dev/prod both "just work" without
-# editing alembic.ini per environment.
-# NB: alembic.ini is parsed with ConfigParser's BasicInterpolation,
-# which treats "%" specially (e.g. a URL-encoded password like
-# "%3C...%3E" would otherwise raise "invalid interpolation syntax") -
-# escape it as "%%" before handing the URL to set_main_option().
+# Use the project's own settings (config/.env) for db_mediearkiv,
+# same pattern as alembic/env.py does for mmc_userdb.
+# Use the project's own settings (config/.env) for db_mediearkiv,
+# same pattern as alembic/env.py does for mmc_userdb (including the
+# "%" escaping needed for ConfigParser's interpolation - see the
+# comment there).
 config.set_main_option(
-    "sqlalchemy.url", settings.database_url.replace("%", "%%")
+    "sqlalchemy.url", settings.media_database_url.replace("%", "%%")
 )
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = Base.metadata
+target_metadata = MediaBase.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
