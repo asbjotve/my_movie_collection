@@ -14,6 +14,29 @@ backlog to pick from.
       handled via manual SQL files in `backend/db_backups/`).
 - [ ] Automated DB backups (e.g. a cron job running `mysqldump` to a
       file or off-site storage), instead of relying on manual backups.
+- [ ] Periodically test that a backup can actually be restored (a
+      backup that's never been restore-tested is not a verified
+      backup).
+
+## DevOps / CI / deployment
+
+- [ ] A CI pipeline (e.g. GitHub Actions) that runs on pull requests:
+      Python syntax/import checks, `pip-audit`/`composer audit` for
+      known vulnerable dependencies, and any tests added per the
+      "automated tests" item below.
+- [ ] Dockerize the stack (backend + MySQL/MariaDB, optionally the PHP
+      frontend) for a reproducible local dev setup and easier
+      onboarding if someone else ever wants to run the project.
+- [ ] Structured (JSON) logging for the backend instead of plain-text
+      log lines, making the existing `fastapi-out.log`/
+      `fastapi-error.log` easier to search/filter (e.g. by request
+      path or status code) when debugging issues like the ones found
+      in this project before.
+- [ ] Alerting on backend errors (e.g. a webhook/email notification on
+      unhandled 500s) instead of only noticing them by manually
+      tailing logs after the fact.
+- [ ] A secrets-scanning check in CI (e.g. gitleaks) to catch an
+      accidentally committed `.env`/API key before it reaches GitHub.
 
 ## Data quality / catalog maintenance
 
@@ -173,6 +196,21 @@ backlog to pick from.
       minutes (current `ACCESS_TOKEN_EXPIRE_MINUTES`).
 - [ ] Review remaining raw-SQL call sites for proper parameterization
       (avoid SQL injection risk in code paths outside the ORM).
+- [ ] General API rate-limiting (not just `/auth/login`) to guard
+      against accidental or malicious abuse of the write endpoints.
+- [ ] A consistent error-response shape across the PHP proxy layer and
+      the FastAPI backend (e.g. always `{"error": "..."}` with the
+      same keys), so frontend error handling doesn't need to guess
+      between `error`/`detail`/plain-text bodies.
+
+## New features
+
+- [ ] Read-only share link for a custom list (e.g. a public,
+      unguessable URL) so a list can be shared with friends/family
+      without giving them a login.
+- [ ] Price/availability tracking for wishlist items (e.g. periodic
+      check against a shop/price API), to get notified when a wanted
+      title becomes available or drops in price.
 
 ## Technical debt / cleanup
 
