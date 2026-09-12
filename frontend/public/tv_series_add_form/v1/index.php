@@ -307,8 +307,10 @@ function h(string $s): string
       <div class="actionsRow">
         <button type="button" class="btn primary" id="previewBtn">Bygg JSON-forhåndsvisning</button>
         <button type="button" class="btn" id="copyBtn">Kopier JSON</button>
+        <button type="button" class="btn good" id="submitBtn">Send inn</button>
       </div>
       <pre id="payloadPreview" class="mono">(ikke generert ennå)</pre>
+      <p id="submitStatus" class="muted"></p>
     </div>
   </div>
 

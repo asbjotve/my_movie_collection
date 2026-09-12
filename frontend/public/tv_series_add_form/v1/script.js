@@ -408,6 +408,43 @@
     navigator.clipboard.writeText(text).catch(() => {});
   });
 
+  async function submitPayload() {
+    const submitBtn = document.getElementById("submitBtn");
+    const statusEl = document.getElementById("submitStatus");
+    const payload = buildPayload();
+    document.getElementById("payloadPreview").textContent = JSON.stringify(payload, null, 2);
+
+    submitBtn.disabled = true;
+    statusEl.textContent = "Sender inn...";
+    statusEl.style.color = "";
+
+    try {
+      const res = await fetch("api.php?action=submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg = (data && (data.error || data.detail)) || `Feil (HTTP ${res.status})`;
+        statusEl.textContent = "Feil: " + (typeof msg === "string" ? msg : JSON.stringify(msg));
+        statusEl.style.color = "var(--danger)";
+        return;
+      }
+
+      statusEl.textContent = "Importert OK: " + JSON.stringify(data);
+      statusEl.style.color = "var(--accent2)";
+    } catch (err) {
+      statusEl.textContent = "Nettverksfeil: " + err.message;
+      statusEl.style.color = "var(--danger)";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  }
+
+  document.getElementById("submitBtn").addEventListener("click", submitPayload);
+
   // Start with one season (with 1 episode) and one disc pre-filled, to
   // make the shape clearer.
   addSeason();

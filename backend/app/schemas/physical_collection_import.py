@@ -75,7 +75,60 @@ class BoxSetsBulkImportPayload(BaseModel):
     box_sets: List[BoxSetPayload] = Field(default_factory=list)
 
 
+class TvEpisodePayload(BaseModel):
+    episode_number: int = Field(ge=1)
+    title: Optional[str] = None
+    runtime: Optional[int] = None
+    original_air_date: Optional[str] = None
+
+
+class TvSeasonPayload(BaseModel):
+    season_number: int = Field(ge=0)
+    title: Optional[str] = None
+    air_date: Optional[str] = None
+    inner_case_ean: Optional[str] = Field(default=None, max_length=13)
+    episodes: List[TvEpisodePayload] = Field(default_factory=list)
+
+
+class TvEpisodeRefPayload(BaseModel):
+    season_number: int
+    episode_number: int
+
+
+class TvDiscPayload(BaseModel):
+    order: int = Field(ge=1)
+    format: str
+    label: Optional[str] = None
+    season_number: Optional[int] = None
+    inner_case_ean: Optional[str] = None
+    storage_slot_no: Optional[int] = Field(default=None, ge=1)
+    add_to_storage: bool = False
+    episode_refs: List[TvEpisodeRefPayload] = Field(default_factory=list)
+
+
+class TvSeriesPayload(BaseModel):
+    title: str
+    imdb_id: Optional[str] = None
+    tvdb_id: Optional[str] = None
+    content_type: Literal["series"] = "series"
+
+
+class TvBoxPayload(BaseModel):
+    format: str
+    box_set_barcode: Optional[str] = Field(default=None, max_length=13)
+    storage_id: Optional[str] = None
+    copy_count: int = Field(ge=1, default=1)
+
+
+class TvSeriesBoxsetImportPayload(BaseModel):
+    kind: Literal["tv_series_boxset"]
+    series: TvSeriesPayload
+    box: TvBoxPayload
+    seasons: List[TvSeasonPayload] = Field(default_factory=list)
+    discs: List[TvDiscPayload] = Field(default_factory=list)
+
+
 PhysicalCollectionImportPayload = Annotated[
-    Union[SinglesImportPayload, BoxSetsBulkImportPayload],
+    Union[SinglesImportPayload, BoxSetsBulkImportPayload, TvSeriesBoxsetImportPayload],
     Field(discriminator="kind"),
 ]

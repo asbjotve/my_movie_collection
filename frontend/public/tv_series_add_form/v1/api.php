@@ -4,22 +4,32 @@ declare(strict_types=1);
 /**
  * api.php - tv_series_add_form v1
  *
- * Only supports one action so far:
- *   GET ?action=search_tvdb&query=...&type=series|movie
+ * Supports:
+ *   GET  ?action=search_tvdb&query=...&type=series|movie
+ *   POST ?action=submit  (body: the tv_series_boxset JSON payload)
  *
- * Used by the "Søk TVDB" button next to the series fields (title/
- * imdb_id/tvdb_id). Pattern copied from bulk_add_movies_form/v14's
- * search_tvdb action - see that file for the original. TVDB v4's
- * /search endpoint already returns a "remote_ids" array per result
- * that includes the IMDb id (sourceName "IMDB") when TVDB has it
- * linked, so a single search covers both tvdb_id and imdb_id - no
- * separate "details" lookup is needed for this form's purposes.
+ * search_tvdb is used by the "Søk TVDB" button next to the series
+ * fields (title/imdb_id/tvdb_id). Pattern copied from
+ * bulk_add_movies_form/v14's search_tvdb action - see that file for
+ * the original. TVDB v4's /search endpoint already returns a
+ * "remote_ids" array per result that includes the IMDb id
+ * (sourceName "IMDB") when TVDB has it linked, so a single search
+ * covers both tvdb_id and imdb_id - no separate "details" lookup is
+ * needed for this form's purposes.
+ *
+ * submit forwards the built payload to POST /import/physical-
+ * collection on the backend (same endpoint bulk_add_movies_form uses,
+ * see app/schemas/physical_collection_import.py's tv_series_boxset
+ * variant and app/services/add_data/physical_collection_import.py's
+ * import_tv_series_boxset_payload()).
  */
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
 header('Content-Type: application/json; charset=utf-8');
+
+const INTERNAL_API_BASE_URL = 'http://172.19.0.1:9500';
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 require_login_or_json_401();
@@ -65,7 +75,49 @@ function makeTvdbRequest(string $url, bool $forceRefresh = false): array
 }
 
 try {
-    $action = $_GET['action'] ?? 'search_tvdb';
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $action = $_GET['action'] ?? ($method === 'POST' ? 'submit' : 'search_tvdb');
+
+    if ($method === 'POST' && $action === 'submit') {
+        $rawBody = file_get_contents('php://input');
+        if (!is_string($rawBody) || trim($rawBody) === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Tom payload'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $decoded = json_decode($rawBody, true);
+        if (!is_array($decoded)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Payload må være gyldig JSON'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => INTERNAL_API_BASE_URL . '/import/physical-collection',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST  => 'POST',
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', auth_bearer_header()],
+            CURLOPT_POSTFIELDS     => json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            CURLOPT_TIMEOUT        => 20,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            error_log('tv_series_add_form submit cURL-feil: ' . $curlError);
+            http_response_code(502);
+            echo json_encode(['error' => 'Kunne ikke kontakte backend (nettverksfeil).'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        http_response_code($httpCode > 0 ? $httpCode : 502);
+        echo $response;
+        exit;
+    }
 
     if ($action !== 'search_tvdb') {
         http_response_code(400);
