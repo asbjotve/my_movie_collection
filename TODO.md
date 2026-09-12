@@ -32,6 +32,9 @@ backlog to pick from.
 - [ ] Periodically test that a backup can actually be restored (a
       backup that's never been restore-tested is not a verified
       backup).
+- [ ] Create tables to support adding TV series (currently the schema
+      is movie-oriented only - e.g. no season/episode modeling), so
+      TV shows/box sets can be catalogued alongside movies.
 
 ## DevOps / CI / deployment
 
@@ -238,7 +241,10 @@ backlog to pick from.
 
 ## New features
 
+- [ ] Form for registering physical copies of TV series box sets
+      (depends on the TV series table support above).
 - [ ] Read-only share link for a custom list (e.g. a public,
+
       unguessable URL) so a list can be shared with friends/family
       without giving them a login.
 - [ ] Price/availability tracking for wishlist items (e.g. periodic
