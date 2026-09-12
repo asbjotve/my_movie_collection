@@ -31,6 +31,7 @@
       episodes: [],
     };
     seasons.push(season);
+    setEpisodeCount(season, 1);
     renderSeasons();
     renderDiscEpisodeOptions();
   }
@@ -42,25 +43,25 @@
     renderDiscEpisodeOptions();
   }
 
-  function addEpisode(seasonId) {
-    const season = seasons.find((s) => s.id === seasonId);
-    if (!season) return;
-    season.episodes.push({
-      episode_number: season.episodes.length + 1,
-      title: "",
-      runtime: "",
-      original_air_date: "",
-    });
-    renderSeasons();
-    renderDiscEpisodeOptions();
-  }
-
-  function removeEpisode(seasonId, epIdx) {
-    const season = seasons.find((s) => s.id === seasonId);
-    if (!season) return;
-    season.episodes.splice(epIdx, 1);
-    renderSeasons();
-    renderDiscEpisodeOptions();
+  // Resize season.episodes to the given count, keeping existing episode
+  // numbers/data for the rows that remain (up to 20+ episodes per season
+  // is common, so a per-row "add episode" click is impractical - see
+  // user feedback). Title/runtime/air_date are left blank for now; the
+  // plan is to fill these in from TVDB later rather than by hand.
+  function setEpisodeCount(season, count) {
+    const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+    if (safeCount > season.episodes.length) {
+      for (let i = season.episodes.length; i < safeCount; i++) {
+        season.episodes.push({
+          episode_number: i + 1,
+          title: "",
+          runtime: "",
+          original_air_date: "",
+        });
+      }
+    } else if (safeCount < season.episodes.length) {
+      season.episodes.length = safeCount;
+    }
   }
 
   function renderSeasons() {
@@ -75,7 +76,7 @@
           <h3>Sesong <span class="seasonNumberLabel">${h(season.season_number)}</span></h3>
           <button type="button" class="btn danger small" data-action="removeSeason">Fjern sesong</button>
         </div>
-        <div class="grid cols2" style="margin-bottom:10px;">
+        <div class="grid cols4" style="margin-bottom:10px;">
           <div class="field">
             <label>Sesongnummer</label>
             <input type="number" min="0" class="seasonNumberInput" value="${h(season.season_number)}">
@@ -84,51 +85,16 @@
             <label>Sesongtittel (valgfritt)</label>
             <input type="text" class="seasonTitleInput" value="${h(season.title)}" placeholder="f.eks. Season 1">
           </div>
+          <div class="field">
+            <label>Antall episoder</label>
+            <input type="number" min="0" class="seasonEpisodeCountInput" value="${h(season.episodes.length)}">
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <span class="muted">Episoder genereres automatisk (S${h(season.season_number)}E1 ... E${h(season.episodes.length)}).</span>
+          </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Ep. nr</th>
-              <th>Tittel</th>
-              <th>Varighet (min)</th>
-              <th>Opprinnelig sendedato</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody class="episodeTableBody"></tbody>
-        </table>
-        <button type="button" class="btn small" data-action="addEpisode" style="margin-top:8px;">+ Legg til episode</button>
       `;
-
-      const epBody = block.querySelector(".episodeTableBody");
-      season.episodes.forEach((ep, epIdx) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><input type="number" min="0" class="epNumberInput" value="${h(ep.episode_number)}" style="width:70px;"></td>
-          <td><input type="text" class="epTitleInput" value="${h(ep.title)}" placeholder="Episodetittel"></td>
-          <td><input type="number" min="0" class="epRuntimeInput" value="${h(ep.runtime)}" style="width:80px;"></td>
-          <td><input type="date" class="epAirDateInput" value="${h(ep.original_air_date)}"></td>
-          <td><button type="button" class="btn danger small" data-action="removeEpisode">Fjern</button></td>
-        `;
-        tr.querySelector(".epNumberInput").addEventListener("input", (e) => {
-          ep.episode_number = e.target.value === "" ? "" : Number(e.target.value);
-          renderDiscEpisodeOptions();
-        });
-        tr.querySelector(".epTitleInput").addEventListener("input", (e) => {
-          ep.title = e.target.value;
-          renderDiscEpisodeOptions();
-        });
-        tr.querySelector(".epRuntimeInput").addEventListener("input", (e) => {
-          ep.runtime = e.target.value === "" ? "" : Number(e.target.value);
-        });
-        tr.querySelector(".epAirDateInput").addEventListener("input", (e) => {
-          ep.original_air_date = e.target.value;
-        });
-        tr.querySelector('[data-action="removeEpisode"]').addEventListener("click", () => {
-          removeEpisode(season.id, epIdx);
-        });
-        epBody.appendChild(tr);
-      });
 
       block.querySelector(".seasonNumberInput").addEventListener("input", (e) => {
         season.season_number = e.target.value === "" ? "" : Number(e.target.value);
@@ -138,11 +104,13 @@
       block.querySelector(".seasonTitleInput").addEventListener("input", (e) => {
         season.title = e.target.value;
       });
+      block.querySelector(".seasonEpisodeCountInput").addEventListener("change", (e) => {
+        setEpisodeCount(season, e.target.value);
+        renderSeasons();
+        renderDiscEpisodeOptions();
+      });
       block.querySelector('[data-action="removeSeason"]').addEventListener("click", () => {
         removeSeason(season.id);
-      });
-      block.querySelector('[data-action="addEpisode"]').addEventListener("click", () => {
-        addEpisode(season.id);
       });
 
       seasonsContainer.appendChild(block);
@@ -295,8 +263,8 @@
     navigator.clipboard.writeText(text).catch(() => {});
   });
 
-  // Start with one season and one disc pre-filled, to make the shape clearer.
+  // Start with one season (with 1 episode) and one disc pre-filled, to
+  // make the shape clearer.
   addSeason();
-  addEpisode(1);
   addDisc();
 })();

@@ -173,7 +173,9 @@ function h(string $s): string
       Fyll ut manuelt her og bruk JSON-forhåndsvisningen nederst som utgangspunkt
       for videre diskusjon - ingen data sendes til serveren fra denne versjonen ennå.
       TVDB er tenkt som primærkilde for sesong-/episodedata senere (mer utfyllende enn TMDB),
-      men søk er ikke koblet inn i v1.
+      men søk er ikke koblet inn i v1. Episoder angis foreløpig kun med antall per
+      sesong (ikke tittel/varighet/sendedato per episode) - det er tenkt hentet fra
+      TVDB senere i stedet for å fylles ut manuelt.
     </p>
   </div>
 
