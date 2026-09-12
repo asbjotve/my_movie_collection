@@ -162,6 +162,19 @@ function h(string $s): string
       word-break:break-word;
     }
     .actionsRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+    .tvdbResultRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:var(--panel2);
+      margin-bottom:6px;
+    }
+    .tvdbResultRow .info{ font-size:13px; }
+    .tvdbResultRow .info .muted{ display:block; }
   </style>
 </head>
 <body>
@@ -198,6 +211,11 @@ function h(string $s): string
           <input type="text" id="seriesTvdb" placeholder="81189">
         </div>
       </div>
+      <div class="actionsRow" style="margin-top:12px;">
+        <button type="button" class="btn small" id="searchTvdbBtn">Søk TVDB</button>
+        <span class="muted" id="tvdbSearchStatus"></span>
+      </div>
+      <div id="tvdbResults" style="margin-top:10px;"></div>
     </div>
   </div>
 

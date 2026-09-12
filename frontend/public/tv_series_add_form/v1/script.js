@@ -1,5 +1,7 @@
 // tv_series_add_form v1 - draft/prototype only.
 // Manual entry + JSON payload preview, no backend submission yet.
+// TVDB search (api.php's search_tvdb action) fills in title/tvdb_id/
+// imdb_id for the series - see extractImdbId()/searchTvdb() below.
 
 (function () {
   "use strict";
@@ -14,6 +16,8 @@
   const noSeasonsMsg = document.getElementById("noSeasonsMsg");
   const discTableBody = document.getElementById("discTableBody");
   const noDiscsMsg = document.getElementById("noDiscsMsg");
+  const tvdbResultsEl = document.getElementById("tvdbResults");
+  const tvdbSearchStatusEl = document.getElementById("tvdbSearchStatus");
 
   function h(s) {
     const div = document.createElement("div");
@@ -298,6 +302,75 @@
       }),
     };
   }
+
+  // --- TVDB search --------------------------------------------------
+  // Uses api.php's search_tvdb action (a thin proxy to TVDB v4's
+  // /search endpoint). TVDB's search response already includes a
+  // "remote_ids" array per result with the linked IMDb id (when TVDB
+  // has one), so a single search fills in both tvdb_id and imdb_id -
+  // no separate details lookup needed for this form.
+  function extractImdbId(remoteIds) {
+    if (!Array.isArray(remoteIds)) return "";
+    const match = remoteIds.find((r) => (r.sourceName || "").toUpperCase() === "IMDB");
+    return match ? match.id : "";
+  }
+
+  async function searchTvdb() {
+    const query = document.getElementById("seriesTitle").value.trim();
+    if (!query) {
+      tvdbSearchStatusEl.textContent = "Skriv inn en tittel først.";
+      return;
+    }
+
+    tvdbSearchStatusEl.textContent = "Søker...";
+    tvdbResultsEl.innerHTML = "";
+
+    try {
+      const res = await fetch(
+        "api.php?action=search_tvdb&type=series&query=" + encodeURIComponent(query)
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        tvdbSearchStatusEl.textContent = "Feilet: " + (data.error || res.status);
+        return;
+      }
+
+      const results = Array.isArray(data.data) ? data.data : [];
+      if (!results.length) {
+        tvdbSearchStatusEl.textContent = "Ingen treff.";
+        return;
+      }
+
+      tvdbSearchStatusEl.textContent = results.length + " treff:";
+      results.slice(0, 10).forEach((item) => {
+        const imdbId = extractImdbId(item.remote_ids);
+        const row = document.createElement("div");
+        row.className = "tvdbResultRow";
+        row.innerHTML = `
+          <div class="info">
+            <strong>${h(item.name || "(uten tittel)")}</strong> ${h(item.year || "")}
+            <span class="muted">tvdb_id: ${h(item.tvdb_id || "")}${imdbId ? " · imdb_id: " + h(imdbId) : " · ingen IMDb-kobling hos TVDB"}</span>
+          </div>
+          <button type="button" class="btn small">Velg</button>
+        `;
+        row.querySelector("button").addEventListener("click", () => {
+          document.getElementById("seriesTitle").value = item.name || query;
+          document.getElementById("seriesTvdb").value = item.tvdb_id || "";
+          if (imdbId) {
+            document.getElementById("seriesImdb").value = imdbId;
+          }
+          tvdbResultsEl.innerHTML = "";
+          tvdbSearchStatusEl.textContent = "Valgt: " + (item.name || query);
+        });
+        tvdbResultsEl.appendChild(row);
+      });
+    } catch (err) {
+      tvdbSearchStatusEl.textContent = "Feilet: " + err.message;
+    }
+  }
+
+  document.getElementById("searchTvdbBtn").addEventListener("click", searchTvdb);
 
   document.getElementById("addSeasonBtn").addEventListener("click", addSeason);
   document.getElementById("addDiscBtn").addEventListener("click", addDisc);
