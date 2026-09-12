@@ -408,12 +408,13 @@
     navigator.clipboard.writeText(text).catch(() => {});
   });
 
-  async function submitPayload() {
-    const submitBtn = document.getElementById("submitBtn");
-    const statusEl = document.getElementById("submitStatus");
-    const payload = buildPayload();
-    document.getElementById("payloadPreview").textContent = JSON.stringify(payload, null, 2);
-
+  /**
+   * Posts a payload object to the backend import endpoint via api.php,
+   * updating the given button (disabled while in flight) and status
+   * element with the result. Shared by both the "build from form" submit
+   * button and the "paste raw JSON" submit button.
+   */
+  async function submitToBackend(payload, submitBtn, statusEl) {
     submitBtn.disabled = true;
     statusEl.textContent = "Sender inn...";
     statusEl.style.color = "";
@@ -443,7 +444,29 @@
     }
   }
 
-  document.getElementById("submitBtn").addEventListener("click", submitPayload);
+  document.getElementById("submitBtn").addEventListener("click", () => {
+    const payload = buildPayload();
+    document.getElementById("payloadPreview").textContent = JSON.stringify(payload, null, 2);
+    submitToBackend(
+      payload,
+      document.getElementById("submitBtn"),
+      document.getElementById("submitStatus")
+    );
+  });
+
+  document.getElementById("submitPasteBtn").addEventListener("click", () => {
+    const statusEl = document.getElementById("pasteSubmitStatus");
+    const raw = document.getElementById("pastePayloadInput").value;
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (err) {
+      statusEl.textContent = "Ugyldig JSON: " + err.message;
+      statusEl.style.color = "var(--danger)";
+      return;
+    }
+    submitToBackend(payload, document.getElementById("submitPasteBtn"), statusEl);
+  });
 
   // Start with one season (with 1 episode) and one disc pre-filled, to
   // make the shape clearer.

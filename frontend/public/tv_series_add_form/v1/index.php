@@ -314,6 +314,23 @@ function h(string $s): string
     </div>
   </div>
 
+  <div class="card">
+    <div class="cardHead"><h2>6. Lim inn ferdig JSON-payload</h2></div>
+    <div class="cardBody">
+      <p class="muted">
+        Har du allerede en ferdig <code>tv_series_boxset</code>-payload (f.eks. laget fra
+        forhåndsvisningen over, eller skrevet manuelt)? Lim den inn her og send inn direkte -
+        uten å måtte fylle ut skjemaet over på nytt.
+      </p>
+      <textarea id="pastePayloadInput" class="mono" rows="10" style="width:100%;"
+        placeholder='{"kind": "tv_series_boxset", ...}'></textarea>
+      <div class="actionsRow">
+        <button type="button" class="btn good" id="submitPasteBtn">Send inn limt payload</button>
+      </div>
+      <p id="pasteSubmitStatus" class="muted"></p>
+    </div>
+  </div>
+
 </div>
 <div class="lightboxOverlay" id="lightboxOverlay">
   <img id="lightboxImg" src="" alt="">
