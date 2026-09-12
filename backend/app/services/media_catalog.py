@@ -455,9 +455,30 @@ def _load_box_set_items(db: Session, box_set_barcode: str) -> list[dict]:
     return items
 
 
+def _extract_genres_and_cast(data: dict) -> tuple[list[str], list[str]]:
+    """Henter sjangernavn og topp-billede skuespillere (sortert på
+    TMDBs egen "order"-felt, maks 8 stk) ut av en lagret TMDB
+    data_json-blob. Brukes både av get_collection_stats() og
+    list_content()'s søk/facett-felter.
+    """
+    genres = [g.get("name") for g in (data.get("genres") or []) if g.get("name")]
+    cast_entries = sorted(
+        (data.get("credits", {}) or {}).get("cast") or [],
+        key=lambda c: c.get("order", 999),
+    )
+    cast = [c.get("name") for c in cast_entries[:8] if c.get("name")]
+    return genres, cast
+
+
 def list_content(db: Session) -> list[dict]:
     """Henter alle content-rader, med tilhørende fysiske utgaver og
     eksterne kilder gruppert inn i hvert content-objekt.
+
+    Inkluderer også genres/cast/release_year/decade (utledet fra TMDBs
+    lagrede data_json, se _extract_genres_and_cast()) slik at
+    frontend kan tilby fritekst-/facett-søk på tittel, skuespiller,
+    sjanger og år - ikke bare tittel - uten et eget søke-endepunkt,
+    siden hele listen uansett lastes ned samlet av index.php i dag.
     """
 
     content_rows = db.execute(
@@ -509,6 +530,29 @@ def list_content(db: Session) -> list[dict]:
         )
     ).fetchall()
 
+    owner_rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT
+                cipc.content_id AS content_id,
+                o.name AS owner_name
+            FROM content_in_physical_collection cipc
+            JOIN physical_copy pcp ON pcp.collection_id = cipc.collection_id
+            JOIN owner o ON o.owner_id = pcp.owner_id
+            """
+        )
+    ).fetchall()
+
+    tmdb_json_rows = db.execute(
+        text(
+            """
+            SELECT content_id, data_json
+            FROM content_external_source
+            WHERE source = 'tmdb' AND data_json IS NOT NULL
+            """
+        )
+    ).fetchall()
+
     collections_by_content: dict[str, list[dict]] = {}
     for row in collection_rows:
         key = _hex_id(row.content_id)
@@ -534,9 +578,36 @@ def list_content(db: Session) -> list[dict]:
             }
         )
 
+    owners_by_content: dict[str, list[str]] = {}
+    for row in owner_rows:
+        key = _hex_id(row.content_id)
+        owners_by_content.setdefault(key, []).append(row.owner_name)
+
+    search_facets_by_content: dict[str, dict] = {}
+    for row in tmdb_json_rows:
+        key = _hex_id(row.content_id)
+        try:
+            data = json.loads(row.data_json)
+        except (TypeError, ValueError):
+            data = {}
+        genres, cast = _extract_genres_and_cast(data)
+        release_date = data.get("release_date")
+        tmdb_year = (
+            int(release_date[:4]) if release_date and release_date[:4].isdigit() else None
+        )
+        search_facets_by_content[key] = {
+            "genres": genres,
+            "cast": cast,
+            "tmdb_year": tmdb_year,
+        }
+
     result = []
     for row in content_rows:
         content_id = _hex_id(row.content_id)
+        facets = search_facets_by_content.get(content_id, {})
+        release_year = (
+            row.first_release.year if row.first_release is not None else facets.get("tmdb_year")
+        )
         result.append(
             {
                 "content_id": content_id,
@@ -554,6 +625,11 @@ def list_content(db: Session) -> list[dict]:
                 "cover_image": _to_proxied_cover_image(row.cover_image),
                 "collections": collections_by_content.get(content_id, []),
                 "sources": sources_by_content.get(content_id, []),
+                "owners": owners_by_content.get(content_id, []),
+                "genres": facets.get("genres", []),
+                "cast": facets.get("cast", []),
+                "release_year": release_year,
+                "decade": (release_year // 10) * 10 if release_year else None,
             }
         )
 

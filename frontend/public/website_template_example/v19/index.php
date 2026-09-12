@@ -277,6 +277,14 @@ $sectionAccess = [
       white-space: nowrap;
     }
 
+    /* ---- Sjanger-/tiår-facett skjul/vis-knapper (Mine filmer) ---- */
+    .facetToggleBtn.hasActive{ border-color: rgba(111,141,255,.85); color: var(--text); }
+    .facetToggleBtn.open{ background: rgba(111,141,255,.14); }
+    .facetCount{
+      display:inline-block; margin-left:6px; background: var(--accent);
+      color:#fff; border-radius:999px; font-size:10px; padding:1px 6px;
+    }
+
     /* ---- Visningsbytte: rutenett / liste-tabell (Mine filmer) ---- */
     .viewToggle{
       display:flex; gap:6px; margin-left:auto;
@@ -449,6 +457,11 @@ $sectionAccess = [
         <input id="mineFilmerSearch" placeholder="<?= htmlspecialchars(t('wte.index.mine_filmer.search_placeholder')) ?>" />
       </div>
       <div class="chiprow" id="mineFilmerTypeChips"></div>
+      <button type="button" class="btn facetToggleBtn" id="btnToggleGenreFacet" data-facet="genre"><?= htmlspecialchars(t('wte.index.mine_filmer.genre_filter_label')) ?><span class="facetCount" id="mineFilmerGenreCount" style="display:none;"></span></button>
+      <button type="button" class="btn facetToggleBtn" id="btnToggleDecadeFacet" data-facet="decade"><?= htmlspecialchars(t('wte.index.mine_filmer.decade_filter_label')) ?><span class="facetCount" id="mineFilmerDecadeCount" style="display:none;"></span></button>
+      <?php if ($isLoggedIn): ?>
+      <button type="button" class="btn facetToggleBtn" id="btnToggleOwnerFacet" data-facet="owner"><?= htmlspecialchars(t('wte.index.mine_filmer.owner_filter_label')) ?><span class="facetCount" id="mineFilmerOwnerCount" style="display:none;"></span></button>
+      <?php endif; ?>
       <label class="unwatchedToggle">
         <input id="mineFilmerOnlyUnwatched" type="checkbox" />
         <?= htmlspecialchars(t('wte.index.mine_filmer.only_unwatched')) ?>
@@ -461,6 +474,31 @@ $sectionAccess = [
       <button type="button" class="btn" id="btnToggleSelectMode"><?= htmlspecialchars(t('wte.index.mine_filmer.select_mode_btn')) ?></button>
       <?php endif; ?>
     </div>
+
+    <!-- Sjanger-/tiår-/eier-facetter (fritekstsøket over dekker
+         allerede tittel/skuespiller/sjanger/år - disse radene er
+         multi-select "AND mellom kategorier, OR innad i kategorien"
+         hurtigfiltre i tillegg, se getFilteredMineFilmer()) - skjult
+         bak "Sjanger"/"Tiår"/"Eier"-knappene over til de trengs,
+         siden sjangerlisten alene fort blir 15-20 chips
+         (skjermplass). Eier-facetten vises kun når innlogget - den
+         bygges dynamisk fra dataene (samme mønster som sjanger/tiår),
+         så nye eiere dukker opp automatisk uten kodeendring så snart
+         de er koblet til et fysisk eksemplar (se owners-feltet i
+         list_content() i media_catalog.py). -->
+    <div class="filterBar" id="mineFilmerGenreFacetRow" style="display:none;">
+      <div class="chiprow" id="mineFilmerGenreChips"></div>
+    </div>
+    <?php if ($isLoggedIn): ?>
+    <div class="filterBar" id="mineFilmerOwnerFacetRow" style="display:none;">
+      <div class="chiprow" id="mineFilmerOwnerChips"></div>
+    </div>
+    <?php endif; ?>
+    <div class="filterBar" id="mineFilmerDecadeFacetRow" style="display:none;">
+      <div class="chiprow" id="mineFilmerDecadeChips"></div>
+      <button type="button" class="btn" id="btnResetMineFilmerFilters"><?= htmlspecialchars(t('wte.index.mine_filmer.reset_filters')) ?></button>
+    </div>
+
 
     <div id="mineFilmerStatus" style="color:var(--muted); font-size:13px;"><?= htmlspecialchars(t('wte.index.mine_filmer.loading')) ?></div>
     <div class="grid" id="mineFilmerGrid"></div>
@@ -714,10 +752,68 @@ $sectionAccess = [
   }
 
   // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----
+  // Utvidet med sjanger/tiår-facetter og bredere fritekstsøk (tittel,
+  // original tittel, sjanger, skuespiller, utgivelsesår) - se TODO.md
+  // "Full-text / faceted search"-punktet og genres/cast/release_year/
+  // decade-feltene som backend nå leverer på hvert content-objekt
+  // (list_content() i media_catalog.py).
   let mineFilmerActiveType = null;
+  const mineFilmerActiveGenres = new Set();
+  const mineFilmerActiveDecades = new Set();
+  const mineFilmerActiveOwners = new Set();
   const mineFilmerSearch = document.getElementById("mineFilmerSearch");
   const mineFilmerTypeChips = document.getElementById("mineFilmerTypeChips");
+  const mineFilmerGenreChips = document.getElementById("mineFilmerGenreChips");
+  const mineFilmerDecadeChips = document.getElementById("mineFilmerDecadeChips");
+  // Eier-chippene finnes bare i DOM-en når innlogget (se PHP-if rundt
+  // #mineFilmerOwnerFacetRow) - så alt eier-relatert JS må tåle at
+  // disse elementene er null når man ikke er innlogget.
+  const mineFilmerOwnerChips = document.getElementById("mineFilmerOwnerChips");
   const mineFilmerOnlyUnwatched = document.getElementById("mineFilmerOnlyUnwatched");
+  const btnResetMineFilmerFilters = document.getElementById("btnResetMineFilmerFilters");
+
+  // Sjanger-/tiår-chipsene ligger i egne rader som er skjult som
+  // standard (se .facetToggleBtn-knappene i HTML over) - sparer
+  // skjermplass siden sjangerlisten alene fort blir 15-20 chips.
+  // Knappen selv får en badge med antall aktive valg, slik at man ser
+  // at et filter er aktivt selv når raden er skjult igjen.
+  function setupFacetToggle(buttonId, rowId, countId, activeSet){
+    const button = document.getElementById(buttonId);
+    const row = document.getElementById(rowId);
+    const countEl = document.getElementById(countId);
+
+    button.addEventListener("click", () => {
+      const isOpen = row.style.display !== "none";
+      row.style.display = isOpen ? "none" : "";
+      button.classList.toggle("open", !isOpen);
+    });
+
+    return function updateFacetCount(){
+      if (activeSet.size){
+        countEl.textContent = String(activeSet.size);
+        countEl.style.display = "";
+        button.classList.add("hasActive");
+      } else {
+        countEl.style.display = "none";
+        button.classList.remove("hasActive");
+      }
+    };
+  }
+
+  const updateGenreFacetCount = setupFacetToggle(
+    "btnToggleGenreFacet", "mineFilmerGenreFacetRow", "mineFilmerGenreCount", mineFilmerActiveGenres
+  );
+  const updateDecadeFacetCount = setupFacetToggle(
+    "btnToggleDecadeFacet", "mineFilmerDecadeFacetRow", "mineFilmerDecadeCount", mineFilmerActiveDecades
+  );
+  // Eier-knappen/raden finnes bare når innlogget - setupFacetToggle()
+  // slår opp elementer via id, så vi hopper bare over dette når de
+  // ikke finnes i DOM-en.
+  const updateOwnerFacetCount = document.getElementById("btnToggleOwnerFacet")
+    ? setupFacetToggle(
+        "btnToggleOwnerFacet", "mineFilmerOwnerFacetRow", "mineFilmerOwnerCount", mineFilmerActiveOwners
+      )
+    : () => {};
 
   function getFilteredMineFilmer(){
     const term = mineFilmerSearch.value.trim().toLowerCase();
@@ -726,9 +822,19 @@ $sectionAccess = [
     return mineFilmerData.filter(item => {
       if (mineFilmerActiveType && item.content_type !== mineFilmerActiveType) return false;
       if (showUnwatched && item.watched_flag) return false;
+      if (mineFilmerActiveGenres.size && !(item.genres || []).some(g => mineFilmerActiveGenres.has(g))) return false;
+      if (mineFilmerActiveDecades.size && !mineFilmerActiveDecades.has(item.decade)) return false;
+      if (mineFilmerActiveOwners.size && !(item.owners || []).some(o => mineFilmerActiveOwners.has(o))) return false;
       if (!term) return true;
-      return (item.title || "").toLowerCase().includes(term) ||
-             (item.original_title || "").toLowerCase().includes(term);
+
+      const haystack = [
+        item.title,
+        item.original_title,
+        ...(item.genres || []),
+        ...(item.cast || []),
+        item.release_year != null ? String(item.release_year) : null,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(term);
     });
   }
 
@@ -750,6 +856,87 @@ $sectionAccess = [
       mineFilmerTypeChips.appendChild(el);
     }
   }
+
+  // Sjanger/tiår er multi-select ("OR" innad i kategorien, "AND"
+  // mellom kategorier - se getFilteredMineFilmer()), i motsetning til
+  // type-chippen over som er enkeltvalg - vanlig facett-konvensjon
+  // for kryssende filtre som sjanger (en film kan jo ha flere).
+  function renderMineFilmerGenreChips(){
+    const genres = [...new Set(mineFilmerData.flatMap(i => i.genres || []))].sort();
+    mineFilmerGenreChips.innerHTML = "";
+    for (const g of genres){
+      const el = document.createElement("div");
+      el.className = "chip btn" + (mineFilmerActiveGenres.has(g) ? " active" : "");
+      el.textContent = g;
+      el.onclick = () => {
+        if (mineFilmerActiveGenres.has(g)) mineFilmerActiveGenres.delete(g);
+        else mineFilmerActiveGenres.add(g);
+        renderMineFilmerGenreChips();
+        updateGenreFacetCount();
+        renderMineFilmer();
+      };
+      mineFilmerGenreChips.appendChild(el);
+    }
+  }
+
+  function renderMineFilmerDecadeChips(){
+    const decades = [...new Set(mineFilmerData.map(i => i.decade).filter(d => d !== null && d !== undefined))].sort((a, b) => a - b);
+    mineFilmerDecadeChips.innerHTML = "";
+    for (const d of decades){
+      const el = document.createElement("div");
+      el.className = "chip btn" + (mineFilmerActiveDecades.has(d) ? " active" : "");
+      el.textContent = d + "-";
+      el.onclick = () => {
+        if (mineFilmerActiveDecades.has(d)) mineFilmerActiveDecades.delete(d);
+        else mineFilmerActiveDecades.add(d);
+        renderMineFilmerDecadeChips();
+        updateDecadeFacetCount();
+        renderMineFilmer();
+      };
+      mineFilmerDecadeChips.appendChild(el);
+    }
+  }
+
+  // Eier-facetten vises kun for innloggede brukere (personlig/privat
+  // kontekst) - se PHP-if rundt HTML-elementene. Bygges dynamisk fra
+  // owners-feltet backend nå leverer per content-objekt, så nye eiere
+  // dukker automatisk opp her så snart de er koblet til et fysisk
+  // eksemplar i databasen - ingen kodeendring nødvendig.
+  function renderMineFilmerOwnerChips(){
+    if (!mineFilmerOwnerChips) return;
+    const owners = [...new Set(mineFilmerData.flatMap(i => i.owners || []))].sort();
+    mineFilmerOwnerChips.innerHTML = "";
+    for (const o of owners){
+      const el = document.createElement("div");
+      el.className = "chip btn" + (mineFilmerActiveOwners.has(o) ? " active" : "");
+      el.textContent = o;
+      el.onclick = () => {
+        if (mineFilmerActiveOwners.has(o)) mineFilmerActiveOwners.delete(o);
+        else mineFilmerActiveOwners.add(o);
+        renderMineFilmerOwnerChips();
+        updateOwnerFacetCount();
+        renderMineFilmer();
+      };
+      mineFilmerOwnerChips.appendChild(el);
+    }
+  }
+
+  btnResetMineFilmerFilters.addEventListener("click", () => {
+    mineFilmerSearch.value = "";
+    mineFilmerActiveType = null;
+    mineFilmerActiveGenres.clear();
+    mineFilmerActiveDecades.clear();
+    mineFilmerActiveOwners.clear();
+    mineFilmerOnlyUnwatched.checked = false;
+    renderMineFilmerTypeChips();
+    renderMineFilmerGenreChips();
+    renderMineFilmerDecadeChips();
+    renderMineFilmerOwnerChips();
+    updateGenreFacetCount();
+    updateDecadeFacetCount();
+    updateOwnerFacetCount();
+    renderMineFilmer();
+  });
 
   mineFilmerSearch.addEventListener("input", renderMineFilmer);
   mineFilmerOnlyUnwatched.addEventListener("change", renderMineFilmer);
@@ -791,6 +978,9 @@ $sectionAccess = [
       return;
     }
     renderMineFilmerTypeChips();
+    renderMineFilmerGenreChips();
+    renderMineFilmerDecadeChips();
+    renderMineFilmerOwnerChips();
     renderMineFilmer();
   }
 

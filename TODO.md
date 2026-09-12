@@ -68,7 +68,7 @@ backlog to pick from.
 
 ## Search / browsing
 
-- [ ] Full-text / faceted search across the whole collection (title,
+- [x] Full-text / faceted search across the whole collection (title,
       cast, genre, year), not just per-list browsing.
 - [ ] Fix TMDB search failing for purely numeric titles (e.g. "1917")
       in `tmdb_live_search` - the year-extraction regex currently
@@ -89,6 +89,24 @@ backlog to pick from.
 
 - [ ] "Loaned out to" tracking for physical discs (easy to lose track
       of who borrowed what).
+- [ ] Ability to change the owner of one or more movies/copies via
+      the frontend/admin UI (currently only settable directly in the
+      database - see the owner facet added in feature/faceted-search,
+      which reads owners but has no way to assign/reassign them).
+- [ ] Ability to add new owners/users via the frontend/admin UI
+      (currently only the `owner` table row itself can be added
+      directly in the database; the owner facet in "Mine filmer" will
+      automatically pick up any new owner once they exist and are
+      linked to physical copies).
+- [ ] Ability to specify owner when adding movies via
+      `bulk_add_movies_form` (doesn't exist today - this is one of
+      the reasons owner_id was NULL on every physical_copy row until
+      it was manually backfilled).
+- [ ] Ability to "import" a single movie into `bulk_add_movies_form`
+      (e.g. from search results elsewhere in the app) instead of only
+      manual bulk entry.
+- [ ] Ability to add a single physical copy, as an alternative to
+      `bulk_add_movies_form` for the common one-at-a-time case.
 
 ## Frontend / UX
 
