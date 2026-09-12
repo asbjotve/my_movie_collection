@@ -30,7 +30,7 @@ return [
 
             'mine_filmer' => [
                 'title'               => 'My movies',
-                'search_placeholder'  => 'Search title / original title…',
+                'search_placeholder'  => 'Search title / cast / genre / year…',
                 'only_unwatched'      => 'Show unwatched only',
                 'view_grid'           => '🖼️ Grid',
                 'view_list'           => '📋 List',
@@ -40,6 +40,9 @@ return [
                 'col_year'            => 'Year',
                 'col_imdb_id'         => 'IMDb ID',
                 'chip_all'            => 'All',
+                'genre_filter_label'  => 'Genre:',
+                'decade_filter_label' => 'Decade:',
+                'reset_filters'       => 'Reset filters',
                 'watched'             => 'Watched',
                 'unwatched'           => 'Unwatched',
                 'fetch_error_prefix'  => 'Failed to fetch data: ',

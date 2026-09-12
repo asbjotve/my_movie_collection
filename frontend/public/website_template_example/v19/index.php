@@ -462,6 +462,21 @@ $sectionAccess = [
       <?php endif; ?>
     </div>
 
+    <!-- Sjanger-/tiår-facetter (fritekstsøket over dekker allerede
+         tittel/skuespiller/sjanger/år - disse to radene er
+         multi-select "AND mellom kategorier, OR innad i kategorien"
+         hurtigfiltre i tillegg, se getFilteredMineFilmer(). -->
+    <div class="filterBar" style="margin-top:-4px;">
+      <span style="color:var(--muted); font-size:11px;"><?= htmlspecialchars(t('wte.index.mine_filmer.genre_filter_label')) ?></span>
+      <div class="chiprow" id="mineFilmerGenreChips"></div>
+    </div>
+    <div class="filterBar">
+      <span style="color:var(--muted); font-size:11px;"><?= htmlspecialchars(t('wte.index.mine_filmer.decade_filter_label')) ?></span>
+      <div class="chiprow" id="mineFilmerDecadeChips"></div>
+      <button type="button" class="btn" id="btnResetMineFilmerFilters"><?= htmlspecialchars(t('wte.index.mine_filmer.reset_filters')) ?></button>
+    </div>
+
+
     <div id="mineFilmerStatus" style="color:var(--muted); font-size:13px;"><?= htmlspecialchars(t('wte.index.mine_filmer.loading')) ?></div>
     <div class="grid" id="mineFilmerGrid"></div>
     <table class="dataTable table table-dark table-hover" id="mineFilmerTable" style="display:none;">
@@ -714,10 +729,20 @@ $sectionAccess = [
   }
 
   // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----
+  // Utvidet med sjanger/tiår-facetter og bredere fritekstsøk (tittel,
+  // original tittel, sjanger, skuespiller, utgivelsesår) - se TODO.md
+  // "Full-text / faceted search"-punktet og genres/cast/release_year/
+  // decade-feltene som backend nå leverer på hvert content-objekt
+  // (list_content() i media_catalog.py).
   let mineFilmerActiveType = null;
+  const mineFilmerActiveGenres = new Set();
+  const mineFilmerActiveDecades = new Set();
   const mineFilmerSearch = document.getElementById("mineFilmerSearch");
   const mineFilmerTypeChips = document.getElementById("mineFilmerTypeChips");
+  const mineFilmerGenreChips = document.getElementById("mineFilmerGenreChips");
+  const mineFilmerDecadeChips = document.getElementById("mineFilmerDecadeChips");
   const mineFilmerOnlyUnwatched = document.getElementById("mineFilmerOnlyUnwatched");
+  const btnResetMineFilmerFilters = document.getElementById("btnResetMineFilmerFilters");
 
   function getFilteredMineFilmer(){
     const term = mineFilmerSearch.value.trim().toLowerCase();
@@ -726,9 +751,18 @@ $sectionAccess = [
     return mineFilmerData.filter(item => {
       if (mineFilmerActiveType && item.content_type !== mineFilmerActiveType) return false;
       if (showUnwatched && item.watched_flag) return false;
+      if (mineFilmerActiveGenres.size && !(item.genres || []).some(g => mineFilmerActiveGenres.has(g))) return false;
+      if (mineFilmerActiveDecades.size && !mineFilmerActiveDecades.has(item.decade)) return false;
       if (!term) return true;
-      return (item.title || "").toLowerCase().includes(term) ||
-             (item.original_title || "").toLowerCase().includes(term);
+
+      const haystack = [
+        item.title,
+        item.original_title,
+        ...(item.genres || []),
+        ...(item.cast || []),
+        item.release_year != null ? String(item.release_year) : null,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(term);
     });
   }
 
@@ -750,6 +784,56 @@ $sectionAccess = [
       mineFilmerTypeChips.appendChild(el);
     }
   }
+
+  // Sjanger/tiår er multi-select ("OR" innad i kategorien, "AND"
+  // mellom kategorier - se getFilteredMineFilmer()), i motsetning til
+  // type-chippen over som er enkeltvalg - vanlig facett-konvensjon
+  // for kryssende filtre som sjanger (en film kan jo ha flere).
+  function renderMineFilmerGenreChips(){
+    const genres = [...new Set(mineFilmerData.flatMap(i => i.genres || []))].sort();
+    mineFilmerGenreChips.innerHTML = "";
+    for (const g of genres){
+      const el = document.createElement("div");
+      el.className = "chip btn" + (mineFilmerActiveGenres.has(g) ? " active" : "");
+      el.textContent = g;
+      el.onclick = () => {
+        if (mineFilmerActiveGenres.has(g)) mineFilmerActiveGenres.delete(g);
+        else mineFilmerActiveGenres.add(g);
+        renderMineFilmerGenreChips();
+        renderMineFilmer();
+      };
+      mineFilmerGenreChips.appendChild(el);
+    }
+  }
+
+  function renderMineFilmerDecadeChips(){
+    const decades = [...new Set(mineFilmerData.map(i => i.decade).filter(d => d !== null && d !== undefined))].sort((a, b) => a - b);
+    mineFilmerDecadeChips.innerHTML = "";
+    for (const d of decades){
+      const el = document.createElement("div");
+      el.className = "chip btn" + (mineFilmerActiveDecades.has(d) ? " active" : "");
+      el.textContent = d + "-";
+      el.onclick = () => {
+        if (mineFilmerActiveDecades.has(d)) mineFilmerActiveDecades.delete(d);
+        else mineFilmerActiveDecades.add(d);
+        renderMineFilmerDecadeChips();
+        renderMineFilmer();
+      };
+      mineFilmerDecadeChips.appendChild(el);
+    }
+  }
+
+  btnResetMineFilmerFilters.addEventListener("click", () => {
+    mineFilmerSearch.value = "";
+    mineFilmerActiveType = null;
+    mineFilmerActiveGenres.clear();
+    mineFilmerActiveDecades.clear();
+    mineFilmerOnlyUnwatched.checked = false;
+    renderMineFilmerTypeChips();
+    renderMineFilmerGenreChips();
+    renderMineFilmerDecadeChips();
+    renderMineFilmer();
+  });
 
   mineFilmerSearch.addEventListener("input", renderMineFilmer);
   mineFilmerOnlyUnwatched.addEventListener("change", renderMineFilmer);
@@ -791,6 +875,8 @@ $sectionAccess = [
       return;
     }
     renderMineFilmerTypeChips();
+    renderMineFilmerGenreChips();
+    renderMineFilmerDecadeChips();
     renderMineFilmer();
   }
 

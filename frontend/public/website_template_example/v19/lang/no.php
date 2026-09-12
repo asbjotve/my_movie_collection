@@ -33,7 +33,7 @@ return [
 
             'mine_filmer' => [
                 'title'               => 'Mine filmer',
-                'search_placeholder'  => 'Søk tittel / original tittel…',
+                'search_placeholder'  => 'Søk tittel / skuespiller / sjanger / år…',
                 'only_unwatched'      => 'Vis bare ikke-sett',
                 'view_grid'           => '🖼️ Rutenett',
                 'view_list'           => '📋 Liste',
@@ -43,6 +43,9 @@ return [
                 'col_year'            => 'Årstall',
                 'col_imdb_id'         => 'IMDb-id',
                 'chip_all'            => 'Alle',
+                'genre_filter_label'  => 'Sjanger:',
+                'decade_filter_label' => 'Tiår:',
+                'reset_filters'       => 'Nullstill filtre',
                 'watched'             => 'Sett',
                 'unwatched'           => 'Ikke sett',
                 'fetch_error_prefix'  => 'Klarte ikke å hente data: ',

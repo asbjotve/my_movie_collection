@@ -68,7 +68,7 @@ backlog to pick from.
 
 ## Search / browsing
 
-- [ ] Full-text / faceted search across the whole collection (title,
+- [x] Full-text / faceted search across the whole collection (title,
       cast, genre, year), not just per-list browsing.
 - [ ] Fix TMDB search failing for purely numeric titles (e.g. "1917")
       in `tmdb_live_search` - the year-extraction regex currently
