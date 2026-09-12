@@ -112,6 +112,34 @@ backlog to pick from.
 - [ ] Keyboard shortcut to focus the search field (e.g. `/`), and
       verify all interactive elements have visible focus indicators
       for keyboard-only navigation.
+- [ ] CSRF protection for state-changing POST requests (login, edit,
+      delete, group management, etc.) - none of the PHP endpoints
+      currently issue/check a CSRF token; session-cookie auth alone is
+      vulnerable to cross-site request forgery from another tab.
+- [ ] Basic security response headers (`Content-Security-Policy`,
+      `X-Frame-Options`/`frame-ancestors`, `X-Content-Type-Options:
+      nosniff`) - not currently set anywhere in the PHP apps or Apache
+      vhost config.
+- [ ] Consistent network-error handling for `fetch()` calls (e.g. show
+      a clear "connection lost" message and a retry button) - several
+      places assume the request either succeeds or returns JSON with
+      an `error` field, without handling outright network failures.
+- [ ] Undo/confirmation before destructive actions everywhere, not
+      just group removal - e.g. deleting a movie or a custom list
+      currently may not prompt for confirmation the same way
+      `groups_remove_confirm` does in detail.php.
+- [ ] Export/import a custom list (`custom_list_manager`) as
+      JSON/CSV, so lists can be backed up or shared outside the app.
+- [ ] Consolidate `bulk_add_movies_form` (currently 14 parallel
+      versions, `v1`-`v14`) down to the one actually in use, same idea
+      as the general "retire old versioned folders" cleanup item
+      above, called out separately since it's the most extreme case.
+- [ ] Client-side form validation feedback (e.g. highlighting the
+      specific invalid field) instead of only a generic status-line
+      message like "name is required".
+- [ ] A visible session-expiry warning (e.g. "you'll be logged out in
+      2 minutes") before the JWT access token actually expires, so an
+      in-progress edit isn't silently lost to a 401.
 
 ## Backend / security hardening
 
