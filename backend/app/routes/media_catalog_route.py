@@ -20,6 +20,7 @@ from app.services.media_catalog import (
     backfill_tmdb_cover_images,
     bulk_assign_group,
     get_content_by_id,
+    get_collection_stats,
     list_content,
     list_content_covers,
     list_group_names,
@@ -63,6 +64,17 @@ def get_groups(db: Session = Depends(get_media_db)):
     list_group_names().
     """
     return list_group_names(db)
+
+
+@router.get("/stats", dependencies=[Depends(require_api_key)])
+def get_stats(db: Session = Depends(get_media_db)):
+    """Aggregerte statistikk-tall for hele samlingen (antall filmer
+    totalt, fordeling per tiår/sjanger/format, mest-fylte filmgrupper)
+    - brukes av statistikksiden. Rent lesende, samme
+    require_api_key-beskyttelse som resten av /media-endepunktene uten
+    innlogging. Se get_collection_stats() for detaljer.
+    """
+    return get_collection_stats(db)
 
 
 @router.get("/content/{content_id}", dependencies=[Depends(require_api_key)])

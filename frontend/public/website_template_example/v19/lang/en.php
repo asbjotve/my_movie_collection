@@ -76,6 +76,8 @@ return [
                 'card_edit_lists_desc'   => 'Create, edit or delete custom lists.',
                 'card_bulk_add_title'    => 'Bulk-add movies',
                 'card_bulk_add_desc'     => 'Register multiple movies/shows at once, including physical copies (opens in a separate tool).',
+                'card_stats_title'       => 'Statistics',
+                'card_stats_desc'        => 'Overview of the collection: totals, decades, genres, formats and groups.',
                 'card_2fa_title'         => 'Two-factor authentication (2FA)',
                 'card_2fa_desc'          => 'Set up or disable 2FA for your account.',
                 'card_access_title'      => 'Access & language control',

@@ -79,6 +79,8 @@ return [
                 'card_edit_lists_desc'   => 'Opprett, endre eller slett egendefinerte lister.',
                 'card_bulk_add_title'    => 'Bulk-registrering av filmer',
                 'card_bulk_add_desc'     => 'Registrer flere filmer/serier samtidig, inkludert fysiske eksemplarer (åpnes i eget verktøy).',
+                'card_stats_title'       => 'Statistikk',
+                'card_stats_desc'        => 'Oversikt over samlingen: antall, tiår, sjangre, formater og grupper.',
                 'card_2fa_title'         => 'To-faktor autentisering (2FA)',
                 'card_2fa_desc'          => 'Sett opp eller deaktiver 2FA for din bruker.',
                 'card_access_title'      => 'Tilgangs- og språkstyring',
