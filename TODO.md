@@ -245,7 +245,15 @@ backlog to pick from.
 
 - [ ] Form for registering physical copies of TV series box sets
       (depends on the TV series table support above).
+- [ ] Dedicated API endpoint(s) for a local FileMaker database to
+      connect directly against (rather than a one-off CSV export) -
+      likely needs its own export-oriented endpoint(s), separate from
+      `/media/content`, since FileMaker consumes flat/typed data
+      (e.g. hex-encoded IDs instead of raw binary, no nested JSON
+      blobs) and may need per-table access rather than one big
+      flattened payload.
 - [ ] Read-only share link for a custom list (e.g. a public,
+
 
       unguessable URL) so a list can be shared with friends/family
       without giving them a login.
