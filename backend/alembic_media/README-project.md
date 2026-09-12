@@ -31,6 +31,16 @@ All 20 real tables in `db_mediearkiv` are now modeled. The legacy
 confirmed unused (0 rows, no FK references) and dropped via migration
 `1b2e23711528`.
 
+New TV series tables `season`, `episode`, `disc_contains_episode` were
+added (real DDL, migration `ca92db17e42f`) to support cataloguing TV
+series alongside movies. `content` already doubles as the show-level
+row (content_type='series'); `season`/`episode` hang off it, and
+`disc_contains_episode` links the existing `disc` table to episodes
+many-to-many. Metadata for these is expected to come mostly from TVDB
+rather than TMDB (see `fetch_tvdb_details()` in `media_catalog.py`),
+since TVDB has more complete season/episode data. No application code
+reads/writes these tables yet - only the schema exists so far.
+
 Until every table is modeled, `alembic revision --autogenerate` WILL
 propose dropping every not-yet-modeled table - that's a false positive
 from incomplete model coverage, not a real diff. Strip those from the
