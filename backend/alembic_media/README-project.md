@@ -26,8 +26,10 @@ have no outgoing foreign keys:
 - [x] Batch 4: `disc_bonus_item`, `disc_in_storage`, `disc_in`,
       `custom_list_entries`
 
-All "real" tables in `db_mediearkiv` are now modeled. Only `list`
-remains unmodeled (deliberately - see TODO.md).
+All 20 real tables in `db_mediearkiv` are now modeled. The legacy
+`list` table (an early prototype of custom_lists/list_items) was
+confirmed unused (0 rows, no FK references) and dropped via migration
+`1b2e23711528`.
 
 Until every table is modeled, `alembic revision --autogenerate` WILL
 propose dropping every not-yet-modeled table - that's a false positive

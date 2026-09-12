@@ -8,7 +8,7 @@ backlog to pick from.
 
 - [x] Set up Alembic for `mmc_userdb` (users, section_access,
       app_settings) - done on `feature/alembic-migrations`.
-- [ ] Model the `db_mediearkiv` tables (content, movie_group, disc,
+- [x] Model the `db_mediearkiv` tables (content, movie_group, disc,
       physical_collection, etc. - 20 tables total) as SQLAlchemy ORM
       classes, so Alembic can manage that schema too (currently only
       handled via manual SQL files in `backend/db_backups/`).
@@ -21,14 +21,12 @@ backlog to pick from.
             `content_in_physical_collection`, `disc_related_content`,
             `list_items`.
       - [x] Batch 4: `disc_bonus_item`, `disc_in_storage`, `disc_in`,
-            `custom_list_entries` - all "real" tables now modeled;
-            only the legacy `list` table remains (see dedicated item
-            below).
-- [ ] Investigate/remove the `list` table in `db_mediearkiv` - it
-      looks like unused/legacy dead schema (no primary key, columns
-      typed as `int` where text is clearly expected - `title`,
-      `imdb_id`, etc. - and no references anywhere in the service
-      code). Deliberately skipped when modeling tables for Alembic.
+            `custom_list_entries` - all "real" tables now modeled.
+- [x] Investigate/remove the `list` table in `db_mediearkiv` - confirmed
+      by the user to be an early, superseded prototype of what became
+      custom_lists/list_items/custom_list_entries. Was empty (0 rows)
+      and had no foreign-key references. Dropped via Alembic migration
+      `1b2e23711528` on `feature/alembic-migrations`.
 - [ ] Automated DB backups (e.g. a cron job running `mysqldump` to a
       file or off-site storage), instead of relying on manual backups.
 - [ ] Periodically test that a backup can actually be restored (a
