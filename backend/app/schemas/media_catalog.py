@@ -27,10 +27,13 @@ class ContentFieldUpdateRequest(BaseModel):
     """Body for PATCH /media/content/{content_id}.
 
     Feltene her tilsvarer MERGEABLE_CONTENT_FIELDS i media_catalog.py
-    (+ content_type, + group) - dvs. de samme feltene som kan komme fra
+    (+ content_type) - dvs. de samme feltene som kan komme fra
     TMDB/TVDB-fletting kan også redigeres manuelt. cover_image
     redigeres IKKE her - det har sitt eget endepunkt
-    (POST /media/content/{id}/cover).
+    (POST /media/content/{id}/cover). Filmgruppe-medlemskap redigeres
+    heller ikke her - se GroupMembershipAddRequest/
+    DELETE /media/content/{id}/groups/{group_id}, siden en film nå kan
+    tilhøre flere grupper samtidig.
     """
 
     title: str | None = None
@@ -41,17 +44,6 @@ class ContentFieldUpdateRequest(BaseModel):
     age_restriction: str | None = None
     content_type: ContentType | None = None
     imdb_id: str | None = None
-    # Navn på filmgruppen denne filmen tilhører (f.eks. "Tilbake til
-    # fremtiden"-trilogien, eller bare filmer som hører naturlig
-    # sammen) - fritekst, backend gjør get-or-create mot movie_group
-    # (samme mønster som owner/store på physical_copy). Tom streng ("")
-    # fjerner koblingen (group_id=NULL).
-    group: str | None = None
-    # Manuell rekkefølge på filmen innenfor filmgruppen (f.eks. 1, 2, 3
-    # for en trilogi) - brukes til å sortere "andre filmer i denne
-    # gruppen"-listen på detaljsiden når utgivelsesrekkefølgen ikke
-    # stemmer med den tiltenkte seer-/kronologiske rekkefølgen.
-    group_sort_order: int | None = None
 
 
 class ContentFieldLockRequest(BaseModel):
@@ -70,14 +62,15 @@ class ContentFieldLockRequest(BaseModel):
 class BulkGroupAssignRequest(BaseModel):
     """Body for POST /media/content/bulk-group.
 
-    Brukes av "velg-modus" i Mine filmer (index.php): tildeler flere
+    Brukes av "velg-modus" i Mine filmer (index.php): legger flere
     valgte filmer til samme filmgruppe i ett kall, i stedet for at
-    frontend må gjøre ett PATCH /media/content/{id}-kall pr. film.
-    Samme get-or-create-oppførsel på "group" som i
-    ContentFieldUpdateRequest (se _get_or_create_group_id()) - tom/kun
-    whitespace-navn er ikke tillatt her (i motsetning til den vanlige
-    redigeringen, hvor tom streng brukes for å FJERNE koblingen - det
-    gir ikke mening ved bulk-tillegg, se validate_group()).
+    frontend må gjøre ett kall pr. film. En film kan tilhøre flere
+    grupper samtidig, så dette er ADDITIVT - filmer som allerede
+    tilhører gruppen fra før beholder både den og alle andre
+    gruppetilhørigheter de måtte ha (se bulk_assign_group()). Samme
+    get-or-create-oppførsel på "group" som ellers (se
+    _get_or_create_group_id()) - tomt/kun whitespace-navn er ikke
+    tillatt (se validate_group()).
     """
 
     content_ids: list[str]
@@ -96,6 +89,28 @@ class BulkGroupAssignRequest(BaseModel):
     def validate_content_ids(cls, value: list[str]) -> list[str]:
         if not value:
             raise ValueError("content_ids kan ikke være tom")
+        return value
+
+
+class GroupMembershipAddRequest(BaseModel):
+    """Body for POST /media/content/{content_id}/groups.
+
+    Legger én film til i én filmgruppe til (fritekst navn - backend
+    gjør get-or-create mot movie_group, samme mønster som owner/store).
+    En film kan tilhøre flere grupper samtidig - dette LEGGER TIL en
+    gruppetilhørighet, det erstatter ikke noen eksisterende (se
+    add_content_to_group()). For å fjerne en gruppetilhørighet, bruk
+    DELETE /media/content/{content_id}/groups/{group_id} i stedet.
+    """
+
+    group: str
+
+    @field_validator("group")
+    @classmethod
+    def validate_group(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("group kan ikke være tom")
         return value
 
 

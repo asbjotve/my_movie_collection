@@ -592,12 +592,8 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
                 c.cover_image,
                 c.last_merged_source,
                 c.last_merged_at,
-                c.locked_fields,
-                c.group_id,
-                c.group_sort_order,
-                ms.name AS group_name
+                c.locked_fields
             FROM content c
-            LEFT JOIN movie_group ms ON ms.group_id = c.group_id
             WHERE c.content_id = :content_id
             """
         ),
@@ -647,39 +643,11 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
         db, collections, [r.collection_id for r in collection_rows], raw_id, default_currency
     )
 
-    # Andre filmer i samme filmgruppe (f.eks. resten av "Tilbake til
-    # fremtiden"-trilogien), for visning på detaljsiden - se
-    # docstring/kommentar der. Utelater filmen selv. Tom liste hvis
-    # filmen ikke tilhører noen gruppe (group_id er NULL).
-    # Sorteres på group_sort_order (brukeren kan sette denne manuelt for
-    # å styre rekkefølgen, f.eks. for en trilogi som ikke ble utgitt i
-    # kronologisk rekkefølge) - rader uten group_sort_order (NULL) havner
-    # sist, deretter sortert på first_release som fallback.
-    group_movies = []
-    if row.group_id is not None:
-        group_movie_rows = db.execute(
-            text(
-                """
-                SELECT content_id, title, first_release, cover_image, group_sort_order
-                FROM content
-                WHERE group_id = :group_id AND content_id != :content_id
-                ORDER BY (group_sort_order IS NULL) ASC, group_sort_order ASC, first_release ASC
-                """
-            ),
-            {"group_id": row.group_id, "content_id": raw_id},
-        ).fetchall()
-        group_movies = [
-            {
-                "content_id": _hex_id(r.content_id),
-                "title": r.title,
-                "first_release": (
-                    str(r.first_release)[:10] if r.first_release is not None else None
-                ),
-                "cover_image": _to_proxied_cover_image(r.cover_image),
-                "group_sort_order": r.group_sort_order,
-            }
-            for r in group_movie_rows
-        ]
+    # Alle filmgrupper denne filmen tilhører (f.eks. både "Tilbake til
+    # fremtiden"-trilogien OG en "Filmer fra 1985"-gruppe samtidig) - en
+    # film kan tilhøre 0, 1 eller flere grupper (many-to-many via
+    # content_group_membership, se get_groups_for_content()).
+    groups = get_groups_for_content(db, raw_id)
 
     return {
         "content_id": _hex_id(row.content_id),
@@ -703,10 +671,7 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
         "locked_fields": (
             json.loads(row.locked_fields) if row.locked_fields else []
         ),
-        "group_name": row.group_name,
-        "group_id": row.group_id,
-        "group_sort_order": row.group_sort_order,
-        "group_movies": group_movies,
+        "groups": groups,
         "collections": collections,
         "physical_copies": physical_copies,
         "sources": [
@@ -890,22 +855,13 @@ def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
         json.loads(content_row.locked_fields) if content_row.locked_fields else []
     )
 
-    # "group" er et eget spesialtilfelle (mappes til group_id via get-
-    # or-create, se _get_or_create_group_id()) - IKKE en rett kolonne-
-    # for-kolonne-oppdatering som resten av feltene, og legges heller
-    # ikke til i locked_fields, siden den ikke er en del av TMDB/TVDB-
-    # fletting (se MERGEABLE_CONTENT_FIELDS).
-    plain_fields = {k: v for k, v in fields.items() if k != "group"}
-    locked_fields.update(plain_fields.keys())
+    locked_fields.update(fields.keys())
 
     # first_release er en `date` her (fra Pydantic) - SQLAlchemy/DBAPI
     # håndterer det direkte mot content.first_release (timestamp), så
     # ingen manuell str()-konvertering trengs.
-    set_clauses = [f"{name} = :{name}" for name in plain_fields]
-    params = dict(plain_fields)
-    if "group" in fields:
-        set_clauses.append("group_id = :group_id")
-        params["group_id"] = _get_or_create_group_id(db, fields["group"])
+    set_clauses = [f"{name} = :{name}" for name in fields]
+    params = dict(fields)
     params["content_id"] = raw_id
     params["locked_fields"] = json.dumps(sorted(locked_fields))
 
@@ -919,8 +875,6 @@ def update_content_fields(db: Session, content_id: str, fields: dict) -> dict:
         ),
         params,
     )
-    if "group" in fields and params.get("group_id") is not None:
-        _auto_assign_group_sort_order(db, params["group_id"], [raw_id])
     db.commit()
 
     return {"status": "ok", "content_id": content_id, "updated_fields": sorted(fields.keys())}
@@ -958,11 +912,16 @@ def bulk_assign_group(db: Session, content_ids: list[str], group_name: str) -> d
 
     group_id = _get_or_create_group_id(db, group_name)
 
+    # En film kan nå tilhøre flere grupper samtidig (many-to-many via
+    # content_group_membership), så dette er ADDITIVT - filmer som
+    # allerede tilhører group_id fra før hoppes bare over (INSERT
+    # IGNORE), de mister IKKE andre gruppetilhørigheter de måtte ha.
     result = db.execute(
-        text("UPDATE content SET group_id = :group_id WHERE content_id IN :content_ids").bindparams(
-            bindparam("content_ids", expanding=True)
+        text(
+            "INSERT IGNORE INTO content_group_membership (content_id, group_id) "
+            "VALUES (:content_id, :group_id)"
         ),
-        {"group_id": group_id, "content_ids": raw_ids},
+        [{"content_id": raw_id, "group_id": group_id} for raw_id in raw_ids],
     )
     _auto_assign_group_sort_order(db, group_id, raw_ids)
     db.commit()
@@ -970,21 +929,165 @@ def bulk_assign_group(db: Session, content_ids: list[str], group_name: str) -> d
     return {"status": "ok", "group_id": group_id, "updated_count": result.rowcount}
 
 
+def add_content_to_group(db: Session, content_id: str, group_name: str) -> dict:
+    """Legger én content-rad til i en filmgruppe (via get-or-create på
+    navn, se _get_or_create_group_id()) - brukt av "+ Legg til i
+    gruppe"-knappen på detaljsiden. En film kan tilhøre flere grupper
+    samtidig; kalles denne med en gruppe filmen allerede tilhører, er
+    det en no-op (INSERT IGNORE - ingen feil, ingen duplikat-rad).
+
+    Setter automatisk et startforslag til sort_order (se
+    _auto_assign_group_sort_order()) - brukeren kan justere videre med
+    dra-og-slipp (se reorder_group()).
+    """
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        raise ContentExternalSourceError("Ugyldig content_id", status_code=404)
+
+    content_row = db.execute(
+        text("SELECT content_id FROM content WHERE content_id = :content_id"),
+        {"content_id": raw_id},
+    ).fetchone()
+    if content_row is None:
+        raise ContentExternalSourceError("Fant ikke content med denne IDen", status_code=404)
+
+    group_id = _get_or_create_group_id(db, group_name)
+    if group_id is None:
+        raise ContentExternalSourceError("Ugyldig gruppenavn", status_code=400)
+
+    db.execute(
+        text(
+            "INSERT IGNORE INTO content_group_membership (content_id, group_id) "
+            "VALUES (:content_id, :group_id)"
+        ),
+        {"content_id": raw_id, "group_id": group_id},
+    )
+    _auto_assign_group_sort_order(db, group_id, [raw_id])
+    db.commit()
+
+    group_row = db.execute(
+        text("SELECT name FROM movie_group WHERE group_id = :group_id"), {"group_id": group_id}
+    ).fetchone()
+
+    return {"status": "ok", "group_id": group_id, "group_name": group_row.name if group_row else group_name}
+
+
+def remove_content_from_group(db: Session, content_id: str, group_id: int) -> dict:
+    """Fjerner én content-rad fra én filmgruppe (fjerner kun raden i
+    content_group_membership for akkurat denne kombinasjonen - filmen
+    beholder alle sine ANDRE gruppetilhørigheter uendret). Brukt av
+    "×"-knappen ved siden av hver gruppe på detaljsiden.
+
+    Selve movie_group-raden slettes ALDRI her, selv om den skulle bli
+    stående uten medlemmer - den kan gjenbrukes senere (samme
+    get-or-create-mønster som ved oppretting).
+    """
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        raise ContentExternalSourceError("Ugyldig content_id", status_code=404)
+
+    result = db.execute(
+        text(
+            "DELETE FROM content_group_membership WHERE content_id = :content_id AND group_id = :group_id"
+        ),
+        {"content_id": raw_id, "group_id": group_id},
+    )
+    db.commit()
+
+    if result.rowcount == 0:
+        raise ContentExternalSourceError("Filmen tilhører ikke denne gruppen", status_code=404)
+
+    return {"status": "ok", "group_id": group_id, "content_id": content_id}
+
+
+def get_groups_for_content(db: Session, raw_id: bytes) -> list[dict]:
+    """Alle filmgrupper en gitt film (raw_id = rå/binær content_id)
+    tilhører, hver med sin egen liste over søsken-filmer i akkurat den
+    gruppen (ekskludert filmen selv) - brukt av get_content_by_id() for
+    "Andre filmer i denne filmgruppen"-seksjonen(e) på detaljsiden.
+
+    Én film kan nå tilhøre 0, 1 eller flere grupper samtidig (many-to-
+    many via content_group_membership) - i motsetning til den gamle
+    content.group_id-kolonnen (fortsatt i databasen, men ikke lenger i
+    bruk) som kun tillot én gruppe.
+
+    Gruppene sorteres alfabetisk på navn (stabil, forutsigbar
+    rekkefølge på detaljsiden uavhengig av når medlemskapet ble
+    opprettet). Søsken-filmene innad i hver gruppe sorteres på
+    sort_order (NULL sist), deretter first_release som fallback -
+    samme logikk som tidligere.
+    """
+
+    membership_rows = db.execute(
+        text(
+            """
+            SELECT cgm.group_id, mg.name AS group_name, cgm.sort_order
+            FROM content_group_membership cgm
+            JOIN movie_group mg ON mg.group_id = cgm.group_id
+            WHERE cgm.content_id = :content_id
+            ORDER BY mg.name ASC
+            """
+        ),
+        {"content_id": raw_id},
+    ).fetchall()
+
+    groups = []
+    for membership in membership_rows:
+        sibling_rows = db.execute(
+            text(
+                """
+                SELECT c.content_id, c.title, c.first_release, c.cover_image, cgm.sort_order
+                FROM content_group_membership cgm
+                JOIN content c ON c.content_id = cgm.content_id
+                WHERE cgm.group_id = :group_id AND cgm.content_id != :content_id
+                ORDER BY (cgm.sort_order IS NULL) ASC, cgm.sort_order ASC, c.first_release ASC
+                """
+            ),
+            {"group_id": membership.group_id, "content_id": raw_id},
+        ).fetchall()
+
+        groups.append(
+            {
+                "group_id": membership.group_id,
+                "group_name": membership.group_name,
+                "sort_order": membership.sort_order,
+                "group_movies": [
+                    {
+                        "content_id": _hex_id(r.content_id),
+                        "title": r.title,
+                        "first_release": (
+                            str(r.first_release)[:10] if r.first_release is not None else None
+                        ),
+                        "cover_image": _to_proxied_cover_image(r.cover_image),
+                        "group_sort_order": r.sort_order,
+                    }
+                    for r in sibling_rows
+                ],
+            }
+        )
+
+    return groups
+
+
 def _auto_assign_group_sort_order(db: Session, group_id: int | None, content_ids: list) -> None:
-    """Foreslår automatisk group_sort_order for filmer som nettopp er
-    lagt til en filmgruppe (enkelt-redigering via "group"-feltet, eller
-    bulk_assign_group()) og som IKKE allerede har en verdi der.
+    """Foreslår automatisk sort_order for filmer som nettopp er lagt
+    til en filmgruppe (add_content_to_group() eller bulk_assign_group())
+    og som IKKE allerede har en verdi der (f.eks. en film som ble
+    fjernet og lagt til igjen).
 
     Rekkefølgen foreslås kronologisk etter first_release (eldste
-    film = lavest tall), og legges til ETTER høyeste group_sort_order
-    som allerede er i bruk i gruppen fra før - slik at en manuelt
-    justert rekkefølge for eksisterende medlemmer aldri overskrives.
-    Filmer uten first_release havner sist blant de som får nytt
-    forslag.
+    film = lavest tall), og legges til ETTER høyeste sort_order som
+    allerede er i bruk i gruppen fra før - slik at en manuelt justert
+    rekkefølge for eksisterende medlemmer aldri overskrives. Filmer
+    uten first_release havner sist blant de som får nytt forslag.
 
     Dette er kun et startpunkt - brukeren kan justere videre med
-    dra-og-slipp (se reorder_group()). Kalles fra update_content_fields()
-    og bulk_assign_group() rett etter at group_id er satt/opprettet;
+    dra-og-slipp (se reorder_group()). Kalles fra add_content_to_group()
+    og bulk_assign_group() rett etter at medlemskapet er satt inn;
     caller har ansvar for commit().
 
     `content_ids` skal være en liste med RÅ (binære) content_id-verdier
@@ -995,7 +1098,7 @@ def _auto_assign_group_sort_order(db: Session, group_id: int | None, content_ids
         return
 
     max_row = db.execute(
-        text("SELECT MAX(group_sort_order) AS max_order FROM content WHERE group_id = :group_id"),
+        text("SELECT MAX(sort_order) AS max_order FROM content_group_membership WHERE group_id = :group_id"),
         {"group_id": group_id},
     ).fetchone()
     next_order = (max_row.max_order or 0) + 1
@@ -1003,11 +1106,13 @@ def _auto_assign_group_sort_order(db: Session, group_id: int | None, content_ids
     rows = db.execute(
         text(
             """
-            SELECT content_id, first_release FROM content
-            WHERE content_id IN :content_ids
-              AND group_id = :group_id
-              AND group_sort_order IS NULL
-            ORDER BY (first_release IS NULL) ASC, first_release ASC
+            SELECT cgm.content_id, c.first_release
+            FROM content_group_membership cgm
+            JOIN content c ON c.content_id = cgm.content_id
+            WHERE cgm.content_id IN :content_ids
+              AND cgm.group_id = :group_id
+              AND cgm.sort_order IS NULL
+            ORDER BY (c.first_release IS NULL) ASC, c.first_release ASC
             """
         ).bindparams(bindparam("content_ids", expanding=True)),
         {"content_ids": content_ids, "group_id": group_id},
@@ -1015,23 +1120,26 @@ def _auto_assign_group_sort_order(db: Session, group_id: int | None, content_ids
 
     for offset, row in enumerate(rows):
         db.execute(
-            text("UPDATE content SET group_sort_order = :order WHERE content_id = :content_id"),
-            {"order": next_order + offset, "content_id": row.content_id},
+            text(
+                "UPDATE content_group_membership SET sort_order = :order "
+                "WHERE content_id = :content_id AND group_id = :group_id"
+            ),
+            {"order": next_order + offset, "content_id": row.content_id, "group_id": group_id},
         )
 
 
 def reorder_group(db: Session, group_id: int, content_ids: list[str]) -> dict:
-    """Setter group_sort_order = 1, 2, 3, ... i henhold til rekkefølgen
-    på content_ids-listen - brukt av dra-og-slipp-sortering av
+    """Setter sort_order = 1, 2, 3, ... i henhold til rekkefølgen på
+    content_ids-listen - brukt av dra-og-slipp-sortering av
     filmgruppe-listen på detaljsiden (se renderGroupMovies() i
     detail.php).
 
-    Kun content-rader som faktisk tilhører group_id blir oppdatert;
-    ukjente/ugyldige id-er eller id-er som tilhører en ANNEN gruppe
-    hoppes stille over (samme "best effort"-mønster som
-    bulk_assign_group()). Kaster ContentExternalSourceError (400) hvis
-    ingen gyldige id-er ble oppdatert, ellers (404) hvis group_id ikke
-    finnes i det hele tatt.
+    Kun content_group_membership-rader som faktisk tilhører group_id
+    blir oppdatert; ukjente/ugyldige id-er eller id-er som tilhører en
+    ANNEN gruppe (eller ingen gruppe i det hele tatt) hoppes stille
+    over (samme "best effort"-mønster som bulk_assign_group()). Kaster
+    ContentExternalSourceError (400) hvis ingen gyldige id-er ble
+    oppdatert, ellers (404) hvis group_id ikke finnes i det hele tatt.
     """
 
     group_row = db.execute(
@@ -1056,7 +1164,7 @@ def reorder_group(db: Session, group_id: int, content_ids: list[str]) -> dict:
         result = db.execute(
             text(
                 """
-                UPDATE content SET group_sort_order = :order
+                UPDATE content_group_membership SET sort_order = :order
                 WHERE content_id = :content_id AND group_id = :group_id
                 """
             ),
@@ -1403,16 +1511,12 @@ MERGEABLE_CONTENT_FIELDS = {
 # minus cover_image (eget endepunkt, se set_content_cover_image())
 # pluss content_type (redigerbart manuelt, men kommer ikke fra
 # TMDB/TVDB-fletting siden det sjelden endrer seg for en eksisterende
-# rad), group (filmgruppe - get-or-create på navn, samme mønster som
-# owner/store - se _get_or_create_group_id()) og group_sort_order
-# (manuell rekkefølge på filmer innenfor samme gruppe, f.eks. for en
-# trilogi - vanlig int-kolonne, ingen get-or-create-logikk). Verken
-# "group" eller "group_sort_order" er med i MERGEABLE_CONTENT_FIELDS,
-# siden de ikke kommer fra TMDB/TVDB-fletting i denne omgangen.
+# rad). Filmgruppe-medlemskap (tidligere "group"/"group_sort_order"
+# her) har egne dedikerte endepunkt siden en film nå kan tilhøre flere
+# grupper samtidig - se add_content_to_group()/
+# remove_content_from_group()/reorder_group().
 EDITABLE_CONTENT_FIELDS = (MERGEABLE_CONTENT_FIELDS - {"cover_image"}) | {
     "content_type",
-    "group",
-    "group_sort_order",
 }
 
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
