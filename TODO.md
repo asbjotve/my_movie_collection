@@ -89,6 +89,15 @@ backlog to pick from.
 
 - [ ] "Loaned out to" tracking for physical discs (easy to lose track
       of who borrowed what).
+- [ ] Ability to change the owner of one or more movies/copies via
+      the frontend/admin UI (currently only settable directly in the
+      database - see the owner facet added in feature/faceted-search,
+      which reads owners but has no way to assign/reassign them).
+- [ ] Ability to add new owners/users via the frontend/admin UI
+      (currently only the `owner` table row itself can be added
+      directly in the database; the owner facet in "Mine filmer" will
+      automatically pick up any new owner once they exist and are
+      linked to physical copies).
 
 ## Frontend / UX
 
