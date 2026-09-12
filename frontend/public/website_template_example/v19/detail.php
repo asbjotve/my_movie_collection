@@ -268,7 +268,8 @@ $sectionAccess = [
     .groupMovieCoverWrap{ position:relative; }
     .groupMovieCover{
       width:100px; height:150px; border-radius:8px; background-color: var(--bg,#0d0f14);
-      background-size:cover; background-position:center; border:1px solid var(--line);
+      border:1px solid var(--line);
+      display:block; object-fit:cover;
     }
     /* Rekkefølge-plassering vises som egen sirkel-badge oppå coveret,
        ADSKILT fra tittelen - unngår forveksling med tall som er en del
@@ -843,7 +844,7 @@ $sectionAccess = [
       const sortActive = sortModeActiveGroupIds.has(group.group_id);
       const cardsHtml = movies.map((m) => {
         const cover = m.cover_image
-          ? `<div class="groupMovieCover" style="background-image:url('${m.cover_image.replace(/'/g, "%27")}')"></div>`
+          ? `<img class="groupMovieCover" loading="lazy" decoding="async" src="${escapeHtml(m.cover_image)}" alt="${escapeHtml(m.title || WTE_I18N.detail.untitled)}">`
           : `<div class="groupMovieCover"></div>`;
         // Rekkefølge-tallet vises som en egen sirkel-badge OVENPÅ coveret
         // (ikke foran tittelen) - "#4 · Politiskolen 4" ble lett forvekslet

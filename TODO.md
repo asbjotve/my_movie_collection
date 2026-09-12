@@ -151,11 +151,16 @@ backlog to pick from.
       user, not just a single shared admin login (role infrastructure
       for this already exists via `require_role()` in
       `app/security.py`, just not used for more than one role yet).
-- [ ] Lazy-load cover images (`loading="lazy"` on `<img>`, or
+- [x] Lazy-load cover images (`loading="lazy"` on `<img>`, or
       `content-visibility: auto` on off-screen cards) - covers are
       currently rendered as CSS `background-image` on divs, which
-      loads them all eagerly regardless of scroll position.
-- [ ] Switch cover rendering from CSS `background-image` to real
+      loads them all eagerly regardless of scroll position. Done
+      together with the item below on `feature/lazy-load-covers`
+      (main "Mine filmer" grid in `index.php` and the group-movies
+      strip in `detail.php`; the small "Bytt cover" poster-picker
+      modal in `detail.php` was left as `background-image` - it's a
+      short on-demand list, not worth the churn).
+- [x] Switch cover rendering from CSS `background-image` to real
       `<img alt="{title}">` tags for accessibility (screen readers get
       nothing from a background-image) and so lazy-loading above is
       possible in the first place.
