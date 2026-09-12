@@ -1379,6 +1379,119 @@ def _get_or_create_group_id(db: Session, name: str | None) -> int | None:
     return result.lastrowid
 
 
+def get_collection_stats(db: Session) -> dict:
+    """Aggregerte statistikk-tall for hele samlingen: totalt antall
+    filmer, fordeling per tiår/sjanger/format, og hvilke filmgrupper
+    som har flest medlemmer. Brukes av statistikksiden (kun
+    lesing - ingen skriving her).
+    """
+    total_movies = db.execute(text("SELECT COUNT(*) FROM content")).scalar() or 0
+
+    format_rows = db.execute(
+        text(
+            """
+            SELECT pc.format AS format, COUNT(*) AS count
+            FROM content_in_physical_collection cipc
+            JOIN physical_collection pc ON pc.collection_id = cipc.collection_id
+            WHERE pc.format IS NOT NULL AND pc.format <> ''
+            GROUP BY pc.format
+            ORDER BY count DESC
+            """
+        )
+    ).fetchall()
+    by_format = [{"format": row.format, "count": row.count} for row in format_rows]
+
+    group_rows = db.execute(
+        text(
+            """
+            SELECT mg.name AS name, COUNT(*) AS count
+            FROM content_group_membership cgm
+            JOIN movie_group mg ON mg.group_id = cgm.group_id
+            GROUP BY mg.group_id, mg.name
+            ORDER BY count DESC, name ASC
+            LIMIT 10
+            """
+        )
+    ).fetchall()
+    most_added_groups = [{"name": row.name, "count": row.count} for row in group_rows]
+
+    # Sjanger finnes ikke som egen kolonne i content, og
+    # content.first_release er NULL for de fleste rader i praksis (ser
+    # ut til å bare bli fylt inn når man eksplisitt "fletter inn" TMDB-
+    # data manuelt). Begge hentes derfor ut av TMDBs lagrede data_json
+    # (genres/release_date), som allerede finnes for samtlige rader fra
+    # tidligere "hent fra TMDB"-kall - med content.first_release som
+    # foretrukket kilde til utgivelsesår der den faktisk er satt.
+    # Gjøres i Python fremfor SQL JSON-funksjoner for enkelhets skyld -
+    # noen hundre rader er uansett trivielt raskt å loope gjennom.
+    first_release_by_id = {
+        _hex_id(row.content_id): row.first_release
+        for row in db.execute(text("SELECT content_id, first_release FROM content")).fetchall()
+    }
+
+    tmdb_rows = db.execute(
+        text(
+            """
+            SELECT content_id, data_json
+            FROM content_external_source
+            WHERE source = 'tmdb' AND data_json IS NOT NULL
+            """
+        )
+    ).fetchall()
+
+    genre_counts: dict[str, int] = {}
+    decade_counts: dict[int, int] = {}
+    seen_content_ids: set[str] = set()
+
+    for row in tmdb_rows:
+        content_id = _hex_id(row.content_id)
+        seen_content_ids.add(content_id)
+        try:
+            data = json.loads(row.data_json)
+        except (TypeError, ValueError):
+            data = {}
+
+        for genre in data.get("genres") or []:
+            name = genre.get("name")
+            if name:
+                genre_counts[name] = genre_counts.get(name, 0) + 1
+
+        year = None
+        first_release = first_release_by_id.get(content_id)
+        if first_release is not None:
+            year = first_release.year
+        else:
+            release_date = data.get("release_date")
+            if release_date and release_date[:4].isdigit():
+                year = int(release_date[:4])
+        if year:
+            decade_counts[(year // 10) * 10] = decade_counts.get((year // 10) * 10, 0) + 1
+
+    # Content-rader uten noen TMDB-kilde i det hele tatt (f.eks. rent
+    # TVDB-baserte serier) - bruk first_release direkte hvis den finnes.
+    for content_id, first_release in first_release_by_id.items():
+        if content_id not in seen_content_ids and first_release is not None:
+            decade = (first_release.year // 10) * 10
+            decade_counts[decade] = decade_counts.get(decade, 0) + 1
+
+    by_genre = [
+        {"genre": name, "count": count}
+        for name, count in sorted(genre_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+    by_decade = [
+        {"decade": decade, "count": count}
+        for decade, count in sorted(decade_counts.items())
+    ]
+
+    return {
+        "total_movies": total_movies,
+        "by_decade": by_decade,
+        "by_genre": by_genre,
+        "by_format": by_format,
+        "most_added_groups": most_added_groups,
+    }
+
+
 def list_group_names(db: Session) -> list[dict]:
     """Alle filmgrupper (kun group_id/name) - brukes til autofullføring
     i redigerings-popupen for "group"-feltet på detaljsiden (se

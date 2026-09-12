@@ -564,6 +564,12 @@ $sectionAccess = [
         </a>
       </div>
       <div class="adminCard card">
+        <a href="stats.php" style="color:inherit; text-decoration:none; display:block;">
+          <h3><?= htmlspecialchars(t('wte.index.administrering.card_stats_title')) ?></h3>
+          <p><?= htmlspecialchars(t('wte.index.administrering.card_stats_desc')) ?></p>
+        </a>
+      </div>
+      <div class="adminCard card">
         <a href="2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
           <h3><?= htmlspecialchars(t('wte.index.administrering.card_2fa_title')) ?></h3>
           <p><?= htmlspecialchars(t('wte.index.administrering.card_2fa_desc')) ?></p>

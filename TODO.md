@@ -80,7 +80,7 @@ backlog to pick from.
 
 ## Statistics / reporting
 
-- [ ] Stats page: number of movies per decade/genre/format
+- [x] Stats page: number of movies per decade/genre/format
       (DVD/Blu-ray/4K), total count, most-added groups, etc.
 - [ ] CSV/Excel export of the collection (useful for insurance
       purposes, since the physical collection has real value).
