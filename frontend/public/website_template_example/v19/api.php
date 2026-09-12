@@ -233,6 +233,50 @@ if (($_GET['action'] ?? '') === 'list_health_check') {
     exit;
 }
 
+// POST ?action=bulk_refresh_tmdb
+// Brukes av "Oppdater flaggede fra TMDB"-knappen på health_check.php:
+// kjører "hent fra TMDB" + "flett inn i content" for alle flaggede
+// content-rader med en TMDB-kobling - se
+// POST /media/health-check/bulk-refresh-tmdb i
+// backend/app/routes/media_catalog_route.py. Krever innlogging (samme
+// som refresh_external_source/merge_external_source over) siden dette
+// er en skrivende bulk-operasjon. Lang CURLOPT_TIMEOUT siden jobben
+// kan ta et halvt minutt eller mer (rate-limitert mot TMDB, se
+// bulk_refresh_tmdb_for_flagged_content()).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_refresh_tmdb') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    // Kan ta et halvt minutt eller mer (rate-limitert mot TMDB) - løft
+    // PHPs egen execution time-grense for denne ene forespørselen, i
+    // tillegg til den lange CURLOPT_TIMEOUT-en under.
+    set_time_limit(150);
+
+    $bulkUrl = MEDIA_API_BASE_URL . '/media/health-check/bulk-refresh-tmdb';
+
+    $ch = curl_init($bulkUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 120,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=list_covers&id=<hex content_id>
 // Brukes av "Bytt cover"-modalen på detail.php: lister alle TMDB-
 // postere som er tilgjengelige (fra sist lagrede data_json - ingen nye

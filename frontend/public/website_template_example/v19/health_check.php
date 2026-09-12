@@ -58,6 +58,12 @@ $username = require_login();
     border-radius:6px; padding:6px 10px; font-size:12px; cursor:pointer;
   }
   .filterRow button.active{ border-color:var(--accent); color:var(--accent); }
+  .btn{
+    background:var(--bg); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer;
+  }
+  .btn:hover{ border-color:var(--accent); }
+  .btn:disabled{ opacity:.5; cursor:default; }
 </style>
 </head>
 <body>
@@ -75,6 +81,8 @@ $username = require_login();
   <div class="card" id="listCard" style="display:none;">
     <h2 id="listTitle"></h2>
     <div class="filterRow" id="filterRow"></div>
+    <button type="button" id="btnBulkRefreshTmdb" class="btn" style="margin-bottom:14px;">Oppdater flaggede fra TMDB</button>
+    <p id="bulkRefreshStatus" class="loadingText" style="display:none;"></p>
     <table>
       <thead><tr><th>Tittel</th><th>Problemer</th></tr></thead>
       <tbody id="listBody"></tbody>
@@ -121,60 +129,104 @@ $username = require_login();
     `).join('');
   }
 
-  try {
-    const res = await fetch('api.php?action=list_health_check');
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status);
-    }
-    const data = await res.json();
+  async function loadHealthCheck() {
+    try {
+      const res = await fetch('api.php?action=list_health_check');
+      if (!res.ok) {
+        throw new Error('HTTP ' + res.status);
+      }
+      const data = await res.json();
 
-    loadingMsg.style.display = 'none';
+      loadingMsg.style.display = 'none';
+      errorMsg.style.display = 'none';
 
-    const summaryGrid = document.getElementById('summaryGrid');
-    const counts = data.issue_counts || {};
-    summaryGrid.innerHTML = Object.keys(ISSUE_LABELS).map(code => `
-      <div class="summaryItem">
-        <div class="summaryCount ${counts[code] ? '' : 'zero'}">${counts[code] || 0}</div>
-        <div class="summaryLabel">${escapeHtml(ISSUE_LABELS[code])}</div>
-      </div>
-    `).join('');
-    summaryGrid.style.display = '';
+      const summaryGrid = document.getElementById('summaryGrid');
+      const counts = data.issue_counts || {};
+      summaryGrid.innerHTML = Object.keys(ISSUE_LABELS).map(code => `
+        <div class="summaryItem">
+          <div class="summaryCount ${counts[code] ? '' : 'zero'}">${counts[code] || 0}</div>
+          <div class="summaryLabel">${escapeHtml(ISSUE_LABELS[code])}</div>
+        </div>
+      `).join('');
+      summaryGrid.style.display = '';
 
-    allItems = data.items || [];
-    if (allItems.length) {
+      allItems = data.items || [];
+      activeFilter = null;
+
       const filterRow = document.getElementById('filterRow');
-      const allBtn = document.createElement('button');
-      allBtn.textContent = 'Alle (' + allItems.length + ')';
-      allBtn.className = 'active';
-      allBtn.onclick = () => {
-        activeFilter = null;
-        filterRow.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-        allBtn.classList.add('active');
-        renderList();
-      };
-      filterRow.appendChild(allBtn);
+      filterRow.innerHTML = '';
+      const listCard = document.getElementById('listCard');
 
-      for (const code of Object.keys(ISSUE_LABELS)) {
-        if (!counts[code]) continue;
-        const btn = document.createElement('button');
-        btn.textContent = ISSUE_LABELS[code] + ' (' + counts[code] + ')';
-        btn.onclick = () => {
-          activeFilter = code;
+      if (allItems.length) {
+        const allBtn = document.createElement('button');
+        allBtn.textContent = 'Alle (' + allItems.length + ')';
+        allBtn.className = 'active';
+        allBtn.onclick = () => {
+          activeFilter = null;
           filterRow.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+          allBtn.classList.add('active');
           renderList();
         };
-        filterRow.appendChild(btn);
-      }
+        filterRow.appendChild(allBtn);
 
-      document.getElementById('listCard').style.display = '';
-      renderList();
+        for (const code of Object.keys(ISSUE_LABELS)) {
+          if (!counts[code]) continue;
+          const btn = document.createElement('button');
+          btn.textContent = ISSUE_LABELS[code] + ' (' + counts[code] + ')';
+          btn.onclick = () => {
+            activeFilter = code;
+            filterRow.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderList();
+          };
+          filterRow.appendChild(btn);
+        }
+
+        listCard.style.display = '';
+        renderList();
+      } else {
+        listCard.style.display = 'none';
+      }
+    } catch (err) {
+      loadingMsg.style.display = 'none';
+      errorMsg.style.display = '';
+      errorMsg.textContent = 'Kunne ikke hente health check-data: ' + err.message;
     }
-  } catch (err) {
-    loadingMsg.style.display = 'none';
-    errorMsg.style.display = '';
-    errorMsg.textContent = 'Kunne ikke hente health check-data: ' + err.message;
   }
+
+  // "Oppdater flaggede fra TMDB" - kjører "hent fra kilde" + "flett inn
+  // i content" i bulk for alle content-rader som har en TMDB-relevant
+  // flagg og en TMDB-kobling (se
+  // bulk_refresh_tmdb_for_flagged_content() i media_catalog.py). Kan ta
+  // et halvt minutt eller mer (rate-limitert mot TMDB), derfor
+  // deaktiveres knappen og en statustekst vises mens den kjører.
+  const btnBulkRefreshTmdb = document.getElementById('btnBulkRefreshTmdb');
+  const bulkRefreshStatus = document.getElementById('bulkRefreshStatus');
+  btnBulkRefreshTmdb.addEventListener('click', async () => {
+    if (!confirm('Dette henter fersk TMDB-data for alle flaggede filmer med TMDB-kobling og fletter dem inn - kan ta et halvt minutt eller mer. Fortsette?')) {
+      return;
+    }
+    btnBulkRefreshTmdb.disabled = true;
+    bulkRefreshStatus.style.display = '';
+    bulkRefreshStatus.textContent = 'Oppdaterer fra TMDB, vennligst vent…';
+    try {
+      const res = await fetch('api.php?action=bulk_refresh_tmdb', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.detail || ('HTTP ' + res.status));
+      }
+      bulkRefreshStatus.textContent =
+        `Ferdig: ${data.refreshed} av ${data.total_candidates} oppdatert` +
+        (data.errors && data.errors.length ? `, ${data.errors.length} feilet.` : '.');
+      await loadHealthCheck();
+    } catch (err) {
+      bulkRefreshStatus.textContent = 'Feilet: ' + err.message;
+    } finally {
+      btnBulkRefreshTmdb.disabled = false;
+    }
+  });
+
+  await loadHealthCheck();
 })();
 </script>
 </body>

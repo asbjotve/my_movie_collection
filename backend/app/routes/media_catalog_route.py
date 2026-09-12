@@ -19,6 +19,7 @@ from app.services.media_catalog import (
     add_content_to_group,
     backfill_tmdb_cover_images,
     bulk_assign_group,
+    bulk_refresh_tmdb_for_flagged_content,
     get_content_by_id,
     get_collection_stats,
     get_data_health_issues,
@@ -319,6 +320,23 @@ def backfill_tmdb_covers(
     (f.eks. etter en stor bulk-import).
     """
     return backfill_tmdb_cover_images(db)
+
+
+@router.post("/health-check/bulk-refresh-tmdb")
+def bulk_refresh_tmdb(
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Kjører "hent fra TMDB" + "flett inn i content" for alle
+    content-rader som p.t. er flagget av health-check-et med et
+    TMDB-relevant problem (mangler cover/overview/runtime/imdb_id) og
+    har en TMDB-kobling - en bulk-knapp-variant av de to eksisterende
+    enkelt-handlingene, brukt fra "Oppdater flaggede fra TMDB"-knappen
+    på health_check.php. Rate-limitert (samme 35 req/sek-grense som
+    tmdb-covers-backfillen over). Se
+    bulk_refresh_tmdb_for_flagged_content() for detaljer.
+    """
+    return bulk_refresh_tmdb_for_flagged_content(db)
 
 
 @router.get("/content/{content_id}/covers", dependencies=[Depends(require_api_key)])

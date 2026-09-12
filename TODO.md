@@ -64,9 +64,23 @@ backlog to pick from.
       image, overview, runtime, or invalid/missing TMDB/TVDB IDs. Built
       as `health_check.php` on `feature/data-health-check`
       (`GET /media/health-check`).
-- [ ] Batch/bulk "refresh from TMDB/TVDB" for many items at once,
+- [x] Batch/bulk "refresh from TMDB/TVDB" for many items at once,
       instead of one at a time (now that the single-item timeout issue
-      is understood).
+      is understood). Built as
+      `bulk_refresh_tmdb_for_flagged_content()` on
+      `feature/bulk-refresh-tmdb`
+      (`POST /media/health-check/bulk-refresh-tmdb`, "Oppdater
+      flaggede fra TMDB"-knapp on `health_check.php`). TMDB only for
+      now, rate-limited to `TMDB_MAX_REQUESTS_PER_SECOND`; TVDB was
+      explicitly deferred (needs `fetch_tvdb_details()` refactored to
+      cache one login token per batch run instead of logging in per
+      call, and its rate limit isn't clearly documented) - see
+      separate TODO item below.
+- [ ] Batch/bulk "refresh from TVDB" - same idea as the TMDB bulk
+      refresh above, but blocked on refactoring `fetch_tvdb_details()`
+      to reuse a single login token per batch (it currently logs in
+      to TVDB on every call) and picking a conservative rate limit
+      since TVDB's isn't clearly documented.
 - [ ] Duplicate detection (same TMDB/TVDB ID registered more than
       once, e.g. from a bad import).
 - [ ] Background job queue (Celery, RQ, or FastAPI `BackgroundTasks`)

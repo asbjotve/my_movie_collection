@@ -1659,6 +1659,108 @@ def get_data_health_issues(db: Session) -> dict:
     }
 
 
+def bulk_refresh_tmdb_for_flagged_content(db: Session) -> dict:
+    """Bulk-variant av de to eksisterende enkelt-handlingene "hent fra
+    kilde" (update_content_external_source()) + "flett inn i content"
+    (merge_content_from_source()) - kjører begge, for alle content-rader
+    som er flagget av get_data_health_issues() med et TMDB-relevant
+    problem (mangler cover/overview/runtime/imdb_id) OG som faktisk har
+    en TMDB-kobling. Content-rader som mangler TMDB-kobling i det hele
+    tatt (missing_external_source) hoppes over her - det krever et nytt
+    søk/import, ikke en refresh av en eksisterende kobling.
+
+    Tanken er at TMDB kan ha fått data siden sist (f.eks. en overview
+    som manglet da filmen først ble lagt til), så en frisk henting kan
+    løse flagget uten at brukeren må gå gjennom alle filmene manuelt én
+    og én.
+
+    Rate-limitert til TMDB_MAX_REQUESTS_PER_SECOND (samme grense som
+    backfill_tmdb_cover_images() - se den for begrunnelse). Committer
+    (både refresh og merge) én rad om gangen, slik at et evt. avbrudd
+    underveis ikke mister alt som er unnagjort så langt.
+    """
+    content_rows = db.execute(
+        text("SELECT content_id, cover_image, imdb_id FROM content")
+    ).fetchall()
+    content_by_id = {_hex_id(row.content_id): row for row in content_rows}
+
+    tmdb_rows = db.execute(
+        text(
+            """
+            SELECT content_id, external_id, data_json
+            FROM content_external_source
+            WHERE source = 'tmdb'
+            """
+        )
+    ).fetchall()
+
+    candidates = []
+    for row in tmdb_rows:
+        content_id = _hex_id(row.content_id)
+        content_info = content_by_id.get(content_id)
+        if content_info is None:
+            continue
+        try:
+            data = json.loads(row.data_json) if row.data_json else {}
+        except (TypeError, ValueError):
+            data = {}
+        needs_refresh = (
+            not content_info.cover_image
+            or not content_info.imdb_id
+            or not data.get("overview")
+            or not data.get("runtime")
+        )
+        if needs_refresh:
+            candidates.append((content_id, row.external_id))
+
+    total_candidates = len(candidates)
+    refreshed = 0
+    errors: list[dict] = []
+
+    batch_start = time.monotonic()
+    requests_in_batch = 0
+
+    for content_id, external_id in candidates:
+        if requests_in_batch >= TMDB_MAX_REQUESTS_PER_SECOND:
+            elapsed = time.monotonic() - batch_start
+            if elapsed < 1.0:
+                time.sleep(1.0 - elapsed)
+            batch_start = time.monotonic()
+            requests_in_batch = 0
+
+        try:
+            update_content_external_source(db, "tmdb", external_id)
+            merge_content_from_source(db, "tmdb", external_id)
+            refreshed += 1
+        except ContentExternalSourceError as e:
+            db.rollback()
+            errors.append(
+                {
+                    "content_id": content_id,
+                    "external_id": external_id,
+                    "error": str(e),
+                }
+            )
+        except Exception as e:  # pylint: disable=broad-except
+            # Uventet feil (f.eks. nettverk/DB) skal ikke stoppe resten
+            # av batchen - logg raden som feilet og fortsett med neste.
+            db.rollback()
+            errors.append(
+                {
+                    "content_id": content_id,
+                    "external_id": external_id,
+                    "error": f"Uventet feil: {e}",
+                }
+            )
+        requests_in_batch += 1
+
+    return {
+        "total_candidates": total_candidates,
+        "refreshed": refreshed,
+        "errors": errors,
+    }
+
+
 def list_group_names(db: Session) -> list[dict]:
     """Alle filmgrupper (kun group_id/name) - brukes til autofullføring
     i redigerings-popupen for "group"-feltet på detaljsiden (se
