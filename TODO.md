@@ -1,0 +1,237 @@
+# Project TODO / Roadmap
+
+Ideas and suggested improvements for `my_movie_collection`, gathered
+during development discussions. Not prioritized or scheduled - just a
+backlog to pick from.
+
+## Database / migrations
+
+- [x] Set up Alembic for `mmc_userdb` (users, section_access,
+      app_settings) - done on `feature/alembic-migrations`.
+- [x] Model the `db_mediearkiv` tables (content, movie_group, disc,
+      physical_collection, etc. - 20 tables total) as SQLAlchemy ORM
+      classes, so Alembic can manage that schema too (currently only
+      handled via manual SQL files in `backend/db_backups/`).
+      - [x] Batch 1: `movie_group`, `owner`, `store`, `storage`,
+            `physical_collection`.
+      - [x] Batch 2: `content`, `physical_copy`, `disc`, `wishlist`,
+            `custom_lists`.
+      - [x] Batch 3: `content_external_source`,
+            `content_group_membership`,
+            `content_in_physical_collection`, `disc_related_content`,
+            `list_items`.
+      - [x] Batch 4: `disc_bonus_item`, `disc_in_storage`, `disc_in`,
+            `custom_list_entries` - all "real" tables now modeled.
+- [x] Investigate/remove the `list` table in `db_mediearkiv` - confirmed
+      by the user to be an early, superseded prototype of what became
+      custom_lists/list_items/custom_list_entries. Was empty (0 rows)
+      and had no foreign-key references. Dropped via Alembic migration
+      `1b2e23711528` on `feature/alembic-migrations`.
+- [ ] Automated DB backups (e.g. a cron job running `mysqldump` to a
+      file or off-site storage), instead of relying on manual backups.
+- [ ] Periodically test that a backup can actually be restored (a
+      backup that's never been restore-tested is not a verified
+      backup).
+
+## DevOps / CI / deployment
+
+- [ ] A CI pipeline (e.g. GitHub Actions) that runs on pull requests:
+      Python syntax/import checks, `pip-audit`/`composer audit` for
+      known vulnerable dependencies, and any tests added per the
+      "automated tests" item below.
+- [ ] Dockerize the stack (backend + MySQL/MariaDB, optionally the PHP
+      frontend) for a reproducible local dev setup and easier
+      onboarding if someone else ever wants to run the project.
+- [ ] Structured (JSON) logging for the backend instead of plain-text
+      log lines, making the existing `fastapi-out.log`/
+      `fastapi-error.log` easier to search/filter (e.g. by request
+      path or status code) when debugging issues like the ones found
+      in this project before.
+- [ ] Alerting on backend errors (e.g. a webhook/email notification on
+      unhandled 500s) instead of only noticing them by manually
+      tailing logs after the fact.
+- [ ] A secrets-scanning check in CI (e.g. gitleaks) to catch an
+      accidentally committed `.env`/API key before it reaches GitHub.
+
+## Data quality / catalog maintenance
+
+- [ ] "Health check" view that flags content rows with missing cover
+      image, overview, runtime, or invalid/missing TMDB/TVDB IDs.
+- [ ] Batch/bulk "refresh from TMDB/TVDB" for many items at once,
+      instead of one at a time (now that the single-item timeout issue
+      is understood).
+- [ ] Duplicate detection (same TMDB/TVDB ID registered more than
+      once, e.g. from a bad import).
+- [ ] Background job queue (Celery, RQ, or FastAPI `BackgroundTasks`)
+      for TMDB/TVDB imports, so large imports don't depend on
+      ever-increasing proxy/timeout settings.
+
+## Search / browsing
+
+- [ ] Full-text / faceted search across the whole collection (title,
+      cast, genre, year), not just per-list browsing.
+- [ ] Fix TMDB search failing for purely numeric titles (e.g. "1917")
+      in `tmdb_live_search` - the year-extraction regex currently
+      strips the entire query when the title itself is just a year.
+      Needs a fallback: if stripping the year leaves an empty search
+      string, keep the original query instead.
+- [ ] "What should I watch tonight?" - random suggestion button,
+      optionally filterable (e.g. unwatched, recently added).
+
+## Statistics / reporting
+
+- [ ] Stats page: number of movies per decade/genre/format
+      (DVD/Blu-ray/4K), total count, most-added groups, etc.
+- [ ] CSV/Excel export of the collection (useful for insurance
+      purposes, since the physical collection has real value).
+
+## Physical collection features
+
+- [ ] "Loaned out to" tracking for physical discs (easy to lose track
+      of who borrowed what).
+
+## Frontend / UX
+
+- [ ] Mobile-responsive layout for `website_template_example`
+      (`index.php` currently has no `@media` breakpoints, unlike
+      `detail.php` which already has two). Concrete starting points:
+      - Add a `max-width: 480px` breakpoint for the movie card grid
+        (currently `grid-template-columns: repeat(auto-fill,
+        minmax(200px, 1fr))`).
+      - Reduce `main` padding on small screens.
+      - Stack the filter bar vertically instead of `flex-wrap` on
+        narrow viewports.
+      - Verify the edit modal doesn't cause horizontal overflow on
+        mobile widths (375px/390px).
+- [ ] Barcode scanning from a phone camera (e.g. the `BarcodeDetector`
+      web API) as a faster alternative to manual entry in
+      `temp_add_movie_barcode` (keep that page as-is otherwise - it's
+      intentionally a quick "add while out shopping" tool, not meant
+      to be replaced).
+- [ ] Multi-user support: separate wishlists/preferences per logged-in
+      user, not just a single shared admin login (role infrastructure
+      for this already exists via `require_role()` in
+      `app/security.py`, just not used for more than one role yet).
+- [ ] Lazy-load cover images (`loading="lazy"` on `<img>`, or
+      `content-visibility: auto` on off-screen cards) - covers are
+      currently rendered as CSS `background-image` on divs, which
+      loads them all eagerly regardless of scroll position.
+- [ ] Switch cover rendering from CSS `background-image` to real
+      `<img alt="{title}">` tags for accessibility (screen readers get
+      nothing from a background-image) and so lazy-loading above is
+      possible in the first place.
+- [ ] Self-host Bootstrap (via Composer/npm) instead of loading it
+      from `cdn.jsdelivr.net`, so the site still works if that CDN is
+      blocked or unreachable on a given network.
+- [ ] Move the edit-mode/lock-mode toggle (currently `localStorage`,
+      shared browser-wide) to a per-user, server-side preference -
+      right now it "leaks" between different people sharing the same
+      browser/machine.
+- [ ] Loading skeleton/spinner while a page or panel is fetching data,
+      instead of only a plain status text line.
+- [ ] Dark/light theme toggle based on `prefers-color-scheme` - low
+      effort since the CSS already uses variables (`var(--accent)`,
+      `var(--muted)`, etc.).
+- [ ] Reflect the current search/filter state in the URL (query
+      params), so a filtered view can be bookmarked/shared/refreshed
+      without losing it - today only the `panel` parameter is synced
+      to the URL.
+- [ ] Toast/notification component for success/error messages instead
+      of plain inline status text, for more consistent feedback across
+      pages.
+- [ ] Pagination or infinite scroll for the movie list once the
+      collection grows large, instead of rendering everything at
+      once.
+- [ ] "Similar movies" suggestions based on shared genre/group data
+      already stored, shown on the detail page.
+- [ ] Printable/print-friendly view of the full collection (useful for
+      insurance documentation, alongside the CSV/Excel export idea
+      above).
+- [ ] Keyboard shortcut to focus the search field (e.g. `/`), and
+      verify all interactive elements have visible focus indicators
+      for keyboard-only navigation.
+- [ ] CSRF protection for state-changing POST requests (login, edit,
+      delete, group management, etc.) - none of the PHP endpoints
+      currently issue/check a CSRF token; session-cookie auth alone is
+      vulnerable to cross-site request forgery from another tab.
+- [ ] Basic security response headers (`Content-Security-Policy`,
+      `X-Frame-Options`/`frame-ancestors`, `X-Content-Type-Options:
+      nosniff`) - not currently set anywhere in the PHP apps or Apache
+      vhost config.
+- [ ] Consistent network-error handling for `fetch()` calls (e.g. show
+      a clear "connection lost" message and a retry button) - several
+      places assume the request either succeeds or returns JSON with
+      an `error` field, without handling outright network failures.
+- [ ] Undo/confirmation before destructive actions everywhere, not
+      just group removal - e.g. deleting a movie or a custom list
+      currently may not prompt for confirmation the same way
+      `groups_remove_confirm` does in detail.php.
+- [ ] Export/import a custom list (`custom_list_manager`) as
+      JSON/CSV, so lists can be backed up or shared outside the app.
+- [ ] Consolidate `bulk_add_movies_form` (currently 14 parallel
+      versions, `v1`-`v14`) down to the one actually in use, same idea
+      as the general "retire old versioned folders" cleanup item
+      above, called out separately since it's the most extreme case.
+- [ ] Client-side form validation feedback (e.g. highlighting the
+      specific invalid field) instead of only a generic status-line
+      message like "name is required".
+- [ ] A visible session-expiry warning (e.g. "you'll be logged out in
+      2 minutes") before the JWT access token actually expires, so an
+      in-progress edit isn't silently lost to a 401.
+- [ ] Show a diff/preview of what would actually change before
+      applying a TMDB/TVDB "refresh + merge" (currently it fetches and
+      merges immediately; a preview would let the user catch an
+      unwanted overwrite before it happens, complementing the existing
+      per-field `locked_fields` protection).
+- [ ] Debounce the free-text search/filter input on `index.php`
+      (`mineFilmerSearch` currently re-renders on every keystroke) -
+      not an issue yet, but worth doing before/alongside the
+      pagination item above as the collection grows.
+- [ ] Bulk actions on the movie list (e.g. select several movies and
+      add them all to a group/list at once), instead of one at a time.
+- [ ] A `CHANGELOG.md` documenting notable changes per release/version,
+      given how many versioned folders (`v1`...`v19`) already exist
+      across the different apps.
+- [ ] Explicit `Secure`, `HttpOnly`, and `SameSite` cookie flags for
+      the PHP session cookie (verify current
+      `session_set_cookie_params()` call in `_shared/auth.php` sets
+      all three, since the site is already served over HTTPS).
+- [ ] "Skip to content" link and other basic accessibility landmarks
+      (`<main>`, `<nav>` roles) for keyboard/screen-reader users.
+- [ ] A simple `/health` endpoint on the backend (DB connection check,
+      uptime) that could be polled by an external monitor or a cron
+      job, so a crashed/stuck PM2 process is noticed automatically
+      instead of only when someone tries to use the site.
+
+## Backend / security hardening
+
+- [ ] Rate-limiting on `/auth/login` (and `/auth/login/2fa`) to guard
+      against brute-force password/2FA guessing.
+- [ ] Refresh tokens, so users don't need to log in again every 30
+      minutes (current `ACCESS_TOKEN_EXPIRE_MINUTES`).
+- [ ] Review remaining raw-SQL call sites for proper parameterization
+      (avoid SQL injection risk in code paths outside the ORM).
+- [ ] General API rate-limiting (not just `/auth/login`) to guard
+      against accidental or malicious abuse of the write endpoints.
+- [ ] A consistent error-response shape across the PHP proxy layer and
+      the FastAPI backend (e.g. always `{"error": "..."}` with the
+      same keys), so frontend error handling doesn't need to guess
+      between `error`/`detail`/plain-text bodies.
+
+## New features
+
+- [ ] Read-only share link for a custom list (e.g. a public,
+      unguessable URL) so a list can be shared with friends/family
+      without giving them a login.
+- [ ] Price/availability tracking for wishlist items (e.g. periodic
+      check against a shop/price API), to get notified when a wanted
+      title becomes available or drops in price.
+
+## Technical debt / cleanup
+
+- [ ] Consolidate/retire old versioned folders (`v3` ... `v19`, etc.)
+      once a given app is confirmed stable on its latest version, to
+      reduce confusion about which one is actually "live".
+- [ ] Add automated tests (no `tests/` directory currently exists) -
+      even minimal coverage for critical flows (auth, physical
+      collection import) would catch regressions early.
