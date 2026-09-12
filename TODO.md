@@ -98,6 +98,10 @@ backlog to pick from.
       directly in the database; the owner facet in "Mine filmer" will
       automatically pick up any new owner once they exist and are
       linked to physical copies).
+- [ ] Ability to specify owner when adding movies via
+      `bulk_add_movies_form` (doesn't exist today - this is one of
+      the reasons owner_id was NULL on every physical_copy row until
+      it was manually backfilled).
 
 ## Frontend / UX
 
