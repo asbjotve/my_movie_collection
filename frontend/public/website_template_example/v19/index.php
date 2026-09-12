@@ -459,6 +459,9 @@ $sectionAccess = [
       <div class="chiprow" id="mineFilmerTypeChips"></div>
       <button type="button" class="btn facetToggleBtn" id="btnToggleGenreFacet" data-facet="genre"><?= htmlspecialchars(t('wte.index.mine_filmer.genre_filter_label')) ?><span class="facetCount" id="mineFilmerGenreCount" style="display:none;"></span></button>
       <button type="button" class="btn facetToggleBtn" id="btnToggleDecadeFacet" data-facet="decade"><?= htmlspecialchars(t('wte.index.mine_filmer.decade_filter_label')) ?><span class="facetCount" id="mineFilmerDecadeCount" style="display:none;"></span></button>
+      <?php if ($isLoggedIn): ?>
+      <button type="button" class="btn facetToggleBtn" id="btnToggleOwnerFacet" data-facet="owner"><?= htmlspecialchars(t('wte.index.mine_filmer.owner_filter_label')) ?><span class="facetCount" id="mineFilmerOwnerCount" style="display:none;"></span></button>
+      <?php endif; ?>
       <label class="unwatchedToggle">
         <input id="mineFilmerOnlyUnwatched" type="checkbox" />
         <?= htmlspecialchars(t('wte.index.mine_filmer.only_unwatched')) ?>
@@ -472,15 +475,25 @@ $sectionAccess = [
       <?php endif; ?>
     </div>
 
-    <!-- Sjanger-/tiår-facetter (fritekstsøket over dekker allerede
-         tittel/skuespiller/sjanger/år - disse to radene er
+    <!-- Sjanger-/tiår-/eier-facetter (fritekstsøket over dekker
+         allerede tittel/skuespiller/sjanger/år - disse radene er
          multi-select "AND mellom kategorier, OR innad i kategorien"
          hurtigfiltre i tillegg, se getFilteredMineFilmer()) - skjult
-         bak "Sjanger"/"Tiår"-knappene over til de trengs, siden
-         sjangerlisten alene fort blir 15-20 chips (skjermplass). -->
+         bak "Sjanger"/"Tiår"/"Eier"-knappene over til de trengs,
+         siden sjangerlisten alene fort blir 15-20 chips
+         (skjermplass). Eier-facetten vises kun når innlogget - den
+         bygges dynamisk fra dataene (samme mønster som sjanger/tiår),
+         så nye eiere dukker opp automatisk uten kodeendring så snart
+         de er koblet til et fysisk eksemplar (se owners-feltet i
+         list_content() i media_catalog.py). -->
     <div class="filterBar" id="mineFilmerGenreFacetRow" style="display:none;">
       <div class="chiprow" id="mineFilmerGenreChips"></div>
     </div>
+    <?php if ($isLoggedIn): ?>
+    <div class="filterBar" id="mineFilmerOwnerFacetRow" style="display:none;">
+      <div class="chiprow" id="mineFilmerOwnerChips"></div>
+    </div>
+    <?php endif; ?>
     <div class="filterBar" id="mineFilmerDecadeFacetRow" style="display:none;">
       <div class="chiprow" id="mineFilmerDecadeChips"></div>
       <button type="button" class="btn" id="btnResetMineFilmerFilters"><?= htmlspecialchars(t('wte.index.mine_filmer.reset_filters')) ?></button>
@@ -747,10 +760,15 @@ $sectionAccess = [
   let mineFilmerActiveType = null;
   const mineFilmerActiveGenres = new Set();
   const mineFilmerActiveDecades = new Set();
+  const mineFilmerActiveOwners = new Set();
   const mineFilmerSearch = document.getElementById("mineFilmerSearch");
   const mineFilmerTypeChips = document.getElementById("mineFilmerTypeChips");
   const mineFilmerGenreChips = document.getElementById("mineFilmerGenreChips");
   const mineFilmerDecadeChips = document.getElementById("mineFilmerDecadeChips");
+  // Eier-chippene finnes bare i DOM-en når innlogget (se PHP-if rundt
+  // #mineFilmerOwnerFacetRow) - så alt eier-relatert JS må tåle at
+  // disse elementene er null når man ikke er innlogget.
+  const mineFilmerOwnerChips = document.getElementById("mineFilmerOwnerChips");
   const mineFilmerOnlyUnwatched = document.getElementById("mineFilmerOnlyUnwatched");
   const btnResetMineFilmerFilters = document.getElementById("btnResetMineFilmerFilters");
 
@@ -788,6 +806,14 @@ $sectionAccess = [
   const updateDecadeFacetCount = setupFacetToggle(
     "btnToggleDecadeFacet", "mineFilmerDecadeFacetRow", "mineFilmerDecadeCount", mineFilmerActiveDecades
   );
+  // Eier-knappen/raden finnes bare når innlogget - setupFacetToggle()
+  // slår opp elementer via id, så vi hopper bare over dette når de
+  // ikke finnes i DOM-en.
+  const updateOwnerFacetCount = document.getElementById("btnToggleOwnerFacet")
+    ? setupFacetToggle(
+        "btnToggleOwnerFacet", "mineFilmerOwnerFacetRow", "mineFilmerOwnerCount", mineFilmerActiveOwners
+      )
+    : () => {};
 
   function getFilteredMineFilmer(){
     const term = mineFilmerSearch.value.trim().toLowerCase();
@@ -798,6 +824,7 @@ $sectionAccess = [
       if (showUnwatched && item.watched_flag) return false;
       if (mineFilmerActiveGenres.size && !(item.genres || []).some(g => mineFilmerActiveGenres.has(g))) return false;
       if (mineFilmerActiveDecades.size && !mineFilmerActiveDecades.has(item.decade)) return false;
+      if (mineFilmerActiveOwners.size && !(item.owners || []).some(o => mineFilmerActiveOwners.has(o))) return false;
       if (!term) return true;
 
       const haystack = [
@@ -870,17 +897,44 @@ $sectionAccess = [
     }
   }
 
+  // Eier-facetten vises kun for innloggede brukere (personlig/privat
+  // kontekst) - se PHP-if rundt HTML-elementene. Bygges dynamisk fra
+  // owners-feltet backend nå leverer per content-objekt, så nye eiere
+  // dukker automatisk opp her så snart de er koblet til et fysisk
+  // eksemplar i databasen - ingen kodeendring nødvendig.
+  function renderMineFilmerOwnerChips(){
+    if (!mineFilmerOwnerChips) return;
+    const owners = [...new Set(mineFilmerData.flatMap(i => i.owners || []))].sort();
+    mineFilmerOwnerChips.innerHTML = "";
+    for (const o of owners){
+      const el = document.createElement("div");
+      el.className = "chip btn" + (mineFilmerActiveOwners.has(o) ? " active" : "");
+      el.textContent = o;
+      el.onclick = () => {
+        if (mineFilmerActiveOwners.has(o)) mineFilmerActiveOwners.delete(o);
+        else mineFilmerActiveOwners.add(o);
+        renderMineFilmerOwnerChips();
+        updateOwnerFacetCount();
+        renderMineFilmer();
+      };
+      mineFilmerOwnerChips.appendChild(el);
+    }
+  }
+
   btnResetMineFilmerFilters.addEventListener("click", () => {
     mineFilmerSearch.value = "";
     mineFilmerActiveType = null;
     mineFilmerActiveGenres.clear();
     mineFilmerActiveDecades.clear();
+    mineFilmerActiveOwners.clear();
     mineFilmerOnlyUnwatched.checked = false;
     renderMineFilmerTypeChips();
     renderMineFilmerGenreChips();
     renderMineFilmerDecadeChips();
+    renderMineFilmerOwnerChips();
     updateGenreFacetCount();
     updateDecadeFacetCount();
+    updateOwnerFacetCount();
     renderMineFilmer();
   });
 
@@ -926,6 +980,7 @@ $sectionAccess = [
     renderMineFilmerTypeChips();
     renderMineFilmerGenreChips();
     renderMineFilmerDecadeChips();
+    renderMineFilmerOwnerChips();
     renderMineFilmer();
   }
 

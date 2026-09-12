@@ -45,6 +45,7 @@ return [
                 'chip_all'            => 'Alle',
                 'genre_filter_label'  => 'Sjanger:',
                 'decade_filter_label' => 'Tiår:',
+                'owner_filter_label'  => 'Eier:',
                 'reset_filters'       => 'Nullstill filtre',
                 'watched'             => 'Sett',
                 'unwatched'           => 'Ikke sett',

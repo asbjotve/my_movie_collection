@@ -42,6 +42,7 @@ return [
                 'chip_all'            => 'All',
                 'genre_filter_label'  => 'Genre:',
                 'decade_filter_label' => 'Decade:',
+                'owner_filter_label'  => 'Owner:',
                 'reset_filters'       => 'Reset filters',
                 'watched'             => 'Watched',
                 'unwatched'           => 'Unwatched',

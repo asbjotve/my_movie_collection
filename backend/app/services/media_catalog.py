@@ -530,6 +530,19 @@ def list_content(db: Session) -> list[dict]:
         )
     ).fetchall()
 
+    owner_rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT
+                cipc.content_id AS content_id,
+                o.name AS owner_name
+            FROM content_in_physical_collection cipc
+            JOIN physical_copy pcp ON pcp.collection_id = cipc.collection_id
+            JOIN owner o ON o.owner_id = pcp.owner_id
+            """
+        )
+    ).fetchall()
+
     tmdb_json_rows = db.execute(
         text(
             """
@@ -564,6 +577,11 @@ def list_content(db: Session) -> list[dict]:
                 ),
             }
         )
+
+    owners_by_content: dict[str, list[str]] = {}
+    for row in owner_rows:
+        key = _hex_id(row.content_id)
+        owners_by_content.setdefault(key, []).append(row.owner_name)
 
     search_facets_by_content: dict[str, dict] = {}
     for row in tmdb_json_rows:
@@ -607,6 +625,7 @@ def list_content(db: Session) -> list[dict]:
                 "cover_image": _to_proxied_cover_image(row.cover_image),
                 "collections": collections_by_content.get(content_id, []),
                 "sources": sources_by_content.get(content_id, []),
+                "owners": owners_by_content.get(content_id, []),
                 "genres": facets.get("genres", []),
                 "cast": facets.get("cast", []),
                 "release_year": release_year,
