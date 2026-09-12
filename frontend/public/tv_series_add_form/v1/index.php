@@ -313,9 +313,9 @@ function h(string $s): string
   </div>
 
 </div>
-<script src="script.js"></script>
 <div class="lightboxOverlay" id="lightboxOverlay">
   <img id="lightboxImg" src="" alt="">
 </div>
+<script src="script.js"></script>
 </body>
 </html>
