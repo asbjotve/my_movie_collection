@@ -202,31 +202,86 @@ $username = require_login();
   // deaktiveres knappen og en statustekst vises mens den kjører.
   const btnBulkRefreshTmdb = document.getElementById('btnBulkRefreshTmdb');
   const bulkRefreshStatus = document.getElementById('bulkRefreshStatus');
+  // Poller status-endepunktet hvert 2. sekund til jobben er ferdig
+  // (running=false) - se GET .../bulk-refresh-tmdb/status i
+  // backend/app/routes/media_catalog_route.py. Selve jobben kjører i
+  // en bakgrunnstråd på backend og kan ta 20-30+ minutter siden
+  // TMDBs reelle svartid per kall (ikke rate-limiten) dominerer.
+  async function pollBulkRefreshStatus() {
+    try {
+      const res = await fetch('api.php?action=bulk_refresh_tmdb_status');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.detail || ('HTTP ' + res.status));
+      }
+
+      if (data.running) {
+        const total = data.total_candidates || 0;
+        const processed = data.processed || 0;
+        bulkRefreshStatus.textContent = total
+          ? `Oppdaterer fra TMDB… ${processed} av ${total} behandlet (${data.refreshed || 0} oppdatert).`
+          : 'Oppdaterer fra TMDB, forbereder liste over kandidater…';
+        setTimeout(pollBulkRefreshStatus, 2000);
+        return;
+      }
+
+      if (data.fatal_error) {
+        bulkRefreshStatus.textContent = 'Feilet: ' + data.fatal_error;
+      } else {
+        bulkRefreshStatus.textContent =
+          `Ferdig: ${data.refreshed || 0} av ${data.total_candidates || 0} oppdatert` +
+          (data.errors && data.errors.length ? `, ${data.errors.length} feilet.` : '.');
+      }
+      btnBulkRefreshTmdb.disabled = false;
+      await loadHealthCheck();
+    } catch (err) {
+      bulkRefreshStatus.textContent = 'Kunne ikke hente status: ' + err.message;
+      btnBulkRefreshTmdb.disabled = false;
+    }
+  }
+
   btnBulkRefreshTmdb.addEventListener('click', async () => {
-    if (!confirm('Dette henter fersk TMDB-data for alle flaggede filmer med TMDB-kobling og fletter dem inn - kan ta et halvt minutt eller mer. Fortsette?')) {
+    if (!confirm('Dette henter fersk TMDB-data for alle flaggede filmer med TMDB-kobling og fletter dem inn - kan ta 20-30 minutter eller mer i bakgrunnen. Fortsette?')) {
       return;
     }
     btnBulkRefreshTmdb.disabled = true;
     bulkRefreshStatus.style.display = '';
-    bulkRefreshStatus.textContent = 'Oppdaterer fra TMDB, vennligst vent…';
+    bulkRefreshStatus.textContent = 'Starter jobb…';
     try {
       const res = await fetch('api.php?action=bulk_refresh_tmdb', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || data.detail || ('HTTP ' + res.status));
       }
-      bulkRefreshStatus.textContent =
-        `Ferdig: ${data.refreshed} av ${data.total_candidates} oppdatert` +
-        (data.errors && data.errors.length ? `, ${data.errors.length} feilet.` : '.');
-      await loadHealthCheck();
+      if (data.already_running) {
+        bulkRefreshStatus.textContent = 'En jobb kjører allerede - viser fremdrift…';
+      }
+      setTimeout(pollBulkRefreshStatus, 1000);
     } catch (err) {
       bulkRefreshStatus.textContent = 'Feilet: ' + err.message;
-    } finally {
       btnBulkRefreshTmdb.disabled = false;
     }
   });
 
   await loadHealthCheck();
+
+  // Hvis en jobb allerede kjører (f.eks. brukeren lastet siden på nytt
+  // mens den gikk) - gjenoppta polling automatisk i stedet for at
+  // fremdriften bare forsvinner fra skjermen.
+  try {
+    const statusRes = await fetch('api.php?action=bulk_refresh_tmdb_status');
+    if (statusRes.ok) {
+      const statusData = await statusRes.json();
+      if (statusData.running) {
+        btnBulkRefreshTmdb.disabled = true;
+        bulkRefreshStatus.style.display = '';
+        pollBulkRefreshStatus();
+      }
+    }
+  } catch (err) {
+    // Stille ignorert - dette er bare en bekvemmelighetssjekk ved
+    // sidelasting, ikke kritisk for at siden ellers skal fungere.
+  }
 })();
 </script>
 </body>
