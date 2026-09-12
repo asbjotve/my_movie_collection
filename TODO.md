@@ -102,6 +102,11 @@ backlog to pick from.
       `bulk_add_movies_form` (doesn't exist today - this is one of
       the reasons owner_id was NULL on every physical_copy row until
       it was manually backfilled).
+- [ ] Ability to "import" a single movie into `bulk_add_movies_form`
+      (e.g. from search results elsewhere in the app) instead of only
+      manual bulk entry.
+- [ ] Ability to add a single physical copy, as an alternative to
+      `bulk_add_movies_form` for the common one-at-a-time case.
 
 ## Frontend / UX
 
