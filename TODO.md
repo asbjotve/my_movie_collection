@@ -32,9 +32,11 @@ backlog to pick from.
 - [ ] Periodically test that a backup can actually be restored (a
       backup that's never been restore-tested is not a verified
       backup).
-- [ ] Create tables to support adding TV series (currently the schema
+- [x] Create tables to support adding TV series (currently the schema
       is movie-oriented only - e.g. no season/episode modeling), so
-      TV shows/box sets can be catalogued alongside movies.
+      TV shows/box sets can be catalogued alongside movies. Added
+      `season`, `episode`, `disc_contains_episode` on
+      `feature/tv-series-schema` (migration `ca92db17e42f`).
 
 ## DevOps / CI / deployment
 

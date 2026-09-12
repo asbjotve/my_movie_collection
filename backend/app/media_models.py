@@ -439,3 +439,64 @@ class CustomListEntry(MediaBase):
     sort_order = Column(Integer, nullable=True)
 
     __table_args__ = (Index("idx_list_sort", "list_id", "sort_order"),)
+
+
+class Season(MediaBase):
+    """A season of a TV series - content_id points at the show's own
+    `content` row (TV series are content_type='series', same table as
+    movies). Metadata (title/air_date) is expected to mostly come from
+    TVDB rather than TMDB, since TVDB has more complete season/episode
+    data - see fetch_tvdb_details() in media_catalog.py."""
+
+    __tablename__ = "season"
+
+    season_id = Column(BINARY(16), primary_key=True)
+    content_id = Column(
+        BINARY(16),
+        ForeignKey("content.content_id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+    season_number = Column(Integer, nullable=True)
+    title = Column(Text, nullable=True)
+    air_date = Column(Date, nullable=True)
+
+    __table_args__ = (Index("idx_season__content_id", "content_id"),)
+
+
+class Episode(MediaBase):
+    """A single episode within a season."""
+
+    __tablename__ = "episode"
+
+    episode_id = Column(BINARY(16), primary_key=True)
+    season_id = Column(
+        BINARY(16),
+        ForeignKey("season.season_id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+    episode_number = Column(Integer, nullable=True)
+    title = Column(Text, nullable=True)
+    runtime = Column(Integer, nullable=True)
+    original_air_date = Column(Date, nullable=True)
+
+    __table_args__ = (Index("idx_episode__season_id", "season_id"),)
+
+
+class DiscContainsEpisode(MediaBase):
+    """Which episodes are contained on a given physical disc - a
+    many-to-many link, since a box-set disc typically holds several
+    episodes and (rarely) an episode could span more than one disc."""
+
+    __tablename__ = "disc_contains_episode"
+
+    disc_id = Column(
+        BINARY(16),
+        ForeignKey("disc.disc_id", ondelete="CASCADE", onupdate="CASCADE"),
+        primary_key=True,
+    )
+    episode_id = Column(
+        BINARY(16),
+        ForeignKey("episode.episode_id", ondelete="CASCADE", onupdate="CASCADE"),
+        primary_key=True,
+    )
+
