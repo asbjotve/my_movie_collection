@@ -277,6 +277,14 @@ $sectionAccess = [
       white-space: nowrap;
     }
 
+    /* ---- Sjanger-/tiår-facett skjul/vis-knapper (Mine filmer) ---- */
+    .facetToggleBtn.hasActive{ border-color: rgba(111,141,255,.85); color: var(--text); }
+    .facetToggleBtn.open{ background: rgba(111,141,255,.14); }
+    .facetCount{
+      display:inline-block; margin-left:6px; background: var(--accent);
+      color:#fff; border-radius:999px; font-size:10px; padding:1px 6px;
+    }
+
     /* ---- Visningsbytte: rutenett / liste-tabell (Mine filmer) ---- */
     .viewToggle{
       display:flex; gap:6px; margin-left:auto;
@@ -449,6 +457,8 @@ $sectionAccess = [
         <input id="mineFilmerSearch" placeholder="<?= htmlspecialchars(t('wte.index.mine_filmer.search_placeholder')) ?>" />
       </div>
       <div class="chiprow" id="mineFilmerTypeChips"></div>
+      <button type="button" class="btn facetToggleBtn" id="btnToggleGenreFacet" data-facet="genre"><?= htmlspecialchars(t('wte.index.mine_filmer.genre_filter_label')) ?><span class="facetCount" id="mineFilmerGenreCount" style="display:none;"></span></button>
+      <button type="button" class="btn facetToggleBtn" id="btnToggleDecadeFacet" data-facet="decade"><?= htmlspecialchars(t('wte.index.mine_filmer.decade_filter_label')) ?><span class="facetCount" id="mineFilmerDecadeCount" style="display:none;"></span></button>
       <label class="unwatchedToggle">
         <input id="mineFilmerOnlyUnwatched" type="checkbox" />
         <?= htmlspecialchars(t('wte.index.mine_filmer.only_unwatched')) ?>
@@ -465,13 +475,13 @@ $sectionAccess = [
     <!-- Sjanger-/tiår-facetter (fritekstsøket over dekker allerede
          tittel/skuespiller/sjanger/år - disse to radene er
          multi-select "AND mellom kategorier, OR innad i kategorien"
-         hurtigfiltre i tillegg, se getFilteredMineFilmer(). -->
-    <div class="filterBar" style="margin-top:-4px;">
-      <span style="color:var(--muted); font-size:11px;"><?= htmlspecialchars(t('wte.index.mine_filmer.genre_filter_label')) ?></span>
+         hurtigfiltre i tillegg, se getFilteredMineFilmer()) - skjult
+         bak "Sjanger"/"Tiår"-knappene over til de trengs, siden
+         sjangerlisten alene fort blir 15-20 chips (skjermplass). -->
+    <div class="filterBar" id="mineFilmerGenreFacetRow" style="display:none;">
       <div class="chiprow" id="mineFilmerGenreChips"></div>
     </div>
-    <div class="filterBar">
-      <span style="color:var(--muted); font-size:11px;"><?= htmlspecialchars(t('wte.index.mine_filmer.decade_filter_label')) ?></span>
+    <div class="filterBar" id="mineFilmerDecadeFacetRow" style="display:none;">
       <div class="chiprow" id="mineFilmerDecadeChips"></div>
       <button type="button" class="btn" id="btnResetMineFilmerFilters"><?= htmlspecialchars(t('wte.index.mine_filmer.reset_filters')) ?></button>
     </div>
@@ -744,6 +754,41 @@ $sectionAccess = [
   const mineFilmerOnlyUnwatched = document.getElementById("mineFilmerOnlyUnwatched");
   const btnResetMineFilmerFilters = document.getElementById("btnResetMineFilmerFilters");
 
+  // Sjanger-/tiår-chipsene ligger i egne rader som er skjult som
+  // standard (se .facetToggleBtn-knappene i HTML over) - sparer
+  // skjermplass siden sjangerlisten alene fort blir 15-20 chips.
+  // Knappen selv får en badge med antall aktive valg, slik at man ser
+  // at et filter er aktivt selv når raden er skjult igjen.
+  function setupFacetToggle(buttonId, rowId, countId, activeSet){
+    const button = document.getElementById(buttonId);
+    const row = document.getElementById(rowId);
+    const countEl = document.getElementById(countId);
+
+    button.addEventListener("click", () => {
+      const isOpen = row.style.display !== "none";
+      row.style.display = isOpen ? "none" : "";
+      button.classList.toggle("open", !isOpen);
+    });
+
+    return function updateFacetCount(){
+      if (activeSet.size){
+        countEl.textContent = String(activeSet.size);
+        countEl.style.display = "";
+        button.classList.add("hasActive");
+      } else {
+        countEl.style.display = "none";
+        button.classList.remove("hasActive");
+      }
+    };
+  }
+
+  const updateGenreFacetCount = setupFacetToggle(
+    "btnToggleGenreFacet", "mineFilmerGenreFacetRow", "mineFilmerGenreCount", mineFilmerActiveGenres
+  );
+  const updateDecadeFacetCount = setupFacetToggle(
+    "btnToggleDecadeFacet", "mineFilmerDecadeFacetRow", "mineFilmerDecadeCount", mineFilmerActiveDecades
+  );
+
   function getFilteredMineFilmer(){
     const term = mineFilmerSearch.value.trim().toLowerCase();
     const showUnwatched = mineFilmerOnlyUnwatched.checked;
@@ -800,6 +845,7 @@ $sectionAccess = [
         if (mineFilmerActiveGenres.has(g)) mineFilmerActiveGenres.delete(g);
         else mineFilmerActiveGenres.add(g);
         renderMineFilmerGenreChips();
+        updateGenreFacetCount();
         renderMineFilmer();
       };
       mineFilmerGenreChips.appendChild(el);
@@ -817,6 +863,7 @@ $sectionAccess = [
         if (mineFilmerActiveDecades.has(d)) mineFilmerActiveDecades.delete(d);
         else mineFilmerActiveDecades.add(d);
         renderMineFilmerDecadeChips();
+        updateDecadeFacetCount();
         renderMineFilmer();
       };
       mineFilmerDecadeChips.appendChild(el);
@@ -832,6 +879,8 @@ $sectionAccess = [
     renderMineFilmerTypeChips();
     renderMineFilmerGenreChips();
     renderMineFilmerDecadeChips();
+    updateGenreFacetCount();
+    updateDecadeFacetCount();
     renderMineFilmer();
   });
 
