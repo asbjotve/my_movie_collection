@@ -21,6 +21,7 @@ from app.services.media_catalog import (
     bulk_assign_group,
     get_content_by_id,
     get_collection_stats,
+    get_data_health_issues,
     list_content,
     list_content_covers,
     list_group_names,
@@ -75,6 +76,16 @@ def get_stats(db: Session = Depends(get_media_db)):
     innlogging. Se get_collection_stats() for detaljer.
     """
     return get_collection_stats(db)
+
+
+@router.get("/health-check", dependencies=[Depends(require_api_key)])
+def get_health_check(db: Session = Depends(get_media_db)):
+    """"Health check"-oversikt: content-rader som mangler cover,
+    overview, runtime eller en gyldig TMDB/TVDB-kilde - brukes av
+    health_check.php. Rent lesende. Se get_data_health_issues() for
+    detaljer om hvilke felt som sjekkes og hvorfor.
+    """
+    return get_data_health_issues(db)
 
 
 @router.get("/content/{content_id}", dependencies=[Depends(require_api_key)])

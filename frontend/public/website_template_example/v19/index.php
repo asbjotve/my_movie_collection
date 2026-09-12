@@ -608,6 +608,12 @@ $sectionAccess = [
         </a>
       </div>
       <div class="adminCard card">
+        <a href="health_check.php" style="color:inherit; text-decoration:none; display:block;">
+          <h3><?= htmlspecialchars(t('wte.index.administrering.card_health_check_title')) ?></h3>
+          <p><?= htmlspecialchars(t('wte.index.administrering.card_health_check_desc')) ?></p>
+        </a>
+      </div>
+      <div class="adminCard card">
         <a href="2fa_setup.php" style="color:inherit; text-decoration:none; display:block;">
           <h3><?= htmlspecialchars(t('wte.index.administrering.card_2fa_title')) ?></h3>
           <p><?= htmlspecialchars(t('wte.index.administrering.card_2fa_desc')) ?></p>

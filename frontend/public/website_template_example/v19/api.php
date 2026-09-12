@@ -205,6 +205,34 @@ if (($_GET['action'] ?? '') === 'list_stats') {
     exit;
 }
 
+// GET ?action=list_health_check
+// Brukes av health_check.php: content-rader som mangler cover,
+// overview, runtime, IMDb-ID eller TMDB/TVDB-kilde - se
+// GET /media/health-check i backend/app/routes/media_catalog_route.py.
+if (($_GET['action'] ?? '') === 'list_health_check') {
+    $healthUrl = MEDIA_API_BASE_URL . '/media/health-check';
+
+    $ch = curl_init($healthUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=list_covers&id=<hex content_id>
 // Brukes av "Bytt cover"-modalen på detail.php: lister alle TMDB-
 // postere som er tilgjengelige (fra sist lagrede data_json - ingen nye

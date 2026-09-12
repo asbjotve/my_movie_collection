@@ -1568,6 +1568,97 @@ def get_collection_stats(db: Session) -> dict:
     }
 
 
+def get_data_health_issues(db: Session) -> dict:
+    """"Health check" for katalogen: flagger content-rader som mangler
+    cover, overview, runtime, eller en gyldig TMDB/TVDB-kilde.
+
+    Merk: content.overview og content.runtime er legacy-kolonner som
+    så godt som alltid er tomme i praksis (samme situasjon som
+    first_release, se get_collection_stats()) - selve dataene ligger i
+    TMDBs lagrede data_json. Disse feltene sjekkes derfor der, ikke i
+    content-tabellen direkte, ellers ville nesten alle rader (falskt)
+    bli flagget som "mangler overview/runtime".
+
+    content.imdb_id sjekkes derimot direkte, siden den kolonnen faktisk
+    brukes/fylles inn i praksis.
+    """
+    content_rows = db.execute(
+        text("SELECT content_id, title, cover_image, imdb_id FROM content")
+    ).fetchall()
+
+    tmdb_rows = db.execute(
+        text(
+            """
+            SELECT content_id, data_json
+            FROM content_external_source
+            WHERE source = 'tmdb' AND data_json IS NOT NULL
+            """
+        )
+    ).fetchall()
+    tmdb_by_id: dict[str, dict] = {}
+    for row in tmdb_rows:
+        try:
+            tmdb_by_id[_hex_id(row.content_id)] = json.loads(row.data_json)
+        except (TypeError, ValueError):
+            tmdb_by_id[_hex_id(row.content_id)] = {}
+
+    external_source_ids = {
+        _hex_id(row.content_id)
+        for row in db.execute(
+            text(
+                "SELECT DISTINCT content_id FROM content_external_source "
+                "WHERE source IN ('tmdb', 'tvdb')"
+            )
+        ).fetchall()
+    }
+
+    issue_counts: dict[str, int] = {
+        "missing_cover": 0,
+        "missing_overview": 0,
+        "missing_runtime": 0,
+        "missing_imdb_id": 0,
+        "missing_external_source": 0,
+    }
+    flagged: list[dict] = []
+
+    for row in content_rows:
+        content_id = _hex_id(row.content_id)
+        issues: list[str] = []
+
+        if not row.cover_image:
+            issues.append("missing_cover")
+        if not row.imdb_id:
+            issues.append("missing_imdb_id")
+
+        if content_id not in external_source_ids:
+            issues.append("missing_external_source")
+        else:
+            tmdb_data = tmdb_by_id.get(content_id)
+            if tmdb_data is not None:
+                if not tmdb_data.get("overview"):
+                    issues.append("missing_overview")
+                if not tmdb_data.get("runtime"):
+                    issues.append("missing_runtime")
+
+        if issues:
+            for issue in issues:
+                issue_counts[issue] += 1
+            flagged.append(
+                {
+                    "content_id": content_id,
+                    "title": row.title,
+                    "issues": issues,
+                }
+            )
+
+    return {
+        "total_movies": len(content_rows),
+        "flagged_count": len(flagged),
+        "issue_counts": issue_counts,
+        "items": flagged,
+    }
+
+
 def list_group_names(db: Session) -> list[dict]:
     """Alle filmgrupper (kun group_id/name) - brukes til autofullføring
     i redigerings-popupen for "group"-feltet på detaljsiden (se

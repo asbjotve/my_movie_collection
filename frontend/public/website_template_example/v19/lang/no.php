@@ -85,6 +85,8 @@ return [
                 'card_bulk_add_desc'     => 'Registrer flere filmer/serier samtidig, inkludert fysiske eksemplarer (åpnes i eget verktøy).',
                 'card_stats_title'       => 'Statistikk',
                 'card_stats_desc'        => 'Oversikt over samlingen: antall, tiår, sjangre, formater og grupper.',
+                'card_health_check_title' => 'Datakvalitet',
+                'card_health_check_desc' => 'Filmer som mangler cover, beskrivelse, spilletid, IMDb-ID eller TMDB/TVDB-kilde.',
                 'card_2fa_title'         => 'To-faktor autentisering (2FA)',
                 'card_2fa_desc'          => 'Sett opp eller deaktiver 2FA for din bruker.',
                 'card_access_title'      => 'Tilgangs- og språkstyring',

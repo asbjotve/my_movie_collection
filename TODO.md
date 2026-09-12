@@ -60,8 +60,10 @@ backlog to pick from.
 
 ## Data quality / catalog maintenance
 
-- [ ] "Health check" view that flags content rows with missing cover
-      image, overview, runtime, or invalid/missing TMDB/TVDB IDs.
+- [x] "Health check" view that flags content rows with missing cover
+      image, overview, runtime, or invalid/missing TMDB/TVDB IDs. Built
+      as `health_check.php` on `feature/data-health-check`
+      (`GET /media/health-check`).
 - [ ] Batch/bulk "refresh from TMDB/TVDB" for many items at once,
       instead of one at a time (now that the single-item timeout issue
       is understood).
