@@ -19,7 +19,8 @@ declare(strict_types=1);
  *   seasons: [ { season_number, title, air_date, inner_case_ean,
  *                episodes: [ { episode_number, title, runtime,
  *                original_air_date } ] } ]
- *   discs:   [ { order, format, label, storage_slot_no, add_to_storage,
+ *   discs:   [ { order, format, label, season_number, inner_case_ean,
+ *                storage_slot_no, add_to_storage,
  *                episode_refs: [ { season_number, episode_number } ] } ]
  */
 
@@ -251,6 +252,7 @@ function h(string $s): string
             <th>#</th>
             <th>Format</th>
             <th>Etikett</th>
+            <th>Sesong</th>
             <th>Lagerplass nr.</th>
             <th>Til lager?</th>
             <th>Episoder på disken</th>

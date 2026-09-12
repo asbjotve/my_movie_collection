@@ -132,6 +132,7 @@
       order: discs.length + 1,
       format: "DVD",
       label: "",
+      season_id: seasons.length ? seasons[0].id : null,
       storage_slot_no: "",
       add_to_storage: true,
       episode_refs: [],
@@ -148,25 +149,53 @@
     renderDiscs();
   }
 
-  function episodeOptionsHtml(selectedRefs) {
-    const options = [];
-    seasons.forEach((season) => {
-      season.episodes.forEach((ep) => {
+  function seasonOptionsHtml(selectedSeasonId) {
+    if (!seasons.length) {
+      return '<option value="">(ingen sesonger lagt til)</option>';
+    }
+    return seasons
+      .map((season) => {
+        const label =
+          `Sesong ${season.season_number}` +
+          (season.inner_case_ean ? ` (eget etui, EAN ${season.inner_case_ean})` : "");
+        const selected = season.id === selectedSeasonId ? " selected" : "";
+        return `<option value="${h(season.id)}"${selected}>${h(label)}</option>`;
+      })
+      .join("");
+  }
+
+  function episodeOptionsHtml(seasonId, selectedRefs) {
+    const season = seasons.find((s) => s.id === seasonId);
+    if (!season) return "";
+    return season.episodes
+      .map((ep) => {
         const value = `${season.season_number}:${ep.episode_number}`;
         const label = `S${season.season_number}E${ep.episode_number}` + (ep.title ? ` - ${ep.title}` : "");
         const selected = selectedRefs.some(
           (r) => r.season_number === season.season_number && r.episode_number === ep.episode_number
         );
-        options.push(
-          `<option value="${h(value)}"${selected ? " selected" : ""}>${h(label)}</option>`
-        );
-      });
-    });
-    return options.join("");
+        return `<option value="${h(value)}"${selected ? " selected" : ""}>${h(label)}</option>`;
+      })
+      .join("");
   }
 
   function renderDiscEpisodeOptions() {
-    // Re-render discs so the episode multi-select reflects current seasons/episodes.
+    // Seasons/episodes may have changed (renumbered, removed, count
+    // changed) - make sure discs still point at a valid season and
+    // drop episode_refs that no longer belong to it.
+    discs.forEach((disc) => {
+      if (!seasons.some((s) => s.id === disc.season_id)) {
+        disc.season_id = seasons.length ? seasons[0].id : null;
+        disc.episode_refs = [];
+      } else {
+        const season = seasons.find((s) => s.id === disc.season_id);
+        disc.episode_refs = disc.episode_refs.filter((r) =>
+          season.episodes.some(
+            (ep) => ep.episode_number === r.episode_number && season.season_number === r.season_number
+          )
+        );
+      }
+    });
     renderDiscs();
   }
 
@@ -187,9 +216,10 @@
           </select>
         </td>
         <td><input type="text" class="discLabelInput" value="${h(disc.label)}" placeholder="f.eks. Disk 1" style="width:120px;"></td>
+        <td><select class="discSeasonInput">${seasonOptionsHtml(disc.season_id)}</select></td>
         <td><input type="number" min="0" class="discSlotInput" value="${h(disc.storage_slot_no)}" style="width:80px;"></td>
         <td><input type="checkbox" class="discAddToStorageInput" ${disc.add_to_storage ? "checked" : ""}></td>
-        <td><select multiple class="discEpisodesInput">${episodeOptionsHtml(disc.episode_refs)}</select></td>
+        <td><select multiple class="discEpisodesInput">${episodeOptionsHtml(disc.season_id, disc.episode_refs)}</select></td>
         <td><button type="button" class="btn danger small" data-action="removeDisc">Fjern</button></td>
       `;
 
@@ -199,6 +229,11 @@
       tr.querySelector(".discLabelInput").addEventListener("input", (e) => {
         disc.label = e.target.value;
       });
+      tr.querySelector(".discSeasonInput").addEventListener("change", (e) => {
+        disc.season_id = Number(e.target.value);
+        disc.episode_refs = []; // switching season - old picks no longer apply
+        renderDiscs();
+      });
       tr.querySelector(".discSlotInput").addEventListener("input", (e) => {
         disc.storage_slot_no = e.target.value === "" ? "" : Number(e.target.value);
       });
@@ -206,6 +241,7 @@
         disc.add_to_storage = e.target.checked;
       });
       tr.querySelector(".discEpisodesInput").addEventListener("change", (e) => {
+        const season = seasons.find((s) => s.id === disc.season_id);
         const selected = Array.from(e.target.selectedOptions).map((opt) => opt.value);
         disc.episode_refs = selected.map((v) => {
           const [seasonNumber, episodeNumber] = v.split(":").map(Number);
@@ -247,14 +283,19 @@
           original_air_date: ep.original_air_date || null,
         })),
       })),
-      discs: discs.map((d) => ({
-        order: d.order,
-        format: d.format,
-        label: d.label || null,
-        storage_slot_no: d.storage_slot_no === "" ? null : d.storage_slot_no,
-        add_to_storage: d.add_to_storage,
-        episode_refs: d.episode_refs,
-      })),
+      discs: discs.map((d) => {
+        const season = seasons.find((s) => s.id === d.season_id);
+        return {
+          order: d.order,
+          format: d.format,
+          label: d.label || null,
+          season_number: season ? season.season_number : null,
+          inner_case_ean: season && season.inner_case_ean ? season.inner_case_ean : null,
+          storage_slot_no: d.storage_slot_no === "" ? null : d.storage_slot_no,
+          add_to_storage: d.add_to_storage,
+          episode_refs: d.episode_refs,
+        };
+      }),
     };
   }
 
