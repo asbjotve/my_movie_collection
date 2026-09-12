@@ -175,6 +175,24 @@ function h(string $s): string
     }
     .tvdbResultRow .info{ font-size:13px; }
     .tvdbResultRow .info .muted{ display:block; }
+    .tvdbThumb{ cursor:zoom-in; }
+    .lightboxOverlay{
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(6,8,20,.85);
+      z-index:50;
+      align-items:center;
+      justify-content:center;
+      cursor:zoom-out;
+    }
+    .lightboxOverlay.open{ display:flex; }
+    .lightboxOverlay img{
+      max-width:90vw;
+      max-height:90vh;
+      border-radius:12px;
+      box-shadow:var(--shadow);
+    }
   </style>
 </head>
 <body>
@@ -296,5 +314,8 @@ function h(string $s): string
 
 </div>
 <script src="script.js"></script>
+<div class="lightboxOverlay" id="lightboxOverlay">
+  <img id="lightboxImg" src="" alt="">
+</div>
 </body>
 </html>

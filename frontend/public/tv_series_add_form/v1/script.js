@@ -309,6 +309,21 @@
   // "remote_ids" array per result with the linked IMDb id (when TVDB
   // has one), so a single search fills in both tvdb_id and imdb_id -
   // no separate details lookup needed for this form.
+  const lightboxOverlayEl = document.getElementById("lightboxOverlay");
+  const lightboxImgEl = document.getElementById("lightboxImg");
+
+  function openLightbox(url) {
+    lightboxImgEl.src = url;
+    lightboxOverlayEl.classList.add("open");
+  }
+
+  function closeLightbox() {
+    lightboxOverlayEl.classList.remove("open");
+    lightboxImgEl.src = "";
+  }
+
+  lightboxOverlayEl.addEventListener("click", closeLightbox);
+
   function extractImdbId(remoteIds) {
     if (!Array.isArray(remoteIds)) return "";
     const match = remoteIds.find((r) => (r.sourceName || "").toUpperCase() === "IMDB");
@@ -347,15 +362,20 @@
         const imdbId = extractImdbId(item.remote_ids);
         const row = document.createElement("div");
         row.className = "tvdbResultRow";
-        const imgUrl = item.image_url || item.thumbnail || "";
+        const thumbUrl = item.thumbnail || item.image_url || "";
+        const fullUrl = item.image_url || item.thumbnail || "";
         row.innerHTML = `
-          ${imgUrl ? `<img src="${h(imgUrl)}" alt="" style="width:46px;height:64px;object-fit:cover;border-radius:6px;flex:none;">` : `<div style="width:46px;height:64px;flex:none;background:var(--line);border-radius:6px;"></div>`}
+          ${thumbUrl ? `<img class="tvdbThumb" src="${h(thumbUrl)}" alt="" title="Klikk for å forstørre" style="width:46px;height:64px;object-fit:cover;border-radius:6px;flex:none;">` : `<div style="width:46px;height:64px;flex:none;background:var(--line);border-radius:6px;"></div>`}
           <div class="info" style="flex:1;">
             <strong>${h(item.name || "(uten tittel)")}</strong> ${h(item.year || "")}
             <span class="muted">tvdb_id: ${h(item.tvdb_id || "")}${imdbId ? " · imdb_id: " + h(imdbId) : " · ingen IMDb-kobling hos TVDB"}</span>
           </div>
           <button type="button" class="btn small">Velg</button>
         `;
+        const thumbEl = row.querySelector(".tvdbThumb");
+        if (thumbEl && fullUrl) {
+          thumbEl.addEventListener("click", () => openLightbox(fullUrl));
+        }
         row.querySelector("button").addEventListener("click", () => {
           document.getElementById("seriesTitle").value = item.name || query;
           document.getElementById("seriesTvdb").value = item.tvdb_id || "";
