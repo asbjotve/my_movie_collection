@@ -19,6 +19,8 @@ from app.services.media_catalog import (
     add_content_to_group,
     backfill_tmdb_cover_images,
     bulk_assign_group,
+    get_bulk_refresh_tmdb_status,
+    start_bulk_refresh_tmdb_job,
     get_content_by_id,
     get_collection_stats,
     get_data_health_issues,
@@ -319,6 +321,38 @@ def backfill_tmdb_covers(
     (f.eks. etter en stor bulk-import).
     """
     return backfill_tmdb_cover_images(db)
+
+
+@router.post("/health-check/bulk-refresh-tmdb")
+def bulk_refresh_tmdb(
+    current_user: User = Depends(get_current_user),
+):
+    """Starter "hent fra TMDB" + "flett inn i content" for alle
+    content-rader som p.t. er flagget av health-check-et med et
+    TMDB-relevant problem (mangler cover/overview/runtime/imdb_id) og
+    har en TMDB-kobling - en bulk-knapp-variant av de to eksisterende
+    enkelt-handlingene, brukt fra "Oppdater flaggede fra TMDB"-knappen
+    på health_check.php.
+
+    Kjøres i en bakgrunnstråd og returnerer med en gang - selve jobben
+    kan ta 20-30+ minutter (TMDBs reelle svartid per kall dominerer,
+    ikke selve rate-limiten), altfor lenge for at nginx/PHP skal vente
+    på ett synkront svar (bekreftet i praksis: forespørselen timet ut
+    med 504 lenge før jobben faktisk var ferdig). Frontend poller
+    GET .../bulk-refresh-tmdb/status i stedet. Se
+    start_bulk_refresh_tmdb_job() for detaljer.
+    """
+    return start_bulk_refresh_tmdb_job()
+
+
+@router.get("/health-check/bulk-refresh-tmdb/status")
+def bulk_refresh_tmdb_status(
+    current_user: User = Depends(get_current_user),
+):
+    """Fremdrift for den (eventuelt) kjørende bulk-TMDB-refresh-jobben -
+    se start_bulk_refresh_tmdb_job()/get_bulk_refresh_tmdb_status()."""
+    return get_bulk_refresh_tmdb_status()
+
 
 
 @router.get("/content/{content_id}/covers", dependencies=[Depends(require_api_key)])

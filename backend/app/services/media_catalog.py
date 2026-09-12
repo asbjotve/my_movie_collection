@@ -13,6 +13,7 @@ er et unntak - se den funksjonen for begrunnelse.
 
 import json
 import re
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ from datetime import datetime, timezone
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
+from app.media_db import MediaSessionLocal
 from app.services.external_apis import (
     ExternalApiError,
     fetch_tmdb_details,
@@ -1635,7 +1637,7 @@ def get_data_health_issues(db: Session) -> dict:
         else:
             tmdb_data = tmdb_by_id.get(content_id)
             if tmdb_data is not None:
-                if not tmdb_data.get("overview"):
+                if not _extract_tmdb_overview(tmdb_data):
                     issues.append("missing_overview")
                 if not tmdb_data.get("runtime"):
                     issues.append("missing_runtime")
@@ -1657,6 +1659,213 @@ def get_data_health_issues(db: Session) -> dict:
         "issue_counts": issue_counts,
         "items": flagged,
     }
+
+
+def bulk_refresh_tmdb_for_flagged_content(db: Session) -> dict:
+    """Bulk-variant av de to eksisterende enkelt-handlingene "hent fra
+    kilde" (update_content_external_source()) + "flett inn i content"
+    (merge_content_from_source()) - kjører begge, for alle content-rader
+    som er flagget av get_data_health_issues() med et TMDB-relevant
+    problem (mangler cover/overview/runtime/imdb_id) OG som faktisk har
+    en TMDB-kobling. Content-rader som mangler TMDB-kobling i det hele
+    tatt (missing_external_source) hoppes over her - det krever et nytt
+    søk/import, ikke en refresh av en eksisterende kobling.
+
+    Tanken er at TMDB kan ha fått data siden sist (f.eks. en overview
+    som manglet da filmen først ble lagt til), så en frisk henting kan
+    løse flagget uten at brukeren må gå gjennom alle filmene manuelt én
+    og én.
+
+    NB: kalles kun fra _run_bulk_refresh_tmdb_job() (i en egen
+    bakgrunnstråd, med sin egen DB-sesjon) - IKKE direkte fra en
+    HTTP-rute lenger. Årsak: TMDB-kallenes reelle nettverks-latens
+    (ikke selve rate-limiten på TMDB_MAX_REQUESTS_PER_SECOND) viste seg
+    å dominere - i praksis ca. 1 rad per 2-3 sekunder, altså langt
+    tregere enn rate-limiten tillater. Med ~600-700 kandidater blir
+    total kjøretid da 20-30+ minutter, godt over både nginx sin
+    proxy_read_timeout og PHPs execution-tid - et vanlig
+    request/response-endepunkt ville alltid timet ut underveis (bekreftet
+    i praksis: jobben fortsatte å kjøre server-side lenge etter at
+    nettleseren fikk en 504 fra proxyen). Se
+    start_bulk_refresh_tmdb_job()/get_bulk_refresh_tmdb_status() for
+    hvordan dette eksponeres til frontend nå (start + polling av status
+    i stedet for å vente på ett langt svar).
+
+    Committer (både refresh og merge) én rad om gangen, slik at et evt.
+    avbrudd underveis ikke mister alt som er unnagjort så langt.
+    """
+    content_rows = db.execute(
+        text("SELECT content_id, cover_image, imdb_id FROM content")
+    ).fetchall()
+    content_by_id = {_hex_id(row.content_id): row for row in content_rows}
+
+    tmdb_rows = db.execute(
+        text(
+            """
+            SELECT content_id, external_id, data_json
+            FROM content_external_source
+            WHERE source = 'tmdb'
+            """
+        )
+    ).fetchall()
+
+    candidates = []
+    for row in tmdb_rows:
+        content_id = _hex_id(row.content_id)
+        content_info = content_by_id.get(content_id)
+        if content_info is None:
+            continue
+        try:
+            data = json.loads(row.data_json) if row.data_json else {}
+        except (TypeError, ValueError):
+            data = {}
+        needs_refresh = (
+            not content_info.cover_image
+            or not content_info.imdb_id
+            or not _extract_tmdb_overview(data)
+            or not data.get("runtime")
+        )
+        if needs_refresh:
+            candidates.append((content_id, row.external_id))
+
+    total_candidates = len(candidates)
+    _bulk_refresh_tmdb_job_state.update(
+        {
+            "total_candidates": total_candidates,
+            "processed": 0,
+            "refreshed": 0,
+        }
+    )
+
+    refreshed = 0
+    errors: list[dict] = []
+
+    batch_start = time.monotonic()
+    requests_in_batch = 0
+
+    for content_id, external_id in candidates:
+        if requests_in_batch >= TMDB_MAX_REQUESTS_PER_SECOND:
+            elapsed = time.monotonic() - batch_start
+            if elapsed < 1.0:
+                time.sleep(1.0 - elapsed)
+            batch_start = time.monotonic()
+            requests_in_batch = 0
+
+        try:
+            update_content_external_source(db, "tmdb", external_id)
+            merge_content_from_source(db, "tmdb", external_id)
+            refreshed += 1
+        except ContentExternalSourceError as e:
+            db.rollback()
+            errors.append(
+                {
+                    "content_id": content_id,
+                    "external_id": external_id,
+                    "error": str(e),
+                }
+            )
+        except Exception as e:  # pylint: disable=broad-except
+            # Uventet feil (f.eks. nettverk/DB) skal ikke stoppe resten
+            # av batchen - logg raden som feilet og fortsett med neste.
+            db.rollback()
+            errors.append(
+                {
+                    "content_id": content_id,
+                    "external_id": external_id,
+                    "error": f"Uventet feil: {e}",
+                }
+            )
+        requests_in_batch += 1
+        _bulk_refresh_tmdb_job_state["processed"] += 1
+        _bulk_refresh_tmdb_job_state["refreshed"] = refreshed
+
+    return {
+        "total_candidates": total_candidates,
+        "refreshed": refreshed,
+        "errors": errors,
+    }
+
+
+# In-memory status for den ene bulk-TMDB-refresh-jobben som kan kjøre om
+# gangen (én pm2/uvicorn-prosess, ingen flere arbeidere - se
+# ecosystem.config.js - så et modul-nivå objekt er nok, ingen egen
+# jobbkø/tabell trengs for dette). Beskyttet av _bulk_refresh_tmdb_lock
+# siden både HTTP-tråden (start/status) og bakgrunnstråden (selve
+# jobben) leser/skriver den samtidig.
+_bulk_refresh_tmdb_lock = threading.Lock()
+_bulk_refresh_tmdb_job_state: dict = {
+    "running": False,
+    "total_candidates": 0,
+    "processed": 0,
+    "refreshed": 0,
+    "errors": [],
+    "started_at": None,
+    "finished_at": None,
+    "fatal_error": None,
+}
+
+
+def _run_bulk_refresh_tmdb_job() -> None:
+    """Selve jobb-kjøringen i en egen bakgrunnstråd - lager sin egen
+    DB-sesjon (MediaSessionLocal) siden den opprinnelige
+    request-scopede sesjonen (fra get_media_db()) lukkes idet
+    HTTP-requesten som startet jobben returnerer.
+    """
+    db = MediaSessionLocal()
+    try:
+        result = bulk_refresh_tmdb_for_flagged_content(db)
+        with _bulk_refresh_tmdb_lock:
+            _bulk_refresh_tmdb_job_state["errors"] = result["errors"]
+            _bulk_refresh_tmdb_job_state["refreshed"] = result["refreshed"]
+            _bulk_refresh_tmdb_job_state["total_candidates"] = result["total_candidates"]
+    except Exception as e:  # pylint: disable=broad-except
+        with _bulk_refresh_tmdb_lock:
+            _bulk_refresh_tmdb_job_state["fatal_error"] = str(e)
+    finally:
+        db.close()
+        with _bulk_refresh_tmdb_lock:
+            _bulk_refresh_tmdb_job_state["running"] = False
+            _bulk_refresh_tmdb_job_state["finished_at"] = datetime.now(timezone.utc).isoformat()
+
+
+def start_bulk_refresh_tmdb_job() -> dict:
+    """Starter bulk-TMDB-refreshen i en bakgrunnstråd og returnerer med
+    en gang (i stedet for å vente på at hele jobben - som kan ta
+    20-30+ minutter, se bulk_refresh_tmdb_for_flagged_content() -
+    fullfører). Frontend poller get_bulk_refresh_tmdb_status() for
+    fremdrift. Hvis en jobb allerede kjører, startes ikke en ny (kun én
+    om gangen) - status returneres uansett slik at knappen kan vise
+    fremdriften på den som allerede går.
+    """
+    with _bulk_refresh_tmdb_lock:
+        if _bulk_refresh_tmdb_job_state["running"]:
+            return {"started": False, "already_running": True, **_bulk_refresh_tmdb_job_state}
+
+        _bulk_refresh_tmdb_job_state.update(
+            {
+                "running": True,
+                "total_candidates": 0,
+                "processed": 0,
+                "refreshed": 0,
+                "errors": [],
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": None,
+                "fatal_error": None,
+            }
+        )
+
+    thread = threading.Thread(target=_run_bulk_refresh_tmdb_job, daemon=True)
+    thread.start()
+
+    return {"started": True, "already_running": False, **_bulk_refresh_tmdb_job_state}
+
+
+def get_bulk_refresh_tmdb_status() -> dict:
+    """Nåværende status for bulk-TMDB-refresh-jobben (se
+    start_bulk_refresh_tmdb_job()) - brukes til polling fra
+    health_check.php mens jobben kjører."""
+    with _bulk_refresh_tmdb_lock:
+        return dict(_bulk_refresh_tmdb_job_state)
 
 
 def list_group_names(db: Session) -> list[dict]:
@@ -1831,8 +2040,9 @@ def _map_tmdb_to_content_fields(data: dict) -> dict:
         fields["original_title"] = data["original_title"]
     if data.get("release_date"):
         fields["first_release"] = data["release_date"]
-    if data.get("overview"):
-        fields["overview"] = data["overview"]
+    overview = _extract_tmdb_overview(data)
+    if overview:
+        fields["overview"] = overview
     if data.get("runtime"):
         fields["runtime"] = data["runtime"]
     if data.get("poster_path"):
@@ -1847,6 +2057,36 @@ def _map_tmdb_to_content_fields(data: dict) -> dict:
         fields["age_restriction"] = certification
 
     return fields
+
+
+def _extract_tmdb_overview(data: dict) -> str | None:
+    """TMDB returnerer kun overview på det forespurte språket (nb-NO -
+    se fetch_tmdb_details()), uten automatisk fallback til engelsk hvis
+    den norske oversettelsen mangler. Norsk er et lite språk, så dette
+    rammer mange titler (bekreftet: 647/773 av katalogen manglet
+    "overview" etter en full bulk-refresh, se health-check-siden).
+
+    append_to_response=translations (allerede med i hvert TMDB-kall)
+    gir tilgang til ALLE oversettelser TMDB har lagret for tittelen -
+    brukes her som fallback: engelsk foretrukket, ellers første
+    tilgjengelige ikke-tomme oversettelse. Løser dermed det reelle
+    problemet (visning av en beskrivelse) i stedet for å flagge titler
+    som "mangler data" når data faktisk finnes, bare ikke på norsk.
+    """
+    if data.get("overview"):
+        return data["overview"]
+
+    translations = (data.get("translations") or {}).get("translations") or []
+    for entry in translations:
+        if entry.get("iso_639_1") == "en":
+            overview = (entry.get("data") or {}).get("overview")
+            if overview:
+                return overview
+    for entry in translations:
+        overview = (entry.get("data") or {}).get("overview")
+        if overview:
+            return overview
+    return None
 
 
 def _extract_tvdb_overview(data: dict) -> str | None:

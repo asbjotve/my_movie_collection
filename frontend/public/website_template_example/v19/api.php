@@ -233,7 +233,79 @@ if (($_GET['action'] ?? '') === 'list_health_check') {
     exit;
 }
 
-// GET ?action=list_covers&id=<hex content_id>
+// POST ?action=bulk_refresh_tmdb
+// Brukes av "Oppdater flaggede fra TMDB"-knappen på health_check.php:
+// STARTER "hent fra TMDB" + "flett inn i content" for alle flaggede
+// content-rader med en TMDB-kobling, i en bakgrunnstråd på backend -
+// se POST /media/health-check/bulk-refresh-tmdb i
+// backend/app/routes/media_catalog_route.py. Returnerer med en gang
+// (selve jobben kan ta 20-30+ minutter - se
+// bulk_refresh_tmdb_for_flagged_content() for hvorfor); frontend
+// poller bulk_refresh_tmdb_status under for fremdrift. Krever
+// innlogging (samme som refresh_external_source/merge_external_source
+// over) siden dette er en skrivende bulk-operasjon.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_refresh_tmdb') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $bulkUrl = MEDIA_API_BASE_URL . '/media/health-check/bulk-refresh-tmdb';
+
+    $ch = curl_init($bulkUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// GET ?action=bulk_refresh_tmdb_status
+// Brukes til å polle fremdriften på bulk-TMDB-refresh-jobben som
+// bulk_refresh_tmdb over startet - se
+// GET /media/health-check/bulk-refresh-tmdb/status i
+// backend/app/routes/media_catalog_route.py.
+if (($_GET['action'] ?? '') === 'bulk_refresh_tmdb_status') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $statusUrl = MEDIA_API_BASE_URL . '/media/health-check/bulk-refresh-tmdb/status';
+
+    $ch = curl_init($statusUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Brukes av "Bytt cover"-modalen på detail.php: lister alle TMDB-
 // postere som er tilgjengelige (fra sist lagrede data_json - ingen nye
 // TMDB-kall gjøres) - se GET /media/content/{id}/covers i
