@@ -12,6 +12,16 @@ backlog to pick from.
       physical_collection, etc. - 20 tables total) as SQLAlchemy ORM
       classes, so Alembic can manage that schema too (currently only
       handled via manual SQL files in `backend/db_backups/`).
+      - [x] Batch 1: `movie_group`, `owner`, `store`, `storage`,
+            `physical_collection`.
+      - [x] Batch 2: `content`, `physical_copy`, `disc`, `wishlist`,
+            `custom_lists`.
+      - [ ] Remaining ~12 tables.
+- [ ] Investigate/remove the `list` table in `db_mediearkiv` - it
+      looks like unused/legacy dead schema (no primary key, columns
+      typed as `int` where text is clearly expected - `title`,
+      `imdb_id`, etc. - and no references anywhere in the service
+      code). Deliberately skipped when modeling tables for Alembic.
 - [ ] Automated DB backups (e.g. a cron job running `mysqldump` to a
       file or off-site storage), instead of relying on manual backups.
 - [ ] Periodically test that a backup can actually be restored (a

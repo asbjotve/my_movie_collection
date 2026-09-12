@@ -17,8 +17,14 @@ have no outgoing foreign keys:
 
 - [x] Batch 1: `movie_group`, `owner`, `store`, `storage`,
       `physical_collection`
-- [ ] Remaining ~15 tables (`content`, `disc`, `physical_copy`,
-      `custom_lists`, `wishlist`, etc.) - to be added in later batches.
+- [x] Batch 2: `content`, `physical_copy`, `disc`, `wishlist`,
+      `custom_lists` (skipped `list` on purpose - looks like an
+      unused/legacy table, see TODO.md)
+- [ ] Remaining ~12 tables (`content_external_source`,
+      `content_group_membership`, `content_in_physical_collection`,
+      `disc_bonus_item`, `disc_in`, `disc_in_storage`,
+      `disc_related_content`, `custom_list_entries`, `list_items`,
+      etc.) - to be added in later batches.
 
 Until every table is modeled, `alembic revision --autogenerate` WILL
 propose dropping every not-yet-modeled table - that's a false positive
