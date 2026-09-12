@@ -221,11 +221,18 @@ $sectionAccess = [
     .card:hover{ transform: translateY(-2px); border-color: rgba(111,141,255,.7); }
     .card .cover{
       height:260px;
+      position:relative;
       background: linear-gradient(135deg, rgba(111,141,255,.35), rgba(61,220,151,.18));
       display:flex; align-items:flex-end; justify-content:flex-start;
       padding:10px;
+      overflow:hidden;
+    }
+    .card .cover .coverImg{
+      position:absolute; inset:0; width:100%; height:100%;
+      object-fit:cover; z-index:0;
     }
     .card .coverBadge{
+      position:relative; z-index:1;
       font-size:11px; padding:5px 9px; border-radius:999px;
       background: rgba(12,16,36,.65);
       border: 1px solid rgba(238,241,255,.18);
@@ -694,7 +701,8 @@ $sectionAccess = [
     mineFilmerGrid.innerHTML = items.map(item => `
       <div class="card" data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
         <input type="checkbox" class="cardSelectCheckbox" data-id="${escapeHtml(item.content_id)}" ${selectedMineFilmerIds.has(item.content_id) ? "checked" : ""} />
-        <div class="cover" ${item.cover_image ? `style="background-image:url('${escapeHtml(item.cover_image)}');background-size:cover;background-position:center;"` : ""}>
+        <div class="cover">
+          ${item.cover_image ? `<img class="coverImg" loading="lazy" decoding="async" src="${escapeHtml(item.cover_image)}" alt="${escapeHtml(item.title)}">` : ""}
           <div class="coverBadge badge">${escapeHtml((item.content_type || "").toUpperCase())}</div>
         </div>
         <div class="meta">

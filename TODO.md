@@ -151,14 +151,31 @@ backlog to pick from.
       user, not just a single shared admin login (role infrastructure
       for this already exists via `require_role()` in
       `app/security.py`, just not used for more than one role yet).
-- [ ] Lazy-load cover images (`loading="lazy"` on `<img>`, or
+- [x] Lazy-load cover images (`loading="lazy"` on `<img>`, or
       `content-visibility: auto` on off-screen cards) - covers are
       currently rendered as CSS `background-image` on divs, which
-      loads them all eagerly regardless of scroll position.
-- [ ] Switch cover rendering from CSS `background-image` to real
+      loads them all eagerly regardless of scroll position. Done
+      together with the item below on `feature/lazy-load-covers`
+      (main "Mine filmer" grid in `index.php` and the group-movies
+      strip in `detail.php`; the small "Bytt cover" poster-picker
+      modal in `detail.php` was left as `background-image` - it's a
+      short on-demand list, not worth the churn).
+- [x] Switch cover rendering from CSS `background-image` to real
       `<img alt="{title}">` tags for accessibility (screen readers get
       nothing from a background-image) and so lazy-loading above is
       possible in the first place.
+- [ ] Client-side render pagination / "load more" (or virtual
+      scrolling) for the main "Mine filmer" grid in `index.php` -
+      `list_content()` sends the entire catalog in one JSON response
+      and faceted search/filtering is done fully client-side over
+      that array (by design - see docstring), so real server-side
+      pagination would require moving filtering/facet-counting to the
+      backend too (a bigger rewrite). A lighter first step: keep
+      fetching the full list as today (facets keep working unchanged),
+      but only render e.g. 40-60 cards at a time, rendering more as the
+      user scrolls/clicks "last flere" - avoids building hundreds of
+      DOM nodes up front, which is likely the main remaining slowness
+      now that cover images are lazy-loaded.
 - [ ] Self-host Bootstrap (via Composer/npm) instead of loading it
       from `cdn.jsdelivr.net`, so the site still works if that CDN is
       blocked or unreachable on a given network.
