@@ -74,6 +74,44 @@ backlog to pick from.
       user, not just a single shared admin login (role infrastructure
       for this already exists via `require_role()` in
       `app/security.py`, just not used for more than one role yet).
+- [ ] Lazy-load cover images (`loading="lazy"` on `<img>`, or
+      `content-visibility: auto` on off-screen cards) - covers are
+      currently rendered as CSS `background-image` on divs, which
+      loads them all eagerly regardless of scroll position.
+- [ ] Switch cover rendering from CSS `background-image` to real
+      `<img alt="{title}">` tags for accessibility (screen readers get
+      nothing from a background-image) and so lazy-loading above is
+      possible in the first place.
+- [ ] Self-host Bootstrap (via Composer/npm) instead of loading it
+      from `cdn.jsdelivr.net`, so the site still works if that CDN is
+      blocked or unreachable on a given network.
+- [ ] Move the edit-mode/lock-mode toggle (currently `localStorage`,
+      shared browser-wide) to a per-user, server-side preference -
+      right now it "leaks" between different people sharing the same
+      browser/machine.
+- [ ] Loading skeleton/spinner while a page or panel is fetching data,
+      instead of only a plain status text line.
+- [ ] Dark/light theme toggle based on `prefers-color-scheme` - low
+      effort since the CSS already uses variables (`var(--accent)`,
+      `var(--muted)`, etc.).
+- [ ] Reflect the current search/filter state in the URL (query
+      params), so a filtered view can be bookmarked/shared/refreshed
+      without losing it - today only the `panel` parameter is synced
+      to the URL.
+- [ ] Toast/notification component for success/error messages instead
+      of plain inline status text, for more consistent feedback across
+      pages.
+- [ ] Pagination or infinite scroll for the movie list once the
+      collection grows large, instead of rendering everything at
+      once.
+- [ ] "Similar movies" suggestions based on shared genre/group data
+      already stored, shown on the detail page.
+- [ ] Printable/print-friendly view of the full collection (useful for
+      insurance documentation, alongside the CSV/Excel export idea
+      above).
+- [ ] Keyboard shortcut to focus the search field (e.g. `/`), and
+      verify all interactive elements have visible focus indicators
+      for keyboard-only navigation.
 
 ## Backend / security hardening
 
