@@ -164,6 +164,18 @@ backlog to pick from.
       `<img alt="{title}">` tags for accessibility (screen readers get
       nothing from a background-image) and so lazy-loading above is
       possible in the first place.
+- [ ] Client-side render pagination / "load more" (or virtual
+      scrolling) for the main "Mine filmer" grid in `index.php` -
+      `list_content()` sends the entire catalog in one JSON response
+      and faceted search/filtering is done fully client-side over
+      that array (by design - see docstring), so real server-side
+      pagination would require moving filtering/facet-counting to the
+      backend too (a bigger rewrite). A lighter first step: keep
+      fetching the full list as today (facets keep working unchanged),
+      but only render e.g. 40-60 cards at a time, rendering more as the
+      user scrolls/clicks "last flere" - avoids building hundreds of
+      DOM nodes up front, which is likely the main remaining slowness
+      now that cover images are lazy-loaded.
 - [ ] Self-host Bootstrap (via Composer/npm) instead of loading it
       from `cdn.jsdelivr.net`, so the site still works if that CDN is
       blocked or unreachable on a given network.
