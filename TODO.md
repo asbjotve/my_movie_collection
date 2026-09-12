@@ -140,6 +140,30 @@ backlog to pick from.
 - [ ] A visible session-expiry warning (e.g. "you'll be logged out in
       2 minutes") before the JWT access token actually expires, so an
       in-progress edit isn't silently lost to a 401.
+- [ ] Show a diff/preview of what would actually change before
+      applying a TMDB/TVDB "refresh + merge" (currently it fetches and
+      merges immediately; a preview would let the user catch an
+      unwanted overwrite before it happens, complementing the existing
+      per-field `locked_fields` protection).
+- [ ] Debounce the free-text search/filter input on `index.php`
+      (`mineFilmerSearch` currently re-renders on every keystroke) -
+      not an issue yet, but worth doing before/alongside the
+      pagination item above as the collection grows.
+- [ ] Bulk actions on the movie list (e.g. select several movies and
+      add them all to a group/list at once), instead of one at a time.
+- [ ] A `CHANGELOG.md` documenting notable changes per release/version,
+      given how many versioned folders (`v1`...`v19`) already exist
+      across the different apps.
+- [ ] Explicit `Secure`, `HttpOnly`, and `SameSite` cookie flags for
+      the PHP session cookie (verify current
+      `session_set_cookie_params()` call in `_shared/auth.php` sets
+      all three, since the site is already served over HTTPS).
+- [ ] "Skip to content" link and other basic accessibility landmarks
+      (`<main>`, `<nav>` roles) for keyboard/screen-reader users.
+- [ ] A simple `/health` endpoint on the backend (DB connection check,
+      uptime) that could be polled by an external monitor or a cron
+      job, so a crashed/stuck PM2 process is noticed automatically
+      instead of only when someone tries to use the site.
 
 ## Backend / security hardening
 
