@@ -277,7 +277,21 @@ backlog to pick from.
 ## New features
 
 - [ ] Form for registering physical copies of TV series box sets
-      (depends on the TV series table support above).
+      (depends on the TV series table support above). v1 form +
+      backend `tv_series_boxset` import endpoint built and working
+      (`frontend/public/tv_series_add_form/v1`,
+      `import_tv_series_boxset_payload` in
+      `backend/app/services/add_data/physical_collection_import.py`),
+      not yet merged to `develop`. Known open issues to revisit:
+      - `inner_case_ean` handling is unreliable for TV box sets that
+        don't have their own per-season inner cases (works for the
+        case that does have them, breaks for the case that doesn't).
+      - No support yet for a single box that mixes multiple different
+        series and standalone TV movies on the same discs (e.g. a
+        boxset with 2 series + 2-3 TV movies). DB tables
+        (`disc_related_content` is already many-to-many) should
+        support it, but the import payload/`kind` and logic currently
+        assume exactly one series per box/request.
 - [ ] Dedicated API endpoint(s) for a local FileMaker database to
       connect directly against (rather than a one-off CSV export) -
       likely needs its own export-oriented endpoint(s), separate from
