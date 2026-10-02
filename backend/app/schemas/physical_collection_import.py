@@ -128,7 +128,73 @@ class TvSeriesBoxsetImportPayload(BaseModel):
     discs: List[TvDiscPayload] = Field(default_factory=list)
 
 
+class MixedSeriesEntryPayload(BaseModel):
+    """One series inside a mixed_boxset payload. Referenced from discs
+    and episode_refs by its 0-based position in the parent `series`
+    list (series_index), not by an explicit id - the frontend/caller
+    doesn't have real ids until after import."""
+
+    title: str
+    imdb_id: Optional[str] = None
+    tvdb_id: Optional[str] = None
+    seasons: List[TvSeasonPayload] = Field(default_factory=list)
+
+
+class MixedMovieEntryPayload(BaseModel):
+    """One standalone movie inside a mixed_boxset payload (e.g. a TV
+    movie sharing the physical box with one or more series).
+    Referenced from discs by its 0-based position in the parent
+    `movies` list (movie_index)."""
+
+    title: str
+    imdb_id: Optional[str] = None
+    tmdb_id: Optional[str] = None
+    tvdb_id: Optional[str] = None
+    inner_case_ean: Optional[str] = Field(default=None, max_length=13)
+
+
+class MixedEpisodeRefPayload(BaseModel):
+    series_index: int = Field(ge=0)
+    season_number: int
+    episode_number: int
+
+
+class MixedContentRefPayload(BaseModel):
+    kind: Literal["series", "movie"]
+    series_index: Optional[int] = Field(default=None, ge=0)
+    movie_index: Optional[int] = Field(default=None, ge=0)
+
+
+class MixedDiscPayload(BaseModel):
+    order: int = Field(ge=1)
+    format: str
+    label: Optional[str] = None
+    storage_slot_no: Optional[int] = Field(default=None, ge=1)
+    add_to_storage: bool = False
+    content_refs: List[MixedContentRefPayload] = Field(default_factory=list)
+    episode_refs: List[MixedEpisodeRefPayload] = Field(default_factory=list)
+
+
+class MixedBoxsetImportPayload(BaseModel):
+    """A single physical box that mixes one or more TV series (with
+    their own seasons/episodes) and one or more standalone movies
+    (e.g. TV movies) sharing the same box - e.g. an Italian TV series
+    boxset that also includes a couple of related TV movies. Like
+    tv_series_boxset, only one box per request."""
+
+    kind: Literal["mixed_boxset"]
+    box: TvBoxPayload
+    series: List[MixedSeriesEntryPayload] = Field(default_factory=list)
+    movies: List[MixedMovieEntryPayload] = Field(default_factory=list)
+    discs: List[MixedDiscPayload] = Field(default_factory=list)
+
+
 PhysicalCollectionImportPayload = Annotated[
-    Union[SinglesImportPayload, BoxSetsBulkImportPayload, TvSeriesBoxsetImportPayload],
+    Union[
+        SinglesImportPayload,
+        BoxSetsBulkImportPayload,
+        TvSeriesBoxsetImportPayload,
+        MixedBoxsetImportPayload,
+    ],
     Field(discriminator="kind"),
 ]
