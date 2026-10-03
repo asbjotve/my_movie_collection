@@ -107,6 +107,32 @@ def _load_physical_copies(
         {"ids": raw_collection_ids},
     ).fetchall()
     container_ids = {row.collection_id for row in title_count_rows if row.n_titles > 1}
+
+    # En TV-boks med egne innerkasser pr. sesong (inner_case_ean) har
+    # derimot bare ÉN tittel (selve serien) i ytterboks-samlingen - den
+    # n_titles>1-sjekken over fanger den derfor ikke opp, og uten dette
+    # ville ytterboksen (barcode=NULL, ingen egne plater - platene
+    # ligger jo i sesongenes innerkasser) dukket opp som et eget, tomt
+    # "eksemplar" ved siden av de reelle sesong-innerkassene. Fanges
+    # opp her i stedet: en samling uten egen strekkode er en ren
+    # beholder hvis samme content_id også finnes i en annen samling
+    # (blant disse raw_collection_ids) som HAR en strekkode - altså at
+    # det fins en mer spesifikk innerkasse et annet sted for samme
+    # innhold.
+    barcode_rows = db.execute(
+        text(
+            """
+            SELECT collection_id, barcode
+            FROM physical_collection
+            WHERE collection_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": raw_collection_ids},
+    ).fetchall()
+    has_barcode_elsewhere = any(row.barcode for row in barcode_rows)
+    if has_barcode_elsewhere:
+        container_ids |= {row.collection_id for row in barcode_rows if not row.barcode}
+
     filtered_ids = [cid for cid in raw_collection_ids if cid not in container_ids]
     if filtered_ids:
         raw_collection_ids = filtered_ids
@@ -257,12 +283,52 @@ def _load_physical_copies(
                 kept.append(d)
         discs_by_copy[key] = kept
 
+    # For TV-serier (og framtidig mixed_boxset) ligger platene gruppert
+    # pr. sesong via disc_contains_episode -> episode -> season. Henter
+    # dette her slik at hvert eksemplar kan merkes med hvilken sesong
+    # det faktisk representerer (f.eks. "Sesong 1" for innerkassen til
+    # sesong 1) i stedet for å vises som et umerket, uforklart eksemplar.
+    season_by_disc_hex: dict[str, set[tuple]] = {}
+    if disc_id_by_hex:
+        season_stmt = text(
+            """
+            SELECT DISTINCT
+                dce.disc_id AS disc_id,
+                sea.season_number AS season_number,
+                sea.title AS season_title
+            FROM disc_contains_episode dce
+            JOIN episode ep ON ep.episode_id = dce.episode_id
+            JOIN season sea ON sea.season_id = ep.season_id
+            WHERE dce.disc_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True))
+        season_rows = db.execute(
+            season_stmt, {"ids": list(disc_id_by_hex.values())}
+        ).fetchall()
+        for row in season_rows:
+            season_by_disc_hex.setdefault(_hex_id(row.disc_id), set()).add(
+                (row.season_number, row.season_title)
+            )
+
     physical_copies: list[dict] = []
     for row in copy_rows:
         ck = _hex_id(row.collection_id)
         collection = collection_by_hex.get(ck, {})
         discs = discs_by_copy.get((ck, row.copy_id), [])
         box_set_barcode = collection.get("box_set_barcode")
+
+        # Hvis ALLE platene i dette eksemplaret peker på episoder fra
+        # én og samme sesong, merkes hele eksemplaret med den sesongen
+        # (typisk en sesongs egen innerkasse). Spenner eksemplaret over
+        # flere sesonger (eller ingen episodekobling i det hele tatt),
+        # lar vi det stå umerket.
+        seasons_in_copy: set[tuple] = set()
+        for d in discs:
+            seasons_in_copy |= season_by_disc_hex.get(d["disc_id"], set())
+        season_number, season_title = (
+            next(iter(seasons_in_copy)) if len(seasons_in_copy) == 1 else (None, None)
+        )
+
         physical_copies.append(
             {
                 "collection_id": ck,
@@ -271,6 +337,8 @@ def _load_physical_copies(
                 "barcode": collection.get("barcode"),
                 "box_set_barcode": box_set_barcode,
                 "is_box_set": bool(box_set_barcode),
+                "season_number": season_number,
+                "season_title": season_title,
                 "disc_count": len(discs),
                 "discs": discs,
                 "box_set_items": (

@@ -282,16 +282,51 @@ backlog to pick from.
       (`frontend/public/tv_series_add_form/v1`,
       `import_tv_series_boxset_payload` in
       `backend/app/services/add_data/physical_collection_import.py`),
-      not yet merged to `develop`. Known open issues to revisit:
-      - `inner_case_ean` handling is unreliable for TV box sets that
-        don't have their own per-season inner cases (works for the
-        case that does have them, breaks for the case that doesn't).
-      - No support yet for a single box that mixes multiple different
-        series and standalone TV movies on the same discs (e.g. a
-        boxset with 2 series + 2-3 TV movies). DB tables
-        (`disc_related_content` is already many-to-many) should
-        support it, but the import payload/`kind` and logic currently
-        assume exactly one series per box/request.
+      not yet merged to `develop`. Status of previously open issues:
+      - [x] `inner_case_ean` display bug fixed: the per-season inner
+        case collections were correctly imported, but the detail page
+        read path (`_load_physical_copies` in
+        `backend/app/services/media_catalog.py`) treated the outer
+        box collection as its own (empty, confusing) "physical copy"
+        entry instead of recognizing it as a pure container, because
+        its "is this a container collection" check only looked for
+        collections shared by multiple *different* titles - a TV
+        box's outer collection only ever has one title (the series
+        itself) shared across its own per-season rows, so it slipped
+        through. Added a second container rule (a barcode-less
+        collection whose content also has a sibling collection with a
+        barcode is a container) plus season labelling: each
+        `physical_copies` entry now gets `season_number`/
+        `season_title` derived from `disc_contains_episode` ->
+        `episode` -> `season` when all its discs belong to one
+        season. Verified via live DB test (2-season box, no spurious
+        empty entry, correct season labels) and cleaned up afterwards.
+      - [x] Mixed boxset support (multiple series + standalone TV
+        movies sharing discs in one physical box, e.g. a box with 2
+        series + 2-3 TV movies) implemented as a new `mixed_boxset`
+        payload `kind` - see `import_mixed_boxset_payload` in
+        `backend/app/services/add_data/physical_collection_import.py`
+        and the matching schemas in
+        `backend/app/schemas/physical_collection_import.py`.
+        References series/movies from discs by their 0-based position
+        in the payload's `series`/`movies` lists. No new frontend
+        needed yet - the existing "paste finished JSON payload" box in
+        `frontend/public/tv_series_add_form/v1` already posts to the
+        same generic `/import/physical-collection` endpoint. Verified
+        via live DB test + full cleanup.
+      - [ ] `_load_box_set_items` (used only when `box_set_barcode` is
+        set on the outer box - not the typical case for TV payloads so
+        far) still has the same "one collection = one distinct title"
+        assumption and would misbehave for a TV series with per-season
+        inner cases if `box_set_barcode` were ever set. Not an active
+        bug today since TV payloads currently leave `box_set_barcode`
+        unset, but worth revisiting if that changes.
+      - [ ] No detail-page frontend template renders season/episode
+        structure yet (season/episode tables have zero references in
+        `media_catalog.py`'s templates/consumers beyond the new
+        `season_number`/`season_title` fields added above) - the data
+        is now available via the API, but UI work to actually display
+        it (e.g. grouping discs under season headings) is still open.
 - [ ] Dedicated API endpoint(s) for a local FileMaker database to
       connect directly against (rather than a one-off CSV export) -
       likely needs its own export-oriented endpoint(s), separate from
@@ -300,13 +335,12 @@ backlog to pick from.
       blobs) and may need per-table access rather than one big
       flattened payload.
 - [ ] Read-only share link for a custom list (e.g. a public,
-
-
       unguessable URL) so a list can be shared with friends/family
       without giving them a login.
 - [ ] Price/availability tracking for wishlist items (e.g. periodic
       check against a shop/price API), to get notified when a wanted
       title becomes available or drops in price.
+      USSER NOTE: Can be hard, if there are no API available
 
 ## Technical debt / cleanup
 
