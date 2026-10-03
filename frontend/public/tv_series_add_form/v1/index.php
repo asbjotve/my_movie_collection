@@ -22,6 +22,24 @@ declare(strict_types=1);
  *   discs:   [ { order, format, label, season_number, inner_case_ean,
  *                storage_slot_no, add_to_storage,
  *                episode_refs: [ { season_number, episode_number } ] } ]
+ *
+ * v1 also added guided fields for a second payload shape ("kind":
+ * "mixed_boxset") - one physical box mixing one or more TV series
+ * (each with its own seasons/episodes) and one or more standalone
+ * movies (e.g. TV movies), sharing discs across them. See
+ * app/schemas/physical_collection_import.py's MixedBoxsetImportPayload
+ * and import_mixed_boxset_payload() in
+ * app/services/add_data/physical_collection_import.py for the
+ * backend side. Payload shape ("kind": "mixed_boxset"):
+ *   box:    { format, box_set_barcode, storage_id, copy_count }
+ *   series: [ { title, imdb_id, tvdb_id,
+ *               seasons: [ same shape as tv_series_boxset's seasons ] } ]
+ *   movies: [ { title, imdb_id, tmdb_id, tvdb_id, inner_case_ean } ]
+ *   discs:  [ { order, format, label, storage_slot_no, add_to_storage,
+ *               content_refs: [ { kind: "series"|"movie",
+ *                 series_index|movie_index } ],
+ *               episode_refs: [ { series_index, season_number,
+ *                 episode_number } ] } ]
  */
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
@@ -199,41 +217,145 @@ function h(string $s): string
 <div class="page">
 
   <div class="hero">
-    <span class="draftTag">Utkast / v1 - ikke koblet til backend ennå</span>
+    <span class="draftTag">v1 - koblet til backend</span>
     <h1>Registrer TV-serie-boks</h1>
     <p>
-      Første utkast til skjema for fysiske TV-serie-bokser (sesong/episode/disk).
-      Fyll ut manuelt her og bruk JSON-forhåndsvisningen nederst som utgangspunkt
-      for videre diskusjon - ingen data sendes til serveren fra denne versjonen ennå.
-      TVDB er tenkt som primærkilde for sesong-/episodedata senere (mer utfyllende enn TMDB),
-      men søk er ikke koblet inn i v1. Episoder angis foreløpig kun med antall per
-      sesong (ikke tittel/varighet/sendedato per episode) - det er tenkt hentet fra
-      TVDB senere i stedet for å fylles ut manuelt.
+      Skjema for fysiske TV-serie-bokser (sesong/episode/disk), samt bokser som
+      blander flere serier og/eller frittstående filmer (velg type under).
+      Fyll ut, bygg en JSON-forhåndsvisning og send rett inn til backend, eller
+      lim inn en ferdig payload nederst. TVDB-søk fyller inn tittel/tvdb_id/
+      imdb_id for serier. Episoder angis foreløpig kun med antall per sesong
+      (ikke tittel/varighet/sendedato per episode) - tenkt hentet fra TVDB senere.
     </p>
   </div>
 
   <div class="card">
-    <div class="cardHead"><h2>1. Serien</h2></div>
+    <div class="cardHead"><h2>0. Type registrering</h2></div>
     <div class="cardBody">
-      <div class="grid cols2">
-        <div class="field">
-          <label for="seriesTitle">Tittel</label>
-          <input type="text" id="seriesTitle" placeholder="f.eks. Breaking Bad">
-        </div>
-        <div class="field">
-          <label for="seriesImdb">IMDb-ID</label>
-          <input type="text" id="seriesImdb" placeholder="tt0903747">
-        </div>
-        <div class="field">
-          <label for="seriesTvdb">TVDB-ID</label>
-          <input type="text" id="seriesTvdb" placeholder="81189">
-        </div>
+      <div class="field" style="max-width:420px;">
+        <label for="formMode">Hva skal registreres?</label>
+        <select id="formMode">
+          <option value="tv_series_boxset">Enkelt TV-serie-boks (1 serie)</option>
+          <option value="mixed_boxset">Blandet boks (flere serier og/eller frittstående filmer i samme boks)</option>
+        </select>
       </div>
-      <div class="actionsRow" style="margin-top:12px;">
-        <button type="button" class="btn small" id="searchTvdbBtn">Søk TVDB</button>
-        <span class="muted" id="tvdbSearchStatus"></span>
+      <p class="muted" style="margin:8px 0 0;">
+        Velg "Blandet boks" for f.eks. en samleboks med 2 italienske serier og noen
+        TV-filmer som deler plater/boks (<code>kind: "mixed_boxset"</code>).
+      </p>
+    </div>
+  </div>
+
+  <div id="singleModeSection">
+    <div class="card">
+      <div class="cardHead"><h2>1. Serien</h2></div>
+      <div class="cardBody">
+        <div class="grid cols2">
+          <div class="field">
+            <label for="seriesTitle">Tittel</label>
+            <input type="text" id="seriesTitle" placeholder="f.eks. Breaking Bad">
+          </div>
+          <div class="field">
+            <label for="seriesImdb">IMDb-ID</label>
+            <input type="text" id="seriesImdb" placeholder="tt0903747">
+          </div>
+          <div class="field">
+            <label for="seriesTvdb">TVDB-ID</label>
+            <input type="text" id="seriesTvdb" placeholder="81189">
+          </div>
+        </div>
+        <div class="actionsRow" style="margin-top:12px;">
+          <button type="button" class="btn small" id="searchTvdbBtn">Søk TVDB</button>
+          <span class="muted" id="tvdbSearchStatus"></span>
+        </div>
+        <div id="tvdbResults" style="margin-top:10px;"></div>
       </div>
-      <div id="tvdbResults" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="cardHead">
+        <h2>3. Sesonger og episoder</h2>
+        <button type="button" class="btn small" id="addSeasonBtn">+ Legg til sesong</button>
+      </div>
+      <div class="cardBody">
+        <div id="seasonsContainer"></div>
+        <p class="muted" id="noSeasonsMsg">Ingen sesonger lagt til ennå.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHead">
+        <h2>4. Disker</h2>
+        <button type="button" class="btn small" id="addDiscBtn">+ Legg til disk</button>
+      </div>
+      <div class="cardBody">
+        <table id="discTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Format</th>
+              <th>Etikett</th>
+              <th>Sesong</th>
+              <th>Lagerplass nr.</th>
+              <th>Til lager?</th>
+              <th>Episoder på disken</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="discTableBody"></tbody>
+        </table>
+        <p class="muted" id="noDiscsMsg">Ingen disker lagt til ennå.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="mixedModeSection" style="display:none;">
+    <div class="card">
+      <div class="cardHead">
+        <h2>1m. Serier i boksen</h2>
+        <button type="button" class="btn small" id="addMixedSeriesBtn">+ Legg til serie</button>
+      </div>
+      <div class="cardBody">
+        <div id="mixedSeriesContainer"></div>
+        <p class="muted" id="noMixedSeriesMsg">Ingen serier lagt til ennå.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHead">
+        <h2>2m. Frittstående filmer i boksen</h2>
+        <button type="button" class="btn small" id="addMixedMovieBtn">+ Legg til film</button>
+      </div>
+      <div class="cardBody">
+        <p class="muted" style="margin-top:0;">F.eks. TV-filmer som ligger i samme boks som seriene, men ikke hører til noen sesong.</p>
+        <div id="mixedMoviesContainer"></div>
+        <p class="muted" id="noMixedMoviesMsg">Ingen filmer lagt til ennå.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHead">
+        <h2>3m. Disker</h2>
+        <button type="button" class="btn small" id="addMixedDiscBtn">+ Legg til disk</button>
+      </div>
+      <div class="cardBody">
+        <table id="mixedDiscTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Format</th>
+              <th>Etikett</th>
+              <th>Lagerplass nr.</th>
+              <th>Til lager?</th>
+              <th>Serie(r)/film(er) på disken</th>
+              <th>Episoder på disken</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="mixedDiscTableBody"></tbody>
+        </table>
+        <p class="muted" id="noMixedDiscsMsg">Ingen disker lagt til ennå.</p>
+      </div>
     </div>
   </div>
 
@@ -266,42 +388,6 @@ function h(string $s): string
   </div>
 
   <div class="card">
-    <div class="cardHead">
-      <h2>3. Sesonger og episoder</h2>
-      <button type="button" class="btn small" id="addSeasonBtn">+ Legg til sesong</button>
-    </div>
-    <div class="cardBody">
-      <div id="seasonsContainer"></div>
-      <p class="muted" id="noSeasonsMsg">Ingen sesonger lagt til ennå.</p>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="cardHead">
-      <h2>4. Disker</h2>
-      <button type="button" class="btn small" id="addDiscBtn">+ Legg til disk</button>
-    </div>
-    <div class="cardBody">
-      <table id="discTable">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Format</th>
-            <th>Etikett</th>
-            <th>Sesong</th>
-            <th>Lagerplass nr.</th>
-            <th>Til lager?</th>
-            <th>Episoder på disken</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="discTableBody"></tbody>
-      </table>
-      <p class="muted" id="noDiscsMsg">Ingen disker lagt til ennå.</p>
-    </div>
-  </div>
-
-  <div class="card">
     <div class="cardHead"><h2>5. JSON-forhåndsvisning</h2></div>
     <div class="cardBody">
       <div class="actionsRow">
@@ -318,12 +404,13 @@ function h(string $s): string
     <div class="cardHead"><h2>6. Lim inn ferdig JSON-payload</h2></div>
     <div class="cardBody">
       <p class="muted">
-        Har du allerede en ferdig <code>tv_series_boxset</code>-payload (f.eks. laget fra
-        forhåndsvisningen over, eller skrevet manuelt)? Lim den inn her og send inn direkte -
+        Har du allerede en ferdig <code>tv_series_boxset</code>- eller
+        <code>mixed_boxset</code>-payload (f.eks. laget fra forhåndsvisningen over,
+        eller skrevet manuelt)? Lim den inn her og send inn direkte -
         uten å måtte fylle ut skjemaet over på nytt.
       </p>
       <textarea id="pastePayloadInput" class="mono" rows="10" style="width:100%;"
-        placeholder='{"kind": "tv_series_boxset", ...}'></textarea>
+        placeholder='{"kind": "tv_series_boxset" eller "mixed_boxset", ...}'></textarea>
       <div class="actionsRow">
         <button type="button" class="btn good" id="submitPasteBtn">Send inn limt payload</button>
       </div>

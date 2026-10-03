@@ -1,23 +1,44 @@
-// tv_series_add_form v1 - draft/prototype only.
-// Manual entry + JSON payload preview, no backend submission yet.
-// TVDB search (api.php's search_tvdb action) fills in title/tvdb_id/
-// imdb_id for the series - see extractImdbId()/searchTvdb() below.
+// tv_series_add_form v1.
+// Two guided modes, both posting to the same backend endpoint via
+// api.php's submit action:
+//   - "tv_series_boxset": one series, its seasons/episodes, and discs
+//     (the original mode).
+//   - "mixed_boxset": one physical box mixing several series (each
+//     with its own seasons/episodes) and/or standalone movies, with
+//     discs referencing any mix of them. See
+//     app/schemas/physical_collection_import.py's
+//     MixedBoxsetImportPayload for the exact backend shape.
+// Season/episode editing is shared between both modes via the
+// generic renderSeasonBlocks()/addSeasonTo()/removeSeasonFrom()
+// helpers below, parameterized by which seasons array + DOM container
+// they operate on.
 
 (function () {
   "use strict";
 
-  let seasonSeq = 0;
-  let discSeq = 0;
+  // --- Mode toggle ----------------------------------------------------
 
-  const seasons = []; // { id, season_number, title, air_date, inner_case_ean, episodes: [{episode_number, title, runtime, original_air_date}] }
-  const discs = [];   // { id, order, format, label, storage_slot_no, add_to_storage, episode_refs: [{season_number, episode_number}] }
+  const formModeEl = document.getElementById("formMode");
+  const singleModeSectionEl = document.getElementById("singleModeSection");
+  const mixedModeSectionEl = document.getElementById("mixedModeSection");
 
-  const seasonsContainer = document.getElementById("seasonsContainer");
-  const noSeasonsMsg = document.getElementById("noSeasonsMsg");
-  const discTableBody = document.getElementById("discTableBody");
-  const noDiscsMsg = document.getElementById("noDiscsMsg");
-  const tvdbResultsEl = document.getElementById("tvdbResults");
-  const tvdbSearchStatusEl = document.getElementById("tvdbSearchStatus");
+  function currentMode() {
+    return formModeEl.value === "mixed_boxset" ? "mixed_boxset" : "tv_series_boxset";
+  }
+
+  function updateModeVisibility() {
+    const mixed = currentMode() === "mixed_boxset";
+    singleModeSectionEl.style.display = mixed ? "none" : "block";
+    mixedModeSectionEl.style.display = mixed ? "block" : "none";
+    // Lazy-init mixed mode with one empty series/disc so the shape is
+    // clear the first time the user switches to it.
+    if (mixed && mixedSeries.length === 0 && mixedMovies.length === 0) {
+      addMixedSeries();
+      addMixedDisc();
+    }
+  }
+
+  formModeEl.addEventListener("change", updateModeVisibility);
 
   function h(s) {
     const div = document.createElement("div");
@@ -25,27 +46,15 @@
     return div.innerHTML;
   }
 
-  function addSeason() {
-    seasonSeq += 1;
-    const season = {
-      id: seasonSeq,
-      season_number: seasons.length + 1,
-      title: "",
-      air_date: "",
-      inner_case_ean: "",
-      episodes: [],
-    };
-    seasons.push(season);
-    setEpisodeCount(season, 1);
-    renderSeasons();
-    renderDiscEpisodeOptions();
-  }
+  // --- Shared season/episode editor -----------------------------------
+  // Operates on a plain seasons array (season_number, title, air_date,
+  // inner_case_ean, episodes:[{episode_number,title,runtime,
+  // original_air_date}]) rendered into a given container element, used
+  // both by single-mode's one series and by each series block in
+  // mixed mode.
 
-  function removeSeason(id) {
-    const idx = seasons.findIndex((s) => s.id === id);
-    if (idx !== -1) seasons.splice(idx, 1);
-    renderSeasons();
-    renderDiscEpisodeOptions();
+  function makeSeason(seasonNumber) {
+    return { season_number: seasonNumber, title: "", air_date: "", inner_case_ean: "", episodes: [] };
   }
 
   // Resize season.episodes to the given count, keeping existing episode
@@ -69,11 +78,23 @@
     }
   }
 
-  function renderSeasons() {
-    seasonsContainer.innerHTML = "";
-    noSeasonsMsg.style.display = seasons.length ? "none" : "block";
+  function addSeasonTo(seasonsArr) {
+    const season = makeSeason(seasonsArr.length + 1);
+    seasonsArr.push(season);
+    setEpisodeCount(season, 1);
+    return season;
+  }
 
-    seasons.forEach((season) => {
+  function removeSeasonFrom(seasonsArr, season) {
+    const idx = seasonsArr.indexOf(season);
+    if (idx !== -1) seasonsArr.splice(idx, 1);
+  }
+
+  function renderSeasonBlocks(containerEl, noMsgEl, seasonsArr, onChange) {
+    containerEl.innerHTML = "";
+    noMsgEl.style.display = seasonsArr.length ? "none" : "block";
+
+    seasonsArr.forEach((season) => {
       const block = document.createElement("div");
       block.className = "seasonBlock";
       block.innerHTML = `
@@ -108,25 +129,48 @@
       block.querySelector(".seasonNumberInput").addEventListener("input", (e) => {
         season.season_number = e.target.value === "" ? "" : Number(e.target.value);
         block.querySelector(".seasonNumberLabel").textContent = season.season_number;
-        renderDiscEpisodeOptions();
+        onChange();
       });
       block.querySelector(".seasonTitleInput").addEventListener("input", (e) => {
         season.title = e.target.value;
       });
       block.querySelector(".seasonEpisodeCountInput").addEventListener("change", (e) => {
         setEpisodeCount(season, e.target.value);
-        renderSeasons();
-        renderDiscEpisodeOptions();
+        renderSeasonBlocks(containerEl, noMsgEl, seasonsArr, onChange);
+        onChange();
       });
       block.querySelector(".seasonInnerEanInput").addEventListener("input", (e) => {
         season.inner_case_ean = e.target.value;
       });
       block.querySelector('[data-action="removeSeason"]').addEventListener("click", () => {
-        removeSeason(season.id);
+        removeSeasonFrom(seasonsArr, season);
+        renderSeasonBlocks(containerEl, noMsgEl, seasonsArr, onChange);
+        onChange();
       });
 
-      seasonsContainer.appendChild(block);
+      containerEl.appendChild(block);
     });
+  }
+
+  // --- Single mode: seasons + discs ------------------------------------
+
+  const seasons = []; // same shape as makeSeason()
+  const discs = [];   // { id, order, format, label, season_id, storage_slot_no, add_to_storage, episode_refs: [{season_number, episode_number}] }
+  let discSeq = 0;
+
+  const seasonsContainer = document.getElementById("seasonsContainer");
+  const noSeasonsMsg = document.getElementById("noSeasonsMsg");
+  const discTableBody = document.getElementById("discTableBody");
+  const noDiscsMsg = document.getElementById("noDiscsMsg");
+
+  function renderSeasons() {
+    renderSeasonBlocks(seasonsContainer, noSeasonsMsg, seasons, renderDiscEpisodeOptions);
+  }
+
+  function addSeason() {
+    addSeasonTo(seasons);
+    renderSeasons();
+    renderDiscEpisodeOptions();
   }
 
   function addDisc() {
@@ -136,7 +180,7 @@
       order: discs.length + 1,
       format: "DVD",
       label: "",
-      season_id: seasons.length ? seasons[0].id : null,
+      season_id: seasons.length ? seasons[0] : null,
       storage_slot_no: "",
       add_to_storage: true,
       episode_refs: [],
@@ -153,23 +197,22 @@
     renderDiscs();
   }
 
-  function seasonOptionsHtml(selectedSeasonId) {
+  function seasonOptionsHtml(selectedSeason) {
     if (!seasons.length) {
       return '<option value="">(ingen sesonger lagt til)</option>';
     }
     return seasons
-      .map((season) => {
+      .map((season, idx) => {
         const label =
           `Sesong ${season.season_number}` +
           (season.inner_case_ean ? ` (eget etui, EAN ${season.inner_case_ean})` : "");
-        const selected = season.id === selectedSeasonId ? " selected" : "";
-        return `<option value="${h(season.id)}"${selected}>${h(label)}</option>`;
+        const selected = season === selectedSeason ? " selected" : "";
+        return `<option value="${idx}"${selected}>${h(label)}</option>`;
       })
       .join("");
   }
 
-  function episodeOptionsHtml(seasonId, selectedRefs) {
-    const season = seasons.find((s) => s.id === seasonId);
+  function episodeOptionsHtml(season, selectedRefs) {
     if (!season) return "";
     return season.episodes
       .map((ep) => {
@@ -188,11 +231,11 @@
     // changed) - make sure discs still point at a valid season and
     // drop episode_refs that no longer belong to it.
     discs.forEach((disc) => {
-      if (!seasons.some((s) => s.id === disc.season_id)) {
-        disc.season_id = seasons.length ? seasons[0].id : null;
+      if (!seasons.includes(disc.season_id)) {
+        disc.season_id = seasons.length ? seasons[0] : null;
         disc.episode_refs = [];
       } else {
-        const season = seasons.find((s) => s.id === disc.season_id);
+        const season = disc.season_id;
         disc.episode_refs = disc.episode_refs.filter((r) =>
           season.episodes.some(
             (ep) => ep.episode_number === r.episode_number && season.season_number === r.season_number
@@ -234,7 +277,7 @@
         disc.label = e.target.value;
       });
       tr.querySelector(".discSeasonInput").addEventListener("change", (e) => {
-        disc.season_id = Number(e.target.value);
+        disc.season_id = seasons[Number(e.target.value)] || null;
         disc.episode_refs = []; // switching season - old picks no longer apply
         renderDiscs();
       });
@@ -245,7 +288,6 @@
         disc.add_to_storage = e.target.checked;
       });
       tr.querySelector(".discEpisodesInput").addEventListener("change", (e) => {
-        const season = seasons.find((s) => s.id === disc.season_id);
         const selected = Array.from(e.target.selectedOptions).map((opt) => opt.value);
         disc.episode_refs = selected.map((v) => {
           const [seasonNumber, episodeNumber] = v.split(":").map(Number);
@@ -260,7 +302,7 @@
     });
   }
 
-  function buildPayload() {
+  function buildSinglePayload() {
     return {
       kind: "tv_series_boxset",
       series: {
@@ -269,12 +311,7 @@
         tvdb_id: document.getElementById("seriesTvdb").value || null,
         content_type: "series",
       },
-      box: {
-        format: document.getElementById("boxFormat").value,
-        box_set_barcode: document.getElementById("boxBarcode").value || null,
-        storage_id: document.getElementById("storageId").value || null,
-        copy_count: Number(document.getElementById("copyCount").value) || 1,
-      },
+      box: buildBoxPayload(),
       seasons: seasons.map((s) => ({
         season_number: s.season_number,
         title: s.title || null,
@@ -288,7 +325,7 @@
         })),
       })),
       discs: discs.map((d) => {
-        const season = seasons.find((s) => s.id === d.season_id);
+        const season = d.season_id;
         return {
           order: d.order,
           format: d.format,
@@ -303,12 +340,401 @@
     };
   }
 
+  // --- Shared box fields ------------------------------------------------
+
+  function buildBoxPayload() {
+    return {
+      format: document.getElementById("boxFormat").value,
+      box_set_barcode: document.getElementById("boxBarcode").value || null,
+      storage_id: document.getElementById("storageId").value || null,
+      copy_count: Number(document.getElementById("copyCount").value) || 1,
+    };
+  }
+
+  // --- Mixed mode: multiple series, movies, discs ------------------------
+
+  let mixedSeriesSeq = 0;
+  let mixedMovieSeq = 0;
+  let mixedDiscSeq = 0;
+  const mixedSeries = []; // { id, title, imdb_id, tvdb_id, seasons: [...] }
+  const mixedMovies = []; // { id, title, imdb_id, tmdb_id, tvdb_id, inner_case_ean }
+  const mixedDiscs = [];  // { id, order, format, label, storage_slot_no, add_to_storage, content_refs: [{kind, id}], episode_refs: [{seriesId, season_number, episode_number}] }
+
+  const mixedSeriesContainer = document.getElementById("mixedSeriesContainer");
+  const noMixedSeriesMsg = document.getElementById("noMixedSeriesMsg");
+  const mixedMoviesContainer = document.getElementById("mixedMoviesContainer");
+  const noMixedMoviesMsg = document.getElementById("noMixedMoviesMsg");
+  const mixedDiscTableBody = document.getElementById("mixedDiscTableBody");
+  const noMixedDiscsMsg = document.getElementById("noMixedDiscsMsg");
+
+  function addMixedSeries() {
+    mixedSeriesSeq += 1;
+    const series = { id: mixedSeriesSeq, title: "", imdb_id: "", tvdb_id: "", seasons: [] };
+    mixedSeries.push(series);
+    addSeasonTo(series.seasons);
+    renderMixedSeries();
+    renderMixedDiscs();
+  }
+
+  function removeMixedSeries(id) {
+    const idx = mixedSeries.findIndex((s) => s.id === id);
+    if (idx !== -1) mixedSeries.splice(idx, 1);
+    renderMixedSeries();
+    renderMixedDiscs();
+  }
+
+  function renderMixedSeries() {
+    mixedSeriesContainer.innerHTML = "";
+    noMixedSeriesMsg.style.display = mixedSeries.length ? "none" : "block";
+
+    mixedSeries.forEach((series, idx) => {
+      const block = document.createElement("div");
+      block.className = "seasonBlock";
+      block.innerHTML = `
+        <div class="seasonHead">
+          <h3>Serie ${idx + 1}</h3>
+          <button type="button" class="btn danger small" data-action="removeSeries">Fjern serie</button>
+        </div>
+        <div class="grid cols2">
+          <div class="field">
+            <label>Tittel</label>
+            <input type="text" class="seriesTitleInput" value="${h(series.title)}" placeholder="f.eks. Il Corleone">
+          </div>
+          <div class="field">
+            <label>IMDb-ID</label>
+            <input type="text" class="seriesImdbInput" value="${h(series.imdb_id)}" placeholder="tt...">
+          </div>
+          <div class="field">
+            <label>TVDB-ID</label>
+            <input type="text" class="seriesTvdbInput" value="${h(series.tvdb_id)}" placeholder="12345">
+          </div>
+        </div>
+        <div class="actionsRow" style="margin-top:10px;">
+          <button type="button" class="btn small" data-action="searchTvdb">Søk TVDB</button>
+          <span class="muted seriesTvdbStatus"></span>
+        </div>
+        <div class="seriesTvdbResults" style="margin-top:8px;"></div>
+        <div class="cardHead" style="padding:14px 0 0;">
+          <h3 style="margin:0;font-size:14px;">Sesonger</h3>
+          <button type="button" class="btn small" data-action="addSeason">+ Legg til sesong</button>
+        </div>
+        <div class="seriesSeasonsContainer" style="margin-top:10px;"></div>
+        <p class="muted seriesNoSeasonsMsg">Ingen sesonger lagt til ennå.</p>
+      `;
+
+      block.querySelector(".seriesTitleInput").addEventListener("input", (e) => {
+        series.title = e.target.value;
+      });
+      block.querySelector(".seriesImdbInput").addEventListener("input", (e) => {
+        series.imdb_id = e.target.value;
+      });
+      block.querySelector(".seriesTvdbInput").addEventListener("input", (e) => {
+        series.tvdb_id = e.target.value;
+      });
+      block.querySelector('[data-action="removeSeries"]').addEventListener("click", () => {
+        removeMixedSeries(series.id);
+      });
+
+      const seasonsContainerEl = block.querySelector(".seriesSeasonsContainer");
+      const noSeasonsMsgEl = block.querySelector(".seriesNoSeasonsMsg");
+      const rerenderThisSeriesSeasons = () =>
+        renderSeasonBlocks(seasonsContainerEl, noSeasonsMsgEl, series.seasons, renderMixedDiscs);
+      rerenderThisSeriesSeasons();
+
+      block.querySelector('[data-action="addSeason"]').addEventListener("click", () => {
+        addSeasonTo(series.seasons);
+        rerenderThisSeriesSeasons();
+        renderMixedDiscs();
+      });
+
+      const titleInputEl = block.querySelector(".seriesTitleInput");
+      const tvdbInputEl = block.querySelector(".seriesTvdbInput");
+      const imdbInputEl = block.querySelector(".seriesImdbInput");
+      const statusEl = block.querySelector(".seriesTvdbStatus");
+      const resultsEl = block.querySelector(".seriesTvdbResults");
+      block.querySelector('[data-action="searchTvdb"]').addEventListener("click", () => {
+        searchTvdbFor(titleInputEl, tvdbInputEl, imdbInputEl, resultsEl, statusEl);
+      });
+
+      mixedSeriesContainer.appendChild(block);
+    });
+  }
+
+  function addMixedMovie() {
+    mixedMovieSeq += 1;
+    mixedMovies.push({
+      id: mixedMovieSeq,
+      title: "",
+      imdb_id: "",
+      tmdb_id: "",
+      tvdb_id: "",
+      inner_case_ean: "",
+    });
+    renderMixedMovies();
+    renderMixedDiscs();
+  }
+
+  function removeMixedMovie(id) {
+    const idx = mixedMovies.findIndex((m) => m.id === id);
+    if (idx !== -1) mixedMovies.splice(idx, 1);
+    renderMixedMovies();
+    renderMixedDiscs();
+  }
+
+  function renderMixedMovies() {
+    mixedMoviesContainer.innerHTML = "";
+    noMixedMoviesMsg.style.display = mixedMovies.length ? "none" : "block";
+
+    mixedMovies.forEach((movie, idx) => {
+      const block = document.createElement("div");
+      block.className = "seasonBlock";
+      block.innerHTML = `
+        <div class="seasonHead">
+          <h3>Film ${idx + 1}</h3>
+          <button type="button" class="btn danger small" data-action="removeMovie">Fjern film</button>
+        </div>
+        <div class="grid cols4">
+          <div class="field">
+            <label>Tittel</label>
+            <input type="text" class="movieTitleInput" value="${h(movie.title)}" placeholder="f.eks. Il Corleone - Il Ritorno">
+          </div>
+          <div class="field">
+            <label>IMDb-ID</label>
+            <input type="text" class="movieImdbInput" value="${h(movie.imdb_id)}" placeholder="tt...">
+          </div>
+          <div class="field">
+            <label>TMDB-ID</label>
+            <input type="text" class="movieTmdbInput" value="${h(movie.tmdb_id)}" placeholder="12345">
+          </div>
+          <div class="field">
+            <label>Egen EAN (valgfritt)</label>
+            <input type="text" class="movieInnerEanInput" value="${h(movie.inner_case_ean)}" placeholder="hvis filmen ligger i eget etui">
+          </div>
+        </div>
+      `;
+
+      block.querySelector(".movieTitleInput").addEventListener("input", (e) => {
+        movie.title = e.target.value;
+      });
+      block.querySelector(".movieImdbInput").addEventListener("input", (e) => {
+        movie.imdb_id = e.target.value;
+      });
+      block.querySelector(".movieTmdbInput").addEventListener("input", (e) => {
+        movie.tmdb_id = e.target.value;
+      });
+      block.querySelector(".movieInnerEanInput").addEventListener("input", (e) => {
+        movie.inner_case_ean = e.target.value;
+      });
+      block.querySelector('[data-action="removeMovie"]').addEventListener("click", () => {
+        removeMixedMovie(movie.id);
+      });
+
+      mixedMoviesContainer.appendChild(block);
+    });
+  }
+
+  function addMixedDisc() {
+    mixedDiscSeq += 1;
+    mixedDiscs.push({
+      id: mixedDiscSeq,
+      order: mixedDiscs.length + 1,
+      format: "DVD",
+      label: "",
+      storage_slot_no: "",
+      add_to_storage: true,
+      content_refs: [], // {kind: "series"|"movie", id}
+      episode_refs: [],  // {seriesId, season_number, episode_number}
+    });
+    renderMixedDiscs();
+  }
+
+  function removeMixedDisc(id) {
+    const idx = mixedDiscs.findIndex((d) => d.id === id);
+    if (idx !== -1) mixedDiscs.splice(idx, 1);
+    mixedDiscs.forEach((d, i) => {
+      d.order = i + 1;
+    });
+    renderMixedDiscs();
+  }
+
+  function contentOptionsHtml(disc) {
+    const options = [];
+    mixedSeries.forEach((series) => {
+      const value = `series:${series.id}`;
+      const label = "Serie: " + (series.title || "(uten tittel)");
+      const selected = disc.content_refs.some((r) => r.kind === "series" && r.id === series.id);
+      options.push(`<option value="${h(value)}"${selected ? " selected" : ""}>${h(label)}</option>`);
+    });
+    mixedMovies.forEach((movie) => {
+      const value = `movie:${movie.id}`;
+      const label = "Film: " + (movie.title || "(uten tittel)");
+      const selected = disc.content_refs.some((r) => r.kind === "movie" && r.id === movie.id);
+      options.push(`<option value="${h(value)}"${selected ? " selected" : ""}>${h(label)}</option>`);
+    });
+    if (!options.length) return '<option value="">(ingen serier/filmer lagt til)</option>';
+    return options.join("");
+  }
+
+  function mixedEpisodeOptionsHtml(disc) {
+    const options = [];
+    mixedSeries.forEach((series) => {
+      series.seasons.forEach((season) => {
+        season.episodes.forEach((ep) => {
+          const value = `${series.id}:${season.season_number}:${ep.episode_number}`;
+          const label =
+            `${series.title || "(uten tittel)"} - S${season.season_number}E${ep.episode_number}` +
+            (ep.title ? ` - ${ep.title}` : "");
+          const selected = disc.episode_refs.some(
+            (r) =>
+              r.seriesId === series.id &&
+              r.season_number === season.season_number &&
+              r.episode_number === ep.episode_number
+          );
+          options.push(`<option value="${h(value)}"${selected ? " selected" : ""}>${h(label)}</option>`);
+        });
+      });
+    });
+    if (!options.length) return '<option value="">(ingen episoder tilgjengelig)</option>';
+    return options.join("");
+  }
+
+  function renderMixedDiscs() {
+    // Seasons/series/movies may have changed - drop refs pointing at
+    // things that no longer exist.
+    mixedDiscs.forEach((disc) => {
+      disc.content_refs = disc.content_refs.filter((r) =>
+        r.kind === "series" ? mixedSeries.some((s) => s.id === r.id) : mixedMovies.some((m) => m.id === r.id)
+      );
+      disc.episode_refs = disc.episode_refs.filter((r) => {
+        const series = mixedSeries.find((s) => s.id === r.seriesId);
+        if (!series) return false;
+        return series.seasons.some(
+          (season) =>
+            season.season_number === r.season_number &&
+            season.episodes.some((ep) => ep.episode_number === r.episode_number)
+        );
+      });
+    });
+
+    mixedDiscTableBody.innerHTML = "";
+    noMixedDiscsMsg.style.display = mixedDiscs.length ? "none" : "block";
+
+    mixedDiscs.forEach((disc) => {
+      const tr = document.createElement("tr");
+      tr.className = "discRow";
+      tr.innerHTML = `
+        <td>${h(disc.order)}</td>
+        <td>
+          <select class="discFormatInput">
+            <option value="DVD"${disc.format === "DVD" ? " selected" : ""}>DVD</option>
+            <option value="Blu-ray"${disc.format === "Blu-ray" ? " selected" : ""}>Blu-ray</option>
+            <option value="4K UHD"${disc.format === "4K UHD" ? " selected" : ""}>4K UHD</option>
+          </select>
+        </td>
+        <td><input type="text" class="discLabelInput" value="${h(disc.label)}" placeholder="f.eks. Disk 1" style="width:120px;"></td>
+        <td><input type="number" min="0" class="discSlotInput" value="${h(disc.storage_slot_no)}" style="width:80px;"></td>
+        <td><input type="checkbox" class="discAddToStorageInput" ${disc.add_to_storage ? "checked" : ""}></td>
+        <td><select multiple class="discContentInput">${contentOptionsHtml(disc)}</select></td>
+        <td><select multiple class="discEpisodesInput">${mixedEpisodeOptionsHtml(disc)}</select></td>
+        <td><button type="button" class="btn danger small" data-action="removeDisc">Fjern</button></td>
+      `;
+
+      tr.querySelector(".discFormatInput").addEventListener("change", (e) => {
+        disc.format = e.target.value;
+      });
+      tr.querySelector(".discLabelInput").addEventListener("input", (e) => {
+        disc.label = e.target.value;
+      });
+      tr.querySelector(".discSlotInput").addEventListener("input", (e) => {
+        disc.storage_slot_no = e.target.value === "" ? "" : Number(e.target.value);
+      });
+      tr.querySelector(".discAddToStorageInput").addEventListener("change", (e) => {
+        disc.add_to_storage = e.target.checked;
+      });
+      tr.querySelector(".discContentInput").addEventListener("change", (e) => {
+        const selected = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+        disc.content_refs = selected.map((v) => {
+          const [kind, id] = v.split(":");
+          return { kind, id: Number(id) };
+        });
+      });
+      tr.querySelector(".discEpisodesInput").addEventListener("change", (e) => {
+        const selected = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+        disc.episode_refs = selected.map((v) => {
+          const [seriesId, seasonNumber, episodeNumber] = v.split(":").map(Number);
+          return { seriesId, season_number: seasonNumber, episode_number: episodeNumber };
+        });
+      });
+      tr.querySelector('[data-action="removeDisc"]').addEventListener("click", () => {
+        removeMixedDisc(disc.id);
+      });
+
+      mixedDiscTableBody.appendChild(tr);
+    });
+  }
+
+  function buildMixedPayload() {
+    return {
+      kind: "mixed_boxset",
+      box: buildBoxPayload(),
+      series: mixedSeries.map((s) => ({
+        title: s.title,
+        imdb_id: s.imdb_id || null,
+        tvdb_id: s.tvdb_id || null,
+        seasons: s.seasons.map((season) => ({
+          season_number: season.season_number,
+          title: season.title || null,
+          air_date: season.air_date || null,
+          inner_case_ean: season.inner_case_ean || null,
+          episodes: season.episodes.map((ep) => ({
+            episode_number: ep.episode_number,
+            title: ep.title || null,
+            runtime: ep.runtime === "" ? null : ep.runtime,
+            original_air_date: ep.original_air_date || null,
+          })),
+        })),
+      })),
+      movies: mixedMovies.map((m) => ({
+        title: m.title,
+        imdb_id: m.imdb_id || null,
+        tmdb_id: m.tmdb_id || null,
+        tvdb_id: m.tvdb_id || null,
+        inner_case_ean: m.inner_case_ean || null,
+      })),
+      discs: mixedDiscs.map((d) => ({
+        order: d.order,
+        format: d.format,
+        label: d.label || null,
+        storage_slot_no: d.storage_slot_no === "" ? null : d.storage_slot_no,
+        add_to_storage: d.add_to_storage,
+        content_refs: d.content_refs.map((r) => {
+          if (r.kind === "series") {
+            return { kind: "series", series_index: mixedSeries.findIndex((s) => s.id === r.id) };
+          }
+          return { kind: "movie", movie_index: mixedMovies.findIndex((m) => m.id === r.id) };
+        }),
+        episode_refs: d.episode_refs.map((r) => ({
+          series_index: mixedSeries.findIndex((s) => s.id === r.seriesId),
+          season_number: r.season_number,
+          episode_number: r.episode_number,
+        })),
+      })),
+    };
+  }
+
+  function buildPayload() {
+    return currentMode() === "mixed_boxset" ? buildMixedPayload() : buildSinglePayload();
+  }
+
   // --- TVDB search --------------------------------------------------
   // Uses api.php's search_tvdb action (a thin proxy to TVDB v4's
   // /search endpoint). TVDB's search response already includes a
   // "remote_ids" array per result with the linked IMDb id (when TVDB
   // has one), so a single search fills in both tvdb_id and imdb_id -
-  // no separate details lookup needed for this form.
+  // no separate details lookup needed for this form. Generalized to
+  // accept arbitrary target input/results/status elements so it can
+  // be reused both for the single-mode series fields and for each
+  // series block in mixed mode.
   const lightboxOverlayEl = document.getElementById("lightboxOverlay");
   const lightboxImgEl = document.getElementById("lightboxImg");
 
@@ -330,15 +756,15 @@
     return match ? match.id : "";
   }
 
-  async function searchTvdb() {
-    const query = document.getElementById("seriesTitle").value.trim();
+  async function searchTvdbFor(titleInputEl, tvdbInputEl, imdbInputEl, resultsEl, statusEl) {
+    const query = titleInputEl.value.trim();
     if (!query) {
-      tvdbSearchStatusEl.textContent = "Skriv inn en tittel først.";
+      statusEl.textContent = "Skriv inn en tittel først.";
       return;
     }
 
-    tvdbSearchStatusEl.textContent = "Søker...";
-    tvdbResultsEl.innerHTML = "";
+    statusEl.textContent = "Søker...";
+    resultsEl.innerHTML = "";
 
     try {
       const res = await fetch(
@@ -347,17 +773,17 @@
       const data = await res.json();
 
       if (!res.ok) {
-        tvdbSearchStatusEl.textContent = "Feilet: " + (data.error || res.status);
+        statusEl.textContent = "Feilet: " + (data.error || res.status);
         return;
       }
 
       const results = Array.isArray(data.data) ? data.data : [];
       if (!results.length) {
-        tvdbSearchStatusEl.textContent = "Ingen treff.";
+        statusEl.textContent = "Ingen treff.";
         return;
       }
 
-      tvdbSearchStatusEl.textContent = results.length + " treff:";
+      statusEl.textContent = results.length + " treff:";
       results.slice(0, 10).forEach((item) => {
         const imdbId = extractImdbId(item.remote_ids);
         const row = document.createElement("div");
@@ -377,25 +803,43 @@
           thumbEl.addEventListener("click", () => openLightbox(fullUrl));
         }
         row.querySelector("button").addEventListener("click", () => {
-          document.getElementById("seriesTitle").value = item.name || query;
-          document.getElementById("seriesTvdb").value = item.tvdb_id || "";
+          titleInputEl.value = item.name || query;
+          titleInputEl.dispatchEvent(new Event("input"));
+          tvdbInputEl.value = item.tvdb_id || "";
+          tvdbInputEl.dispatchEvent(new Event("input"));
           if (imdbId) {
-            document.getElementById("seriesImdb").value = imdbId;
+            imdbInputEl.value = imdbId;
+            imdbInputEl.dispatchEvent(new Event("input"));
           }
-          tvdbResultsEl.innerHTML = "";
-          tvdbSearchStatusEl.textContent = "Valgt: " + (item.name || query);
+          resultsEl.innerHTML = "";
+          statusEl.textContent = "Valgt: " + (item.name || query);
         });
-        tvdbResultsEl.appendChild(row);
+        resultsEl.appendChild(row);
       });
     } catch (err) {
-      tvdbSearchStatusEl.textContent = "Feilet: " + err.message;
+      statusEl.textContent = "Feilet: " + err.message;
     }
   }
 
-  document.getElementById("searchTvdbBtn").addEventListener("click", searchTvdb);
+  document.getElementById("searchTvdbBtn").addEventListener("click", () => {
+    searchTvdbFor(
+      document.getElementById("seriesTitle"),
+      document.getElementById("seriesTvdb"),
+      document.getElementById("seriesImdb"),
+      tvdbResultsEl(),
+      document.getElementById("tvdbSearchStatus")
+    );
+  });
+
+  function tvdbResultsEl() {
+    return document.getElementById("tvdbResults");
+  }
 
   document.getElementById("addSeasonBtn").addEventListener("click", addSeason);
   document.getElementById("addDiscBtn").addEventListener("click", addDisc);
+  document.getElementById("addMixedSeriesBtn").addEventListener("click", addMixedSeries);
+  document.getElementById("addMixedMovieBtn").addEventListener("click", addMixedMovie);
+  document.getElementById("addMixedDiscBtn").addEventListener("click", addMixedDisc);
 
   document.getElementById("previewBtn").addEventListener("click", () => {
     const payload = buildPayload();
@@ -468,8 +912,9 @@
     submitToBackend(payload, document.getElementById("submitPasteBtn"), statusEl);
   });
 
-  // Start with one season (with 1 episode) and one disc pre-filled, to
-  // make the shape clearer.
+  // Start single mode with one season (with 1 episode) and one disc
+  // pre-filled, to make the shape clearer.
   addSeason();
   addDisc();
+  updateModeVisibility();
 })();
