@@ -57,6 +57,23 @@ backlog to pick from.
       tailing logs after the fact.
 - [ ] A secrets-scanning check in CI (e.g. gitleaks) to catch an
       accidentally committed `.env`/API key before it reaches GitHub.
+- [x] Found (and fixed) a stray second pm2 daemon: `mitt_mediearkiv`
+      was being managed by TWO separate pm2 daemons at once - the
+      intended one (run as root, via `deploy_backend.sh`'s `sudo pm2
+      ...`) and an unrelated leftover one running under the `ubuntu`
+      user's own pm2 instance (likely from before `deploy_backend.sh`
+      existed, or a manual `pm2 start` under that account), both bound
+      to the same port 9500. Whichever one grabbed the port first kept
+      running with stale code, while the other crash-looped forever on
+      "address already in use" (879 restarts counted on the stray one
+      by the time this was found) - this is almost certainly why a
+      backend deploy earlier in this project intermittently seemed to
+      "not take effect". Fixed by deleting the stray entry from the
+      `ubuntu`-user pm2 daemon (`pm2 delete mitt_mediearkiv` run as
+      that user, not root) and confirming only the root-owned instance
+      remains (`sudo pm2 list`). Worth double-checking after the next
+      few deploys that only one `mitt_mediearkiv` process exists
+      (`ps aux | grep uvicorn`) in case this resurfaces.
 
 ## Data quality / catalog maintenance
 
@@ -285,8 +302,22 @@ backlog to pick from.
 
 ## Backend / security hardening
 
-- [ ] Rate-limiting on `/auth/login` (and `/auth/login/2fa`) to guard
-      against brute-force password/2FA guessing.
+- [x] Rate-limiting on `/auth/login` (and `/auth/login/2fa`) to guard
+      against brute-force password/2FA guessing. Implemented as a
+      small in-memory limiter (`app/rate_limit.py` - no Redis needed
+      since the backend runs as a single uvicorn worker) with two
+      independent layers: (1) per-username, 5 failed attempts/15 min
+      locks that username for 15 min, reset on a successful login;
+      (2) per-IP, 20 failed attempts/15 min locks that IP for 15 min
+      (never reset on success) to catch username-enumeration, since
+      every real user shares the same IP from the backend's point of
+      view (frontend calls it server-to-server) - `get_client_ip()`
+      reads the real client IP from a new `X-Forwarded-For` header now
+      sent by `auth_api_post()` in `frontend/_shared/auth.php`. Both
+      endpoints return 429 + `Retry-After` once locked. Verified via
+      `FastAPI TestClient` (3 failed attempts -> 429 with correct
+      `Retry-After`; successful login resets the username counter but
+      not the IP counter, as intended).
 - [x] Refresh tokens, so users don't need to log in again every 30
       minutes (current `ACCESS_TOKEN_EXPIRE_MINUTES`). Implemented as
       a new `"refresh"` JWT type (`REFRESH_TOKEN_EXPIRE_MINUTES`, 7
