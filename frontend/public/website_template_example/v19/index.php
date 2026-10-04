@@ -123,12 +123,19 @@ $sectionAccess = [
       color: var(--text);
     }
 
-    /* ---- Toppmeny (Bootstrap navbar, egendefinert farge/spacing) ---- */
+    /* ---- Toppmeny (Bootstrap navbar, egendefinert farge/spacing) ----
+       NB: Bootstraps egen .navbar-klasse setter flex-wrap:wrap. Vi hadde
+       tidligere en FAST height:60px her, så når fanene (Mine filmer /
+       Ønskeliste / ...) ikke fikk plass på én linje på smale skjermer,
+       brakk de om på flere linjer men fikk ikke plass i de faste 60px –
+       resultat: teksten fløt utenpå/over innholdet under (sticky,
+       z-index:20). Løsning: min-height i stedet for height, pluss
+       eksplisitt wrap/gap-styring som også fungerer fint på mobil. */
     .topbar{
       position: sticky; top:0; z-index:20;
-      display:flex; align-items:center; gap:20px;
-      padding: 0 20px;
-      height: 60px;
+      display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px;
+      padding: 10px 20px;
+      min-height: 60px;
       background: rgba(12,16,36,.9);
       backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--line);
@@ -139,8 +146,8 @@ $sectionAccess = [
       margin-right: 10px;
     }
     .mainnav{
-      display:flex; gap:6px;
-      flex:1;
+      display:flex; flex-wrap:wrap; gap:6px;
+      flex:1; min-width:0;
     }
     .mainnav button.btn{
       appearance:none; border:1px solid transparent; background:transparent;
@@ -432,6 +439,16 @@ $sectionAccess = [
       .filterBar .search{ max-width:none; min-width:0; }
       .filterBar .chiprow{ justify-content:flex-start; }
       .filterBar .viewToggle{ margin-left:0; }
+
+      /* Toppmeny: smalere padding/gap og mindre faner, slik at flere
+         rekker på én linje før de brekker om (og brekker nå pent om,
+         siden .topbar bruker min-height i stedet for fast height). */
+      .topbar{ padding:8px 12px; gap:8px 10px; }
+      .brand{ font-size:14px; margin-right:0; }
+      .mainnav{ gap:4px; }
+      .mainnav button.btn{ font-size:12.5px; padding:6px 10px; }
+      .lang-switch a{ padding:3px 7px; font-size:10px; }
+      .authState{ font-size:11px; padding:4px 9px; }
     }
   </style>
 </head>
