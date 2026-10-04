@@ -192,7 +192,13 @@ async function submitPayload(payload, submitButton) {
   try {
     const response = await fetch(`${API_ENDPOINT}?action=submit`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // CSRF-token fra <meta name="csrf-token"> (satt server-side av
+        // csrf_meta_tag() i _shared/auth.php) - kreves av api.php sitt
+        // "submit"-endepunkt, se require_csrf_or_json_403() der.
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+      },
       body: JSON.stringify(payload),
     });
 

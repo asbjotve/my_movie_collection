@@ -53,6 +53,7 @@ $sectionAccess = [
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <?= csrf_meta_tag() ?>
   <title><?= htmlspecialchars(t('wte.detail.meta_title')) ?></title>
   <style>
     :root{
@@ -600,6 +601,13 @@ $sectionAccess = [
     }[c]));
   }
 
+  // Se index.php for forklaring - samme CSRF-header-helper, duplisert
+  // her siden detail.php er en egen side uten delt JS-fil.
+  function csrfHeader(){
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    return { "X-CSRF-Token": token };
+  }
+
   const params = new URLSearchParams(window.location.search);
   const contentId = params.get("id");
 
@@ -1013,7 +1021,7 @@ $sectionAccess = [
       // nå fram til serveren.
       const res = await fetch(`api.php?action=reorder_group&group_id=${encodeURIComponent(groupId)}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
         body: JSON.stringify({ content_ids: ids }),
         keepalive: true,
       });
@@ -1192,7 +1200,7 @@ $sectionAccess = [
       const refreshRes = await fetch(
         "api.php?action=refresh_external_source&source=" + encodeURIComponent(source) +
           "&external_id=" + encodeURIComponent(externalId),
-        { method: "POST" }
+        { method: "POST", headers: csrfHeader() }
       );
       const refreshJson = await refreshRes.json();
       if (!refreshRes.ok || refreshJson.error) {
@@ -1204,7 +1212,7 @@ $sectionAccess = [
       const mergeRes = await fetch(
         "api.php?action=merge_external_source&source=" + encodeURIComponent(source) +
           "&external_id=" + encodeURIComponent(externalId),
-        { method: "POST" }
+        { method: "POST", headers: csrfHeader() }
       );
       const mergeJson = await mergeRes.json();
       if (!mergeRes.ok || mergeJson.error) {
@@ -1290,7 +1298,7 @@ $sectionAccess = [
     try {
       const res = await fetch("api.php?action=set_cover&id=" + encodeURIComponent(contentId), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
         body: JSON.stringify({ file_path: filePath }),
       });
       const json = await res.json();
@@ -1398,7 +1406,7 @@ $sectionAccess = [
     try {
       const res = await fetch("api.php?action=add_content_to_group&id=" + encodeURIComponent(contentId), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
         body: JSON.stringify({ group: name }),
       });
       const json = await res.json();
@@ -1421,7 +1429,7 @@ $sectionAccess = [
     try {
       const res = await fetch(
         "api.php?action=remove_content_from_group&id=" + encodeURIComponent(contentId) + "&group_id=" + encodeURIComponent(groupId),
-        { method: "POST" }
+        { method: "POST", headers: csrfHeader() }
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1577,7 +1585,7 @@ $sectionAccess = [
 
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
         body: JSON.stringify(body),
       });
       const json = await res.json();
@@ -1628,7 +1636,7 @@ $sectionAccess = [
           "api.php?action=set_content_field_lock&id=" + encodeURIComponent(contentId),
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...csrfHeader() },
             body: JSON.stringify({ field, locked: nextLocked }),
           }
         );

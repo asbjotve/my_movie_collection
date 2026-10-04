@@ -228,6 +228,7 @@ return [
             'brand'               => '🎬 Media catalog',
             'fill_both_fields'    => 'Fill in both username and password.',
             'session_expired'     => 'The login session has expired - please try logging in again.',
+            'csrf_error'          => 'This page was open too long or was opened in another tab - reload the page and try again.',
             'enter_2fa_code'      => 'Enter the code from your authenticator app (or a recovery code).',
             '2fa_prompt'          => 'Enter the code from your authenticator app for %s.',
             '2fa_code_label'      => 'Code (authenticator app or recovery code)',

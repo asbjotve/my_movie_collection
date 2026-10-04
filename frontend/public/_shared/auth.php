@@ -103,6 +103,89 @@ function current_username(): ?string
 }
 
 /**
+ * ============================================================
+ *  CSRF-BESKYTTELSE
+ *  Ett token per PHP-sesjon (overlever hele innloggingsøkten, også
+ *  session_regenerate_id() ved innlogging - se auth_set_session()).
+ *  Brukes to steder:
+ *   - Klassiske HTML-skjemaer (login.php, 2fa_setup.php,
+ *     admin_tilganger.php) - token legges inn som skjult input via
+ *     csrf_field(), verifiseres server-side via require_csrf_or_redirect().
+ *   - JS fetch()-kall mot api.php (JSON) - token leses fra en <meta>-tag
+ *     (se csrf_meta_tag()) av JS og sendes som header X-CSRF-Token,
+ *     verifiseres server-side via require_csrf_or_json_403().
+ *  Uten et gyldig token (eller med et token som ikke matcher sesjonen)
+ *  avvises forespørselen FØR noen tilstandsendring skjer.
+ * ============================================================
+ */
+
+/** Henter (eller oppretter) CSRF-token for denne sesjonen. */
+function csrf_token(): string
+{
+    auth_start_session();
+    if (empty($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+/** Returnerer et ferdig skjult <input>-felt for klassiske HTML-skjemaer. */
+function csrf_field(): string
+{
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrf_token(), ENT_QUOTES) . '">';
+}
+
+/**
+ * Returnerer en <meta>-tag med CSRF-token, til bruk i <head> på sider
+ * som sender fetch()-kall til api.php - JS leser verdien derfra og
+ * sender den som X-CSRF-Token-header (se require_csrf_or_json_403()).
+ */
+function csrf_meta_tag(): string
+{
+    return '<meta name="csrf-token" content="' . htmlspecialchars(csrf_token(), ENT_QUOTES) . '">';
+}
+
+/** Tidssikker sammenligning av et innsendt token mot sesjonens token. */
+function csrf_verify(?string $token): bool
+{
+    auth_start_session();
+    $expected = $_SESSION['csrf_token'] ?? null;
+    if (!is_string($expected) || !is_string($token) || $token === '') {
+        return false;
+    }
+    return hash_equals($expected, $token);
+}
+
+/**
+ * Krever et gyldig CSRF-token fra $_POST['csrf_token'] (klassiske
+ * HTML-skjemaer). Avbryter med 403 og en enkel feilmelding hvis
+ * tokenet mangler/er ugyldig - kalles FØR $_POST ellers leses/brukes.
+ */
+function require_csrf_or_403(string $errorMessage = 'Ugyldig eller utløpt skjema (CSRF) - last siden på nytt og prøv igjen.'): void
+{
+    if (!csrf_verify($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        echo htmlspecialchars($errorMessage);
+        exit;
+    }
+}
+
+/**
+ * Variant av require_csrf_or_403() for JSON/fetch-baserte endepunkter
+ * (api.php) - leser token fra X-CSRF-Token-headeren (sendt av JS, se
+ * csrf_meta_tag()) i stedet for $_POST, og svarer med JSON 403.
+ */
+function require_csrf_or_json_403(): void
+{
+    if (!csrf_verify($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null)) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Ugyldig eller utløpt sesjon (CSRF) - last siden på nytt og prøv igjen.']);
+        exit;
+    }
+}
+
+/**
  * Sender en autentisert forespørsel (med Bearer access_token fra
  * PHP-sesjonen) til et /auth/...-endepunkt som krever innlogging
  * (f.eks. 2FA-oppsett/aktivering/deaktivering). Returnerer

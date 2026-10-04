@@ -13,7 +13,9 @@ $username = require_login();
 $error = null;
 $recoveryCodes = null; // vises kun rett etter enable - ikke lagret i sesjonen i klartekst
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify($_POST['csrf_token'] ?? null)) {
+    $error = t('wte.login.csrf_error');
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'start_setup') {
@@ -148,6 +150,7 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
     <?php elseif ($totpEnabled): ?>
       <p class="subtitle"><?= htmlspecialchars(t('wte.twofa.enabled_subtitle')) ?></p>
       <form method="post">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="disable">
         <label for="password"><?= htmlspecialchars(t('wte.twofa.password_label')) ?></label>
         <input type="password" id="password" name="password" autocomplete="current-password" required>
@@ -163,12 +166,14 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
       <div class="secretText"><?= htmlspecialchars($setupPending['secret']) ?></div>
 
       <form method="post">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="confirm_setup">
         <label for="code"><?= htmlspecialchars(t('wte.twofa.code_from_app_label')) ?></label>
         <input type="text" id="code" name="code" autocomplete="one-time-code" autofocus required>
         <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.twofa.confirm_enable_btn')) ?></button>
       </form>
       <form method="post">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="cancel_setup">
         <button type="submit" class="btnGhost"><?= htmlspecialchars(t('wte.twofa.cancel_setup_btn')) ?></button>
       </form>
@@ -176,6 +181,7 @@ $setupPending = $_SESSION['twofa_setup_pending'] ?? null;
     <?php else: ?>
       <p class="subtitle"><?= htmlspecialchars(t('wte.twofa.not_enabled_subtitle')) ?></p>
       <form method="post">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="start_setup">
         <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.twofa.setup_btn')) ?></button>
       </form>

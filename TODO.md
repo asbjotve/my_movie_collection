@@ -243,10 +243,33 @@ backlog to pick from.
 - [ ] Keyboard shortcut to focus the search field (e.g. `/`), and
       verify all interactive elements have visible focus indicators
       for keyboard-only navigation.
-- [ ] CSRF protection for state-changing POST requests (login, edit,
-      delete, group management, etc.) - none of the PHP endpoints
-      currently issue/check a CSRF token; session-cookie auth alone is
-      vulnerable to cross-site request forgery from another tab.
+- [x] CSRF protection for state-changing POST requests (login, edit,
+      delete, group management, etc.) - implemented a shared CSRF
+      helper in `frontend/public/_shared/auth.php` (`csrf_token()`,
+      `csrf_field()`, `csrf_meta_tag()`, `csrf_verify()`,
+      `require_csrf_or_403()`/`require_csrf_or_json_403()`): a
+      session-bound random token, checked via `hash_equals()` before
+      any state change. Classic HTML forms get a hidden
+      `csrf_token` field; JS `fetch()` calls read the token from a
+      `<meta name="csrf-token">` tag and send it as an
+      `X-CSRF-Token` header. Fully wired into
+      `website_template_example/v19` (login.php, 2fa_setup.php,
+      admin_tilganger.php, and all 11 write actions in api.php used
+      from index.php/detail.php) and `bulk_add_movies_form/v14`
+      (its single `submit` write action). Verified live: a POST
+      without a token is rejected with the CSRF error message/a JSON
+      403, a POST with a valid token passes through to the normal
+      logic.
+      - [ ] Roll out the same pattern (reuse the shared helpers in
+            `_shared/auth.php`, already include it) to the remaining
+            older/duplicate tool versions that also handle POST:
+            `add_to_wishlist/v1-v4`, `custom_list_manager/v1-v4`,
+            `temp_add_movie_barcode/v1`,
+            `website_template_example/v18` (the superseded previous
+            version of v19), `tv_series_add_form/v1`, and
+            `bulk_add_movies_form/v1-v13` (older superseded
+            versions) - lower priority since v19/v14 are the actively
+            used versions.
 - [ ] Basic security response headers (`Content-Security-Policy`,
       `X-Frame-Options`/`frame-ancestors`, `X-Content-Type-Options:
       nosniff`) - not currently set anywhere in the PHP apps or Apache

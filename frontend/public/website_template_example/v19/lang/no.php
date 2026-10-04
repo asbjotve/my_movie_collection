@@ -231,6 +231,7 @@ return [
             'brand'               => '🎬 Media-katalog',
             'fill_both_fields'    => 'Fyll ut både brukernavn og passord.',
             'session_expired'     => 'Innloggingsøkten er utløpt - prøv å logge inn på nytt.',
+            'csrf_error'          => 'Siden var åpen for lenge eller ble åpnet i en annen fane - last siden på nytt og prøv igjen.',
             'enter_2fa_code'      => 'Skriv inn koden fra autentisator-appen (eller en recovery-kode).',
             '2fa_prompt'          => 'Skriv inn koden fra autentisator-appen for %s.',
             '2fa_code_label'      => 'Kode (autentisator-app eller recovery-kode)',
