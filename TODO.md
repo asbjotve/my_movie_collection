@@ -286,11 +286,25 @@ backlog to pick from.
       valid refresh transparently recovers and the session's stored
       access token is replaced; expired access + no refresh token
       still correctly surfaces a 401). Not yet adopted by the other
-      tools sharing `auth.php` (`custom_list_manager`,
-      `add_to_wishlist`, `bulk_add_movies_form`,
-      `temp_add_movie_barcode`, `website_template_example`) - they
-      could reuse the same `auth_call_with_retry()` helper with little
-      extra work if wanted later.
+      tools sharing `auth.php` - see the separate rollout item below.
+- [ ] Roll out the automatic re-login (`auth_call_with_retry()`, see
+      the "Refresh tokens" item above) to the other tools that share
+      `auth.php` but still only use `auth_bearer_header()` /
+      `auth_api_authenticated()` directly and so still show a raw 401
+      ("Kunne ikke validere token") once their access token expires.
+      Each one just needs its curl call wrapped the same way
+      `tv_series_add_form/v1/api.php`'s submit action was:
+      - `frontend/public/bulk_add_movies_form/v14/api.php`
+      - `frontend/public/temp_add_movie_barcode/v1/submit.php`
+      - `frontend/public/website_template_example/v18/api.php`
+      - `frontend/public/website_template_example/v19/api.php`
+      - `frontend/public/custom_list_manager/v3/index.php` and
+        `v4/index.php`
+      - `frontend/public/add_to_wishlist/v4/bildopp.php`
+      Worth doing incrementally (one tool at a time, verified live like
+      the first rollout) rather than all at once, since each file's
+      curl setup differs slightly (some use multipart uploads, not
+      plain JSON POSTs).
 - [ ] Review remaining raw-SQL call sites for proper parameterization
       (avoid SQL injection risk in code paths outside the ORM).
 - [ ] General API rate-limiting (not just `/auth/login`) to guard
