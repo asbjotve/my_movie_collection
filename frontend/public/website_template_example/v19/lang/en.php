@@ -54,6 +54,8 @@ return [
                 'bulk_group_modal_title'  => 'Add to movie group',
                 'bulk_group_input_label'  => 'Movie group (type a new name or pick from the list)',
                 'bulk_group_name_required'=> 'You must enter a movie group name.',
+                'showing_count'           => 'Showing %d of %d',
+                'load_more_hint'          => 'Scroll down to load more…',
             ],
 
             'onskeliste' => [

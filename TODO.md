@@ -172,18 +172,30 @@ backlog to pick from.
       `<img alt="{title}">` tags for accessibility (screen readers get
       nothing from a background-image) and so lazy-loading above is
       possible in the first place.
-- [ ] Client-side render pagination / "load more" (or virtual
-      scrolling) for the main "Mine filmer" grid in `index.php` -
-      `list_content()` sends the entire catalog in one JSON response
-      and faceted search/filtering is done fully client-side over
-      that array (by design - see docstring), so real server-side
-      pagination would require moving filtering/facet-counting to the
-      backend too (a bigger rewrite). A lighter first step: keep
-      fetching the full list as today (facets keep working unchanged),
-      but only render e.g. 40-60 cards at a time, rendering more as the
-      user scrolls/clicks "last flere" - avoids building hundreds of
-      DOM nodes up front, which is likely the main remaining slowness
-      now that cover images are lazy-loaded.
+- [x] Client-side render pagination / "load more" (or virtual
+      scrolling) for the main "Mine filmer" grid in `index.php`
+      (`feature/grid-pagination`) - `list_content()` still sends the
+      entire catalog in one JSON response and faceted search/filtering
+      is still done fully client-side over that array (unchanged by
+      design - full server-side pagination would require moving
+      filtering/facet-counting to the backend, a bigger rewrite).
+      Implemented the lighter first step instead: render only
+      `MINE_FILMER_BATCH_SIZE` (50) cards/rows at a time
+      (`mineFilmerRenderLimit`), growing by 50 via an
+      `IntersectionObserver` on a sentinel element below the grid/table
+      (`rootMargin:"400px"` so it loads slightly before the user
+      actually hits the bottom - auto-loading infinite scroll, not a
+      manual button, per user preference). The limit resets to 50 on
+      any filter/search/view change so switching away and back doesn't
+      keep hundreds of stale DOM nodes around. A "Viser X av Y" status
+      line (`mineFilmerLoadMoreStatus`, new `showing_count`/
+      `load_more_hint` i18n keys in `lang/no.php` + `lang/en.php`)
+      shows progress and disappears the hint once everything is
+      loaded. Verified with a jsdom harness simulating 220 items:
+      confirmed only 50 DOM nodes after initial render, correct growth
+      to 100/150/220 as the observer fires, correct capping at the
+      total, and correct reset-to-50 on a search filter. Only v19
+      touched, per user's choice.
 - [ ] Self-host Bootstrap (via Composer/npm) instead of loading it
       from `cdn.jsdelivr.net`, so the site still works if that CDN is
       blocked or unreachable on a given network.

@@ -57,6 +57,8 @@ return [
                 'bulk_group_modal_title'  => 'Legg til i filmgruppe',
                 'bulk_group_input_label'  => 'Filmgruppe (skriv nytt navn eller velg fra listen)',
                 'bulk_group_name_required'=> 'Du må oppgi et navn på filmgruppen.',
+                'showing_count'           => 'Viser %d av %d',
+                'load_more_hint'          => 'Scroll ned for å laste flere…',
             ],
 
             'onskeliste' => [

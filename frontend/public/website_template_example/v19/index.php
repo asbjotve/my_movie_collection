@@ -580,6 +580,16 @@ $sectionAccess = [
       </thead>
       <tbody id="mineFilmerTableBody"></tbody>
     </table>
+    <!--
+      Infinite-scroll "sentinel": usynlig markør rett under rutenettet/
+      tabellen. En IntersectionObserver (se loadMoreObserver i JS)
+      utvider antall viste kort/rader med BATCH_SIZE hver gang denne
+      kommer inn i synsfeltet, i stedet for at hele katalogen rendres
+      som DOM-noder med én gang - se "Client-side render pagination"
+      i TODO.md for bakgrunnen.
+    -->
+    <div id="mineFilmerLoadMoreStatus" style="color:var(--muted); font-size:12px; text-align:center; margin-top:10px;"></div>
+    <div id="mineFilmerLoadMoreSentinel" style="height:1px;"></div>
 
     <?php if ($isLoggedIn): ?>
     <!--
@@ -749,6 +759,27 @@ $sectionAccess = [
   const mineFilmerTable = document.getElementById("mineFilmerTable");
   const mineFilmerTableBody = document.getElementById("mineFilmerTableBody");
   const mineFilmerStatus = document.getElementById("mineFilmerStatus");
+  const mineFilmerLoadMoreStatus = document.getElementById("mineFilmerLoadMoreStatus");
+  const mineFilmerLoadMoreSentinel = document.getElementById("mineFilmerLoadMoreSentinel");
+
+  // ---- Render-paginering ("Client-side render pagination" i TODO.md) ----
+  // Hele katalogen hentes fortsatt i ett JSON-kall (facett-telling/filter
+  // trenger hele datasettet uansett), men vi bygger kun DOM-noder for
+  // BATCH_SIZE kort/rader om gangen - ellers blir det tregt å laste
+  // siden etter hvert som samlingen vokser forbi noen hundre titler.
+  // mineFilmerRenderLimit utvides med BATCH_SIZE når sentinel-elementet
+  // nederst kommer inn i synsfeltet (IntersectionObserver), og
+  // nullstilles til BATCH_SIZE igjen hver gang filter/søk/visning endres.
+  const MINE_FILMER_BATCH_SIZE = 50;
+  let mineFilmerRenderLimit = MINE_FILMER_BATCH_SIZE;
+
+  const mineFilmerLoadMoreObserver = new IntersectionObserver((entries) => {
+    if (!entries[0].isIntersecting) return;
+    if (mineFilmerRenderLimit >= getFilteredMineFilmer().length) return;
+    mineFilmerRenderLimit += MINE_FILMER_BATCH_SIZE;
+    renderMineFilmer(false);
+  }, { rootMargin: "400px" }); // laster litt før man faktisk når bunnen
+  mineFilmerLoadMoreObserver.observe(mineFilmerLoadMoreSentinel);
 
   function escapeHtml(s){
     return String(s ?? "").replace(/[&<>"']/g, c => ({
@@ -1014,16 +1045,28 @@ $sectionAccess = [
   mineFilmerSearch.addEventListener("input", renderMineFilmer);
   mineFilmerOnlyUnwatched.addEventListener("change", renderMineFilmer);
 
-  function renderMineFilmer(){
+  function renderMineFilmer(resetLimit = true){
     const filtered = getFilteredMineFilmer();
+    if (resetLimit) mineFilmerRenderLimit = MINE_FILMER_BATCH_SIZE;
+    const visible = filtered.slice(0, mineFilmerRenderLimit);
+
     if (mineFilmerView === "grid"){
       mineFilmerGrid.style.display = "";
       mineFilmerTable.style.display = "none";
-      renderMineFilmerGrid(filtered);
+      renderMineFilmerGrid(visible);
     } else {
       mineFilmerGrid.style.display = "none";
       mineFilmerTable.style.display = "";
-      renderMineFilmerTable(filtered);
+      renderMineFilmerTable(visible);
+    }
+
+    if (visible.length < filtered.length) {
+      mineFilmerLoadMoreStatus.textContent = wteFormat(WTE_I18N.mine_filmer.showing_count, visible.length, filtered.length)
+        + " · " + WTE_I18N.mine_filmer.load_more_hint;
+    } else if (filtered.length > 0) {
+      mineFilmerLoadMoreStatus.textContent = wteFormat(WTE_I18N.mine_filmer.showing_count, visible.length, filtered.length);
+    } else {
+      mineFilmerLoadMoreStatus.textContent = "";
     }
   }
 
