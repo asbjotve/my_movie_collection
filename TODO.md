@@ -235,8 +235,41 @@ backlog to pick from.
 - [ ] Pagination or infinite scroll for the movie list once the
       collection grows large, instead of rendering everything at
       once.
-- [ ] "Similar movies" suggestions based on shared genre/group data
+- [x] "Similar movies" suggestions based on shared genre/group data
       already stored, shown on the detail page.
+      - Group-based suggestions were already implemented earlier
+        (`get_groups_for_content()` + `renderGroupMovies()` -
+        "Andre filmer i denne filmgruppen"). This item added the
+        missing genre-based half.
+      - New `get_similar_content()` in `media_catalog.py`: reads the
+        current movie's cached `facet_genres` (see
+        `_compute_search_facets()`/migration `740c10b9db7b`), compares
+        against all other `source='tmdb'` rows' `facet_genres`, scores
+        by genre-overlap count, excludes movies already shown via a
+        shared group (to avoid duplicate display), returns top 10.
+      - Found and fixed a latent bug while building this: raw
+        `db.execute(text(...))` queries bypass SQLAlchemy's JSON type
+        decoding, so `facet_genres` comes back as a JSON *string*, not
+        a parsed list - `list_content()` already had this (harmless
+        there, since the frontend only does substring search on it),
+        but exact-match overlap counting needed a real list, so added
+        `_parse_facet_genres()` and used it in the new function.
+      - New read-only route `GET /media/content/{content_id}/similar`
+        (`media_catalog_route.py`), new `action=similar` GET proxy in
+        v19's `api.php` (no CSRF needed, read-only, same pattern as
+        `action=list_groups`/`action=list_stats`).
+      - `detail.php`: new `#similarMoviesSection` container below the
+        group-movies section, `loadSimilarMovies()` fetches
+        independently (non-blocking) after the main detail data loads
+        and renders cards reusing the existing `.groupMovieCard`/
+        `.groupMovieCover` styling; hides itself entirely if there are
+        no genre matches.
+      - New `wte.detail.similar_movies_heading` lang key (no/en).
+      - Verified: standalone test against the live DB confirmed
+        correct overlap scores after the JSON-parsing fix, live curl
+        of the new backend route and `api.php?action=similar`,
+        headless-Chromium DOM dump confirming the section renders
+        with real cards and the correct Norwegian heading.
 - [ ] Printable/print-friendly view of the full collection (useful for
       insurance documentation, alongside the CSV/Excel export idea
       above).

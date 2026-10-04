@@ -558,6 +558,28 @@ def _compute_search_facets(data: dict) -> tuple[list[str], list[str], int | None
     return genres, cast, release_year
 
 
+def _parse_facet_genres(raw_value) -> list[str]:
+    """facet_genres-kolonnen er MySQL JSON, men db.execute(text(...))
+    (brukt her og i list_content()) går forbi SQLAlchemys
+    type-decoding, så driveren returnerer verdien som en rå
+    JSON-streng (f.eks. '["Action", "Thriller"]'), ikke en ferdig
+    parset liste. list_content() sender denne strengen videre til
+    frontend som den er (ufarlig der siden frontend kun gjør
+    streng-basert søk/filter på den) - men get_similar_content()
+    trenger faktiske sjangernavn for å telle eksakt overlapp, så den
+    må parses her.
+    """
+    if not raw_value:
+        return []
+    if isinstance(raw_value, list):
+        return raw_value
+    try:
+        parsed = json.loads(raw_value)
+    except (TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 def list_content(db: Session) -> list[dict]:
     """Henter alle content-rader, med tilhørende fysiske utgaver og
     eksterne kilder gruppert inn i hvert content-objekt.
@@ -1232,6 +1254,126 @@ def get_groups_for_content(db: Session, raw_id: bytes) -> list[dict]:
         )
 
     return groups
+
+
+def get_similar_content(db: Session, content_id: str, limit: int = 10) -> list[dict]:
+    """"Lignende filmer"-forslag til detaljsiden: andre filmer i
+    samlingen som deler minst én sjanger med denne filmen, sortert på
+    flest delte sjangre (deretter nyeste utgivelsesår som
+    tiebreaker).
+
+    Leser sjangre fra de forhåndsberegnede facet_genres-kolonnene på
+    content_external_source (samme cache som list_content() bruker -
+    se _compute_search_facets() og migrasjon 740c10b9db7b), ikke fra
+    den fulle data_json-blobben, og gjør selve overlapp-beregningen i
+    Python - samlingen er uansett bare noen hundre filmer, så dette er
+    billigere og enklere enn et JSON-spørring-uttrykk i SQL.
+
+    Filmer som allerede er i samme filmgruppe som denne (se
+    get_groups_for_content()) ekskluderes med vilje - de vises allerede
+    i en egen "Andre filmer i denne filmgruppen"-seksjon på
+    detaljsiden, så vi unngår å liste dem to ganger.
+
+    Returnerer en tom liste hvis filmen ikke har noen lagrede sjangre
+    ennå (f.eks. aldri koblet mot TMDB).
+    """
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        return []
+
+    current_row = db.execute(
+        text(
+            """
+            SELECT facet_genres
+            FROM content_external_source
+            WHERE content_id = :content_id AND facet_genres IS NOT NULL
+            ORDER BY (source = 'tmdb') DESC
+            LIMIT 1
+            """
+        ),
+        {"content_id": raw_id},
+    ).fetchone()
+
+    current_genres = set(_parse_facet_genres(current_row.facet_genres)) if current_row else set()
+    if not current_genres:
+        return []
+
+    same_group_ids = {
+        row.content_id
+        for row in db.execute(
+            text(
+                """
+                SELECT cgm2.content_id
+                FROM content_group_membership cgm1
+                JOIN content_group_membership cgm2 ON cgm2.group_id = cgm1.group_id
+                WHERE cgm1.content_id = :content_id
+                """
+            ),
+            {"content_id": raw_id},
+        ).fetchall()
+    }
+
+    candidate_rows = db.execute(
+        text(
+            """
+            SELECT content_id, facet_genres
+            FROM content_external_source
+            WHERE source = 'tmdb' AND facet_genres IS NOT NULL AND content_id != :content_id
+            """
+        ),
+        {"content_id": raw_id},
+    ).fetchall()
+
+    best_overlap: dict[bytes, int] = {}
+    for row in candidate_rows:
+        if row.content_id in same_group_ids:
+            continue
+        overlap = len(current_genres & set(_parse_facet_genres(row.facet_genres)))
+        if overlap > 0 and overlap > best_overlap.get(row.content_id, 0):
+            best_overlap[row.content_id] = overlap
+
+    if not best_overlap:
+        return []
+
+    # Henter litt flere kandidater enn limit (sortert på overlapp), i
+    # tilfelle noen av dem mangler tittel/cover under - usannsynlig,
+    # men defensivt. Selve begrensningen til `limit` skjer til slutt.
+    top_ids = [cid for cid, _ in sorted(best_overlap.items(), key=lambda kv: kv[1], reverse=True)[: limit * 2]]
+
+    content_rows = db.execute(
+        text(
+            """
+            SELECT content_id, title, first_release, cover_image, content_type
+            FROM content
+            WHERE content_id IN :ids
+            """
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": top_ids},
+    ).fetchall()
+    content_by_id = {row.content_id: row for row in content_rows}
+
+    result = []
+    for cid in top_ids:
+        row = content_by_id.get(cid)
+        if row is None:
+            continue
+        result.append(
+            {
+                "content_id": _hex_id(cid),
+                "title": row.title,
+                "first_release": (
+                    str(row.first_release)[:10] if row.first_release is not None else None
+                ),
+                "cover_image": _to_proxied_cover_image(row.cover_image),
+                "content_type": row.content_type,
+                "shared_genre_count": best_overlap[cid],
+            }
+        )
+        if len(result) >= limit:
+            break
+
+    return result
 
 
 def _auto_assign_group_sort_order(db: Session, group_id: int | None, content_ids: list) -> None:
