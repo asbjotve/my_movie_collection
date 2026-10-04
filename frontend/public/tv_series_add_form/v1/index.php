@@ -246,9 +246,37 @@ function h(string $s): string
     </div>
   </div>
 
+  <div class="card">
+    <div class="cardHead"><h2>1. Boksen (fysisk emballasje)</h2></div>
+    <div class="cardBody">
+      <div class="grid cols4">
+        <div class="field">
+          <label for="boxFormat">Format</label>
+          <select id="boxFormat">
+            <option value="DVD">DVD</option>
+            <option value="Blu-ray">Blu-ray</option>
+            <option value="4K UHD">4K UHD</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="boxBarcode">Boks-strekkode (EAN)</label>
+          <input type="text" id="boxBarcode" placeholder="7031...">
+        </div>
+        <div class="field">
+          <label for="storageId">storage_id</label>
+          <input type="text" id="storageId" placeholder="UUID for hylle/kasse">
+        </div>
+        <div class="field">
+          <label for="copyCount">Antall eksemplarer</label>
+          <input type="number" id="copyCount" value="1" min="1">
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="singleModeSection">
     <div class="card">
-      <div class="cardHead"><h2>1. Serien</h2></div>
+      <div class="cardHead"><h2>2. Serien</h2></div>
       <div class="cardBody">
         <div class="grid cols2">
           <div class="field">
@@ -312,7 +340,7 @@ function h(string $s): string
   <div id="mixedModeSection" style="display:none;">
     <div class="card">
       <div class="cardHead">
-        <h2>1m. Serier i boksen</h2>
+        <h2>2. Serier i boksen</h2>
         <button type="button" class="btn small" id="addMixedSeriesBtn">+ Legg til serie</button>
       </div>
       <div class="cardBody">
@@ -321,13 +349,17 @@ function h(string $s): string
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" style="border-color:rgba(255,211,106,.4);">
       <div class="cardHead">
-        <h2>2m. Frittstående filmer i boksen</h2>
-        <button type="button" class="btn small" id="addMixedMovieBtn">+ Legg til film</button>
+        <h2>3. Frittstående filmer i boksen</h2>
+        <button type="button" class="btn small primary" id="addMixedMovieBtn">+ Legg til film</button>
       </div>
       <div class="cardBody">
-        <p class="muted" style="margin-top:0;">F.eks. TV-filmer som ligger i samme boks som seriene, men ikke hører til noen sesong.</p>
+        <p class="muted" style="margin-top:0;">
+          Legg til filmer her som deler boks med seriene over, men ikke hører til
+          noen sesong (f.eks. TV-filmer). Husk å trykke "+ Legg til film" for hver
+          film - de vises ikke automatisk.
+        </p>
         <div id="mixedMoviesContainer"></div>
         <p class="muted" id="noMixedMoviesMsg">Ingen filmer lagt til ennå.</p>
       </div>
@@ -335,7 +367,7 @@ function h(string $s): string
 
     <div class="card">
       <div class="cardHead">
-        <h2>3m. Disker</h2>
+        <h2>4. Disker</h2>
         <button type="button" class="btn small" id="addMixedDiscBtn">+ Legg til disk</button>
       </div>
       <div class="cardBody">
@@ -355,34 +387,6 @@ function h(string $s): string
           <tbody id="mixedDiscTableBody"></tbody>
         </table>
         <p class="muted" id="noMixedDiscsMsg">Ingen disker lagt til ennå.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="cardHead"><h2>2. Boksen (fysisk emballasje)</h2></div>
-    <div class="cardBody">
-      <div class="grid cols4">
-        <div class="field">
-          <label for="boxFormat">Format</label>
-          <select id="boxFormat">
-            <option value="DVD">DVD</option>
-            <option value="Blu-ray">Blu-ray</option>
-            <option value="4K UHD">4K UHD</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="boxBarcode">Boks-strekkode (EAN)</label>
-          <input type="text" id="boxBarcode" placeholder="7031...">
-        </div>
-        <div class="field">
-          <label for="storageId">storage_id</label>
-          <input type="text" id="storageId" placeholder="UUID for hylle/kasse">
-        </div>
-        <div class="field">
-          <label for="copyCount">Antall eksemplarer</label>
-          <input type="number" id="copyCount" value="1" min="1">
-        </div>
       </div>
     </div>
   </div>
