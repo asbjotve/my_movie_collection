@@ -26,6 +26,31 @@
     return formModeEl.value === "mixed_boxset" ? "mixed_boxset" : "tv_series_boxset";
   }
 
+  // Parses a quick-entry episode range spec like "1-6,9,12-14" into a
+  // sorted, de-duplicated array of episode numbers. Used by the
+  // per-disc "range quick-add" control below - entering 22 individual
+  // episodes one at a time into a <select multiple> was the main
+  // friction point reported after testing a 22-episode season.
+  function parseEpisodeRangeSpec(spec) {
+    const numbers = new Set();
+    String(spec || "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => {
+        const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
+        if (rangeMatch) {
+          let start = Number(rangeMatch[1]);
+          let end = Number(rangeMatch[2]);
+          if (start > end) [start, end] = [end, start];
+          for (let n = start; n <= end; n += 1) numbers.add(n);
+        } else if (/^\d+$/.test(part)) {
+          numbers.add(Number(part));
+        }
+      });
+    return Array.from(numbers).sort((a, b) => a - b);
+  }
+
   function updateModeVisibility() {
     const mixed = currentMode() === "mixed_boxset";
     singleModeSectionEl.style.display = mixed ? "none" : "block";
@@ -162,10 +187,59 @@
   const noSeasonsMsg = document.getElementById("noSeasonsMsg");
   const discTableBody = document.getElementById("discTableBody");
   const noDiscsMsg = document.getElementById("noDiscsMsg");
+  const autoDistributeSeasonSelect = document.getElementById("autoDistributeSeasonSelect");
+  const autoDistributeBtn = document.getElementById("autoDistributeBtn");
 
   function renderSeasons() {
     renderSeasonBlocks(seasonsContainer, noSeasonsMsg, seasons, renderDiscEpisodeOptions);
+    renderAutoDistributeSeasonOptions();
   }
+
+  function renderAutoDistributeSeasonOptions() {
+    if (!seasons.length) {
+      autoDistributeSeasonSelect.innerHTML = '<option value="">(ingen sesonger lagt til)</option>';
+      return;
+    }
+    autoDistributeSeasonSelect.innerHTML = seasons
+      .map((season, idx) => `<option value="${idx}">Sesong ${h(season.season_number)}</option>`)
+      .join("");
+  }
+
+  // Fordeler en sesongs episoder likt (i rekkefølge, nær-jevnt antall
+  // pr. disk) på diskene som allerede er satt til den sesongen -
+  // lagt til etter tilbakemelding om at det var tungvint å måtte
+  // velge episoder manuelt én etter én for en sesong med 22 episoder.
+  // Overskriver episodevalget på de berørte diskene.
+  function autoDistributeSeasonEpisodes() {
+    const season = seasons[Number(autoDistributeSeasonSelect.value)];
+    if (!season || !season.episodes.length) return;
+
+    const discsForSeason = discs.filter((d) => d.season_id === season).sort((a, b) => a.order - b.order);
+    if (!discsForSeason.length) {
+      alert("Ingen disker er satt til denne sesongen ennå - legg til disker og velg sesongen deres først.");
+      return;
+    }
+
+    const episodes = season.episodes.slice().sort((a, b) => a.episode_number - b.episode_number);
+    const discCount = discsForSeason.length;
+    const base = Math.floor(episodes.length / discCount);
+    const remainder = episodes.length % discCount;
+
+    let cursor = 0;
+    discsForSeason.forEach((disc, idx) => {
+      const take = base + (idx < remainder ? 1 : 0);
+      const slice = episodes.slice(cursor, cursor + take);
+      cursor += take;
+      disc.episode_refs = slice.map((ep) => ({
+        season_number: season.season_number,
+        episode_number: ep.episode_number,
+      }));
+    });
+
+    renderDiscs();
+  }
+
+  autoDistributeBtn.addEventListener("click", autoDistributeSeasonEpisodes);
 
   function addSeason() {
     addSeasonTo(seasons);
@@ -243,6 +317,7 @@
         );
       }
     });
+    renderAutoDistributeSeasonOptions();
     renderDiscs();
   }
 
@@ -266,7 +341,13 @@
         <td><select class="discSeasonInput">${seasonOptionsHtml(disc.season_id)}</select></td>
         <td><input type="number" min="0" class="discSlotInput" value="${h(disc.storage_slot_no)}" style="width:80px;"></td>
         <td><input type="checkbox" class="discAddToStorageInput" ${disc.add_to_storage ? "checked" : ""}></td>
-        <td><select multiple class="discEpisodesInput">${episodeOptionsHtml(disc.season_id, disc.episode_refs)}</select></td>
+        <td>
+          <select multiple class="discEpisodesInput">${episodeOptionsHtml(disc.season_id, disc.episode_refs)}</select>
+          <div style="margin-top:4px; display:flex; gap:4px;">
+            <input type="text" class="discEpisodeRangeInput" placeholder="f.eks. 1-6,9" style="width:90px; font-size:12px;">
+            <button type="button" class="btn small" data-action="addEpisodeRange" title="Legg til episodene fra feltet til venstre, uten å fjerne allerede valgte episoder">+ Legg til</button>
+          </div>
+        </td>
         <td><button type="button" class="btn danger small" data-action="removeDisc">Fjern</button></td>
       `;
 
@@ -293,6 +374,26 @@
           const [seasonNumber, episodeNumber] = v.split(":").map(Number);
           return { season_number: seasonNumber, episode_number: episodeNumber };
         });
+      });
+      // Quick-add via a typed range (e.g. "1-6,9") instead of having
+      // to ctrl/cmd-click every single episode in the multi-select -
+      // merges into (doesn't replace) whatever's already selected.
+      tr.querySelector('[data-action="addEpisodeRange"]').addEventListener("click", () => {
+        const season = disc.season_id;
+        if (!season) return;
+        const input = tr.querySelector(".discEpisodeRangeInput");
+        const wanted = parseEpisodeRangeSpec(input.value);
+        wanted.forEach((episodeNumber) => {
+          const exists = season.episodes.some((ep) => ep.episode_number === episodeNumber);
+          const alreadyPicked = disc.episode_refs.some(
+            (r) => r.season_number === season.season_number && r.episode_number === episodeNumber
+          );
+          if (exists && !alreadyPicked) {
+            disc.episode_refs.push({ season_number: season.season_number, episode_number: episodeNumber });
+          }
+        });
+        input.value = "";
+        renderDiscs();
       });
       tr.querySelector('[data-action="removeDisc"]').addEventListener("click", () => {
         removeDisc(disc.id);

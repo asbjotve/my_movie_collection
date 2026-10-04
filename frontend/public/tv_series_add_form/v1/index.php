@@ -317,6 +317,12 @@ function h(string $s): string
         <button type="button" class="btn small" id="addDiscBtn">+ Legg til disk</button>
       </div>
       <div class="cardBody">
+        <div id="autoDistributeRow" style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+          <label for="autoDistributeSeasonSelect" class="muted" style="font-size:13px;">Fordel episoder automatisk på diskene for:</label>
+          <select id="autoDistributeSeasonSelect" style="max-width:220px;"></select>
+          <button type="button" class="btn small" id="autoDistributeBtn">Fordel</button>
+          <span class="muted" style="font-size:12px;">(fordeler sesongens episoder likt, i rekkefølge, på diskene som allerede er satt til denne sesongen - overskriver deres episodevalg)</span>
+        </div>
         <table id="discTable">
           <thead>
             <tr>
