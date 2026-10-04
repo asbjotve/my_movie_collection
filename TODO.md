@@ -37,6 +37,31 @@ backlog to pick from.
       TV shows/box sets can be catalogued alongside movies. Added
       `season`, `episode`, `disc_contains_episode` on
       `feature/tv-series-schema` (migration `ca92db17e42f`).
+- [ ] Import digital movies/episodes from Plex Media Server via its
+      API, as a separate "digital library" alongside the physical
+      collection. Requires new tables - design was already sketched
+      out in an earlier session (not yet implemented):
+      - New tables: `digital_library`, `content_in_digital_library`,
+        `digital_media_version`, `digital_media_part` (one physical
+        movie file can be split into multiple parts), optionally
+        `digital_storage`/`digital_part_in_storage` if digital copies
+        also need a storage-location concept later.
+      - Reuse `content_external_source` with `source='plex'` for the
+        raw metadata Plex returns per item (same pattern as
+        `source='tmdb'`/`source='tvdb'`), instead of inventing a
+        parallel metadata table.
+      - Data-flow philosophy (confirmed with the user): import is
+        strictly one-way, FROM Plex only - the app must never write
+        back to Plex over its API. The `content` row itself CAN still
+        be edited manually afterwards (e.g. translating a title)
+        independent of what Plex reports.
+      - Manual edits must not be silently overwritten by a later Plex
+        re-sync - this is exactly what `content.locked_fields` (the
+        comma-separated locked-field column, already implemented and
+        in active use for the TMDB/TVDB merge logic, see
+        `MERGEABLE_CONTENT_FIELDS` in `media_catalog.py`) is for, so
+        this item should reuse that existing mechanism rather than
+        add a new one.
 
 ## DevOps / CI / deployment
 
