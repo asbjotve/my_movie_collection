@@ -12,6 +12,7 @@ from app.services.external_apis import (
     fetch_tmdb_details,
     fetch_tvdb_details,
 )
+from app.services.media_catalog import _compute_search_facets
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,7 @@ def _create_content(
 
     if tmdb_id:
         tmdb_data, tmdb_fetched_at = _fetch_external_source_payload("tmdb", tmdb_id, content_type)
+        facet_genres, facet_cast, facet_release_year = _compute_search_facets(tmdb_data)
         db.execute(
             text("""
                 INSERT INTO content_external_source (
@@ -164,14 +166,20 @@ def _create_content(
                     content_id,
                     external_id,
                     data_json,
-                    fetched_at
+                    fetched_at,
+                    facet_genres,
+                    facet_cast,
+                    facet_release_year
                 )
                 VALUES (
                     :source,
                     :content_id,
                     :external_id,
                     :data_json,
-                    :fetched_at
+                    :fetched_at,
+                    :facet_genres,
+                    :facet_cast,
+                    :facet_release_year
                 )
             """),
             {
@@ -180,6 +188,9 @@ def _create_content(
                 "external_id": tmdb_id,
                 "data_json": json.dumps(tmdb_data),
                 "fetched_at": tmdb_fetched_at,
+                "facet_genres": json.dumps(facet_genres),
+                "facet_cast": json.dumps(facet_cast),
+                "facet_release_year": facet_release_year,
             },
         )
 

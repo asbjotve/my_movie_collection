@@ -540,15 +540,37 @@ def _extract_genres_and_cast(data: dict) -> tuple[list[str], list[str]]:
     return genres, cast
 
 
+def _compute_search_facets(data: dict) -> tuple[list[str], list[str], int | None]:
+    """Som _extract_genres_and_cast(), men legger i tillegg til
+    TMDBs release_date-år - selve verdiene skrevet til
+    content_external_source.facet_genres/facet_cast/facet_release_year
+    (kun for source='tmdb') hver gang en TMDB data_json lagres/
+    oppdateres (se physical_collection_import.py og
+    update_content_external_source() under), slik at list_content()
+    kan lese disse små, ferdigberegnede feltene fremfor å måtte parse
+    hele (ofte >100KB) data_json-blobben på nytt ved hvert kall.
+    """
+    genres, cast = _extract_genres_and_cast(data)
+    release_date = data.get("release_date")
+    release_year = (
+        int(release_date[:4]) if release_date and release_date[:4].isdigit() else None
+    )
+    return genres, cast, release_year
+
+
 def list_content(db: Session) -> list[dict]:
     """Henter alle content-rader, med tilhørende fysiske utgaver og
     eksterne kilder gruppert inn i hvert content-objekt.
 
-    Inkluderer også genres/cast/release_year/decade (utledet fra TMDBs
-    lagrede data_json, se _extract_genres_and_cast()) slik at
-    frontend kan tilby fritekst-/facett-søk på tittel, skuespiller,
-    sjanger og år - ikke bare tittel - uten et eget søke-endepunkt,
-    siden hele listen uansett lastes ned samlet av index.php i dag.
+    Inkluderer også genres/cast/release_year/decade (lest fra de
+    forhåndsberegnede facet_genres/facet_cast/facet_release_year-
+    kolonnene på content_external_source, se _compute_search_facets())
+    slik at frontend kan tilby fritekst-/facett-søk på tittel,
+    skuespiller, sjanger og år - ikke bare tittel - uten et eget
+    søke-endepunkt, siden hele listen uansett lastes ned samlet av
+    index.php i dag. Disse kolonnene leses her i stedet for å parse
+    den fulle (ofte >100KB) TMDB data_json-blobben på nytt ved hvert
+    kall - se migrasjon 740c10b9db7b for bakgrunnen/målingene.
     """
 
     content_rows = db.execute(
@@ -616,9 +638,11 @@ def list_content(db: Session) -> list[dict]:
     tmdb_json_rows = db.execute(
         text(
             """
-            SELECT content_id, data_json
+            SELECT content_id, facet_genres, facet_cast, facet_release_year
             FROM content_external_source
-            WHERE source = 'tmdb' AND data_json IS NOT NULL
+            WHERE source = 'tmdb'
+              AND (facet_genres IS NOT NULL OR facet_cast IS NOT NULL
+                   OR facet_release_year IS NOT NULL)
             """
         )
     ).fetchall()
@@ -656,19 +680,10 @@ def list_content(db: Session) -> list[dict]:
     search_facets_by_content: dict[str, dict] = {}
     for row in tmdb_json_rows:
         key = _hex_id(row.content_id)
-        try:
-            data = json.loads(row.data_json)
-        except (TypeError, ValueError):
-            data = {}
-        genres, cast = _extract_genres_and_cast(data)
-        release_date = data.get("release_date")
-        tmdb_year = (
-            int(release_date[:4]) if release_date and release_date[:4].isdigit() else None
-        )
         search_facets_by_content[key] = {
-            "genres": genres,
-            "cast": cast,
-            "tmdb_year": tmdb_year,
+            "genres": row.facet_genres or [],
+            "cast": row.facet_cast or [],
+            "tmdb_year": row.facet_release_year,
         }
 
     result = []
@@ -2010,11 +2025,21 @@ def update_content_external_source(
     except ExternalApiError as e:
         raise ContentExternalSourceError(str(e), status_code=e.status_code) from e
 
+    # facet_*-kolonnene brukes kun for source='tmdb' (se list_content());
+    # ved en tvdb-oppdatering nulles de derfor ut i stedet for å la en
+    # eventuell gammel tmdb-facet-verdi stå igjen feilaktig på raden.
+    if source == "tmdb":
+        facet_genres, facet_cast, facet_release_year = _compute_search_facets(data_json)
+    else:
+        facet_genres, facet_cast, facet_release_year = [], [], None
+
     db.execute(
         text(
             """
             UPDATE content_external_source
-            SET data_json = :data_json, fetched_at = :fetched_at
+            SET data_json = :data_json, fetched_at = :fetched_at,
+                facet_genres = :facet_genres, facet_cast = :facet_cast,
+                facet_release_year = :facet_release_year
             WHERE source = :source AND external_id = :external_id
             """
         ),
@@ -2023,6 +2048,9 @@ def update_content_external_source(
             "external_id": external_id,
             "data_json": json.dumps(data_json, ensure_ascii=False),
             "fetched_at": datetime.now(timezone.utc),
+            "facet_genres": json.dumps(facet_genres),
+            "facet_cast": json.dumps(facet_cast),
+            "facet_release_year": facet_release_year,
         },
     )
     db.commit()

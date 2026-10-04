@@ -41,6 +41,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    JSON,
     String,
     Text,
     TIMESTAMP,
@@ -234,6 +235,15 @@ class ContentExternalSource(MediaBase):
     external_id = Column(String(20), nullable=True)
     data_json = Column(LONGTEXT(collation="utf8mb4_bin"), nullable=True)
     fetched_at = Column(TIMESTAMP, nullable=True)
+
+    # Små, forhåndsberegnede felter hentet ut av data_json (kun satt
+    # for source='tmdb') - se _compute_search_facets() i
+    # media_catalog.py. list_content() leser disse i stedet for å
+    # parse hele den (ofte >100KB) TMDB-blobben på nytt ved hvert
+    # sidelast - se migrasjon 740c10b9db7b for bakgrunnen/målingene.
+    facet_genres = Column(JSON, nullable=True)
+    facet_cast = Column(JSON, nullable=True)
+    facet_release_year = Column(Integer, nullable=True)
 
     __table_args__ = (
         CheckConstraint("json_valid(data_json)", name="content_external_source_chk_1"),

@@ -325,6 +325,27 @@ backlog to pick from.
       the first rollout) rather than all at once, since each file's
       curl setup differs slightly (some use multipart uploads, not
       plain JSON POSTs).
+- [x] `list_content()` (hit on every "Mine filmer" page load, no
+      caching) was fetching the FULL `content_external_source.data_json`
+      column for all ~776 TMDB rows (avg 108KB, max 420KB, ~80MB total)
+      and running `json.loads()` on every blob just to extract genre
+      names/top-8 cast names/release year for client-side search -
+      measured ~2.37s backend time per request (~1.64s SQL fetch of
+      the blob column + ~0.78s parsing), the main cause of the slow
+      "Laster data fra databasen..." phase reported by the user as the
+      collection grew. Fixed by adding 3 small cache columns to
+      `content_external_source` (`facet_genres`, `facet_cast`,
+      `facet_release_year`, populated only for `source='tmdb'`),
+      computed once at write time (`_compute_search_facets()`) instead
+      of re-parsed on every read. `list_content()` now reads these
+      directly - measured after the fix: ~0.08-0.13s for the function,
+      ~0.2-0.37s for the live endpoint (down from ~2.7-2.9s). Existing
+      776 rows backfilled once. `get_collection_stats()` and
+      `get_data_health_issues()` have the same full-blob-parsing
+      pattern but weren't touched here - `get_data_health_issues()`
+      needs other blob fields (overview/runtime) not covered by this
+      cache, and `get_collection_stats()` is admin-only/lower
+      traffic - worth revisiting if they turn out to be slow too.
 - [ ] Review remaining raw-SQL call sites for proper parameterization
       (avoid SQL injection risk in code paths outside the ORM).
 - [ ] General API rate-limiting (not just `/auth/login`) to guard
