@@ -124,16 +124,16 @@ $sectionAccess = [
     }
 
     /* ---- Toppmeny (Bootstrap navbar, egendefinert farge/spacing) ----
-       NB: Bootstraps egen .navbar-klasse setter flex-wrap:wrap. Vi hadde
-       tidligere en FAST height:60px her, så når fanene (Mine filmer /
-       Ønskeliste / ...) ikke fikk plass på én linje på smale skjermer,
-       brakk de om på flere linjer men fikk ikke plass i de faste 60px –
-       resultat: teksten fløt utenpå/over innholdet under (sticky,
-       z-index:20). Løsning: min-height i stedet for height, pluss
-       eksplisitt wrap/gap-styring som også fungerer fint på mobil. */
+       NB: Bootstraps egen .navbar-klasse setter flex-wrap:wrap. Under
+       ~1200px bredde fikk ikke faner+språkvalg+innloggingsstatus plass
+       på én linje, og wrap (selv med min-height/vekst i stedet for
+       overlapp) ga en rotete flerlinjers toppmeny. Løsning: en egen
+       "hamburger"-knapp (#navToggleBtn) som på smalere skjermer
+       (<=900px) skjuler meny-innholdet (#topbarMenu) bak en nedtrekksboks
+       som åpnes/lukkes med knappen - se JS lenger ned. ---- */
     .topbar{
       position: sticky; top:0; z-index:20;
-      display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px;
+      display:flex; align-items:center; gap:10px 20px;
       padding: 10px 20px;
       min-height: 60px;
       background: rgba(12,16,36,.9);
@@ -144,6 +144,18 @@ $sectionAccess = [
       font-weight:700; letter-spacing:.02em;
       white-space: nowrap;
       margin-right: 10px;
+    }
+    .navToggleBtn{
+      display:none;
+      appearance:none; border:1px solid var(--line); background:transparent;
+      color: var(--text); font-size:18px; line-height:1;
+      padding:6px 12px; border-radius:10px; cursor:pointer;
+      margin-left:auto;
+    }
+    .navToggleBtn:hover{ background: rgba(111,141,255,.08); }
+    .topbarMenu{
+      display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px;
+      flex:1; min-width:0;
     }
     .mainnav{
       display:flex; flex-wrap:wrap; gap:6px;
@@ -439,16 +451,31 @@ $sectionAccess = [
       .filterBar .search{ max-width:none; min-width:0; }
       .filterBar .chiprow{ justify-content:flex-start; }
       .filterBar .viewToggle{ margin-left:0; }
+    }
 
-      /* Toppmeny: smalere padding/gap og mindre faner, slik at flere
-         rekker på én linje før de brekker om (og brekker nå pent om,
-         siden .topbar bruker min-height i stedet for fast height). */
-      .topbar{ padding:8px 12px; gap:8px 10px; }
-      .brand{ font-size:14px; margin-right:0; }
-      .mainnav{ gap:4px; }
-      .mainnav button.btn{ font-size:12.5px; padding:6px 10px; }
-      .lang-switch a{ padding:3px 7px; font-size:10px; }
-      .authState{ font-size:11px; padding:4px 9px; }
+    /* ---- Toppmeny på mobil/nettbrett (<=900px): faner+språk+innloggings-
+       status fikk ikke plass på én linje her (testet opp mot ca. 1190px),
+       og flerlinjers wrap så rotete ut selv uten overlapp. I stedet
+       skjules #topbarMenu bak en hamburger-knapp som åpner en
+       nedtrekksboks - se JS lenger ned for toggle/lukk-logikk. ---- */
+    @media (max-width: 900px){
+      .topbar{ flex-wrap:nowrap; position:relative; }
+      .navToggleBtn{ display:inline-flex; align-items:center; justify-content:center; }
+      .topbarMenu{
+        display:none;
+        position:absolute; left:0; right:0; top:100%;
+        flex-direction:column; align-items:stretch; gap:14px;
+        background: rgba(12,16,36,.98);
+        border-bottom:1px solid var(--line);
+        padding:14px 16px 18px;
+        max-height: calc(100vh - 60px);
+        overflow-y:auto;
+      }
+      .topbarMenu.open{ display:flex; }
+      .mainnav{ flex-direction:column; gap:4px; }
+      .mainnav button.btn{ width:100%; text-align:left; }
+      .lang-switch{ justify-content:flex-start; }
+      .authState{ width:100%; justify-content:center; }
     }
   </style>
 </head>
@@ -456,6 +483,8 @@ $sectionAccess = [
 
 <nav class="navbar navbar-expand-lg topbar" data-bs-theme="dark">
   <div class="brand navbar-brand mb-0">🎬 Media-katalog</div>
+  <button type="button" class="navToggleBtn" id="navToggleBtn" aria-label="Åpne meny" aria-expanded="false" aria-controls="topbarMenu">☰</button>
+  <div class="topbarMenu" id="topbarMenu">
   <div class="mainnav" id="mainnav">
     <button type="button" class="btn active" data-panel="mine_filmer"><?= htmlspecialchars(t('wte.nav.mine_filmer')) ?><?= $sectionAccess['mine_filmer'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
     <button type="button" class="btn" data-panel="onskeliste"><?= htmlspecialchars(t('wte.nav.onskeliste')) ?><?= $sectionAccess['onskeliste'] ? '<span class="lockIcon">🔒</span>' : '' ?></button>
@@ -475,6 +504,7 @@ $sectionAccess = [
     <?php else: ?>
       <?= htmlspecialchars(t('wte.nav.not_logged_in')) ?> · <a href="login.php" style="color:inherit;"><?= htmlspecialchars(t('wte.nav.login')) ?></a>
     <?php endif; ?>
+  </div>
   </div>
 </nav>
 
@@ -1186,6 +1216,31 @@ $sectionAccess = [
   if (requestedPanel) {
     activatePanel(requestedPanel);
   }
+
+  // ---- Toppmeny: hamburger-knapp for mobil/nettbrett (<=900px) ----
+  const navToggleBtn = document.getElementById("navToggleBtn");
+  const topbarMenu = document.getElementById("topbarMenu");
+
+  function closeMobileMenu(){
+    topbarMenu.classList.remove("open");
+    navToggleBtn.setAttribute("aria-expanded", "false");
+  }
+
+  navToggleBtn.addEventListener("click", () => {
+    const isOpen = topbarMenu.classList.toggle("open");
+    navToggleBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+
+  // Lukk menyen når man velger en fane, så man ikke må lukke den manuelt
+  // hver gang på mobil.
+  navButtons.forEach(btn => btn.addEventListener("click", closeMobileMenu));
+
+  // Lukk menyen ved klikk utenfor (f.eks. på selve siden/innholdet).
+  document.addEventListener("click", (ev) => {
+    if (!topbarMenu.classList.contains("open")) return;
+    if (topbarMenu.contains(ev.target) || navToggleBtn.contains(ev.target)) return;
+    closeMobileMenu();
+  });
 </script>
 </body>
 </html>
