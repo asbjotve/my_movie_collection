@@ -549,6 +549,118 @@ function update_default_currency_setting(string $currency): array
     return [$httpCode, json_decode($response, true)];
 }
 
+/**
+ * Henter lagrede Plex-innstillinger via GET /settings/plex. Krever et
+ * gyldig access_token for en innlogget admin-bruker (require_role
+ * "admin" i backend) - i motsetning til
+ * fetch_section_access()/fetch_default_language_setting() er dette
+ * endepunktet bevisst IKKE åpent, siden selve eksistensen av en
+ * lagret Plex-URL/token er mer sensitivt enn f.eks. default-språk.
+ *
+ * Returnerer null hvis kallet feiler (f.eks. ikke innlogget ennå) -
+ * kaller-siden (plex_settings.php) krever uansett innlogging før den
+ * i det hele tatt viser skjemaet.
+ */
+function fetch_plex_settings(): ?array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return null;
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/plex');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+        CURLOPT_TIMEOUT => 5,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false || $httpCode !== 200) {
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    return is_array($data) ? $data : null;
+}
+
+/**
+ * Lagrer Plex-URL/token via PUT /settings/plex. $token kan være null
+ * (eller tom streng) for å la et allerede lagret token stå uendret -
+ * se PlexSettingsUpdateRequest i backend (plex_settings.py).
+ *
+ * Returnerer [httpCode, data].
+ */
+function update_plex_settings(string $baseUrl, ?string $token, ?string $serverIdentifier = null, bool $verifySsl = true): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $body = ['base_url' => $baseUrl, 'server_identifier' => $serverIdentifier, 'verify_ssl' => $verifySsl];
+    if ($token !== null && $token !== '') {
+        $body['token'] = $token;
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/plex');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ],
+        CURLOPT_POSTFIELDS => json_encode($body),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, null];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
+/**
+ * Tester de FAKTISK LAGREDE Plex-credentials via POST
+ * /settings/plex/test (pinger Plex sitt /identity-endepunkt
+ * server-side - se test_plex_connection() i backend/plex_client.py).
+ *
+ * Returnerer [httpCode, data]. data['detail'] inneholder en norsk
+ * feilmelding ved feil (502), data['machine_identifier']/['version']
+ * ved suksess (200).
+ */
+function test_plex_connection_setting(): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/plex/test');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+        // Plex-serveren kan være treg å svare (lokalt nettverk, evt.
+        // "sleeping"-tilstand) - lengre timeout enn de andre
+        // settings-kallene, som bare snakker med vårt eget API.
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, ['detail' => 'Fikk ikke kontakt med API-et']];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
 /** Logger ut - tømmer hele sesjonen. */
 function auth_logout(): void
 {

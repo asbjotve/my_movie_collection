@@ -41,6 +41,23 @@ backlog to pick from.
       API, as a separate "digital library" alongside the physical
       collection. Requires new tables - design was already sketched
       out in an earlier session (not yet implemented):
+      - [x] Step 1 - Plex connection settings: admin-configurable
+            server URL + `X-Plex-Token`, instead of a new `.env`
+            variable, with a "Test connection" button (pings Plex's
+            `/identity` endpoint server-side). New
+            `GET/PUT /settings/plex` + `POST /settings/plex/test`
+            (`plex_settings_route.py`/`plex_client.py`, both
+            `require_role("admin")`), new
+            `website_template_example/v19/plex_settings.php` page
+            (linked from the Administrering panel), stored in the
+            existing generic `app_settings` table (same as
+            default-language/default-currency). The token is never
+            echoed back in full by `GET` (only "ends in XXXX"), and
+            saving a blank token field keeps the existing one
+            unchanged.
+      - [ ] Step 2 (not started) - the actual import job: new tables,
+        listed below, and the logic to read Plex's
+        `/library/sections` and populate them.
       - New tables: `digital_library`, `content_in_digital_library`,
         `digital_media_version`, `digital_media_part` (one physical
         movie file can be split into multiple parts), optionally
