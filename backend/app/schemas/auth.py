@@ -11,15 +11,17 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     """Svar på POST /auth/login.
 
-    Hvis brukeren IKKE har 2FA på: access_token er satt med en gang,
-    requires_2fa=False, pre_auth_token=None.
+    Hvis brukeren IKKE har 2FA på: access_token/refresh_token er satt
+    med en gang, requires_2fa=False, pre_auth_token=None.
 
-    Hvis brukeren HAR 2FA på: access_token=None, requires_2fa=True, og
-    pre_auth_token må sendes videre til POST /auth/login/2fa sammen med
-    en gyldig TOTP-/recovery-kode for å få et ekte access_token.
+    Hvis brukeren HAR 2FA på: access_token/refresh_token=None,
+    requires_2fa=True, og pre_auth_token må sendes videre til POST
+    /auth/login/2fa sammen med en gyldig TOTP-/recovery-kode for å få
+    ekte tokens.
     """
 
     access_token: str | None = None
+    refresh_token: str | None = None
     token_type: str = "bearer"
     requires_2fa: bool = False
     pre_auth_token: str | None = None
@@ -32,7 +34,12 @@ class TwoFaLoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class TwoFaSetupResponse(BaseModel):

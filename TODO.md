@@ -231,9 +231,13 @@ backlog to pick from.
 - [ ] Client-side form validation feedback (e.g. highlighting the
       specific invalid field) instead of only a generic status-line
       message like "name is required".
-- [ ] A visible session-expiry warning (e.g. "you'll be logged out in
-      2 minutes") before the JWT access token actually expires, so an
-      in-progress edit isn't silently lost to a 401.
+- [x] Session-expiry handling for `tv_series_add_form/v1`: instead of
+      a visible "you'll be logged out soon" warning, an automatic,
+      silent re-login was built - see the "Refresh tokens" item below
+      for the implementation. A user-visible warning banner is no
+      longer needed for this form since the 401 is now recovered from
+      transparently; still worth considering for other tools that
+      don't yet use the shared `auth_call_with_retry()` helper.
 - [ ] Show a diff/preview of what would actually change before
       applying a TMDB/TVDB "refresh + merge" (currently it fetches and
       merges immediately; a preview would let the user catch an
@@ -263,8 +267,44 @@ backlog to pick from.
 
 - [ ] Rate-limiting on `/auth/login` (and `/auth/login/2fa`) to guard
       against brute-force password/2FA guessing.
-- [ ] Refresh tokens, so users don't need to log in again every 30
-      minutes (current `ACCESS_TOKEN_EXPIRE_MINUTES`).
+- [x] Refresh tokens, so users don't need to log in again every 30
+      minutes (current `ACCESS_TOKEN_EXPIRE_MINUTES`). Implemented as
+      a new `"refresh"` JWT type (`REFRESH_TOKEN_EXPIRE_MINUTES`, 7
+      days) issued alongside the access token on `/auth/login` and
+      `/auth/login/2fa`, plus a new `POST /auth/refresh` endpoint that
+      exchanges a valid refresh token for a fresh access token without
+      a password. `frontend/public/_shared/auth.php` stores the
+      refresh token in the PHP session and exposes
+      `auth_refresh_access_token()` + a generic
+      `auth_call_with_retry()` wrapper that retries a failed backend
+      call exactly once after a silent refresh if it first gets a 401.
+      Wired into `tv_series_add_form/v1/api.php`'s submit action so a
+      user mid-form never sees "Kunne ikke validere token" unless the
+      refresh token itself has also expired/is missing (genuinely
+      logged out). Verified end-to-end against the live backend/DB
+      with forged expired/valid tokens (confirmed: expired access +
+      valid refresh transparently recovers and the session's stored
+      access token is replaced; expired access + no refresh token
+      still correctly surfaces a 401). Not yet adopted by the other
+      tools sharing `auth.php` - see the separate rollout item below.
+- [ ] Roll out the automatic re-login (`auth_call_with_retry()`, see
+      the "Refresh tokens" item above) to the other tools that share
+      `auth.php` but still only use `auth_bearer_header()` /
+      `auth_api_authenticated()` directly and so still show a raw 401
+      ("Kunne ikke validere token") once their access token expires.
+      Each one just needs its curl call wrapped the same way
+      `tv_series_add_form/v1/api.php`'s submit action was:
+      - `frontend/public/bulk_add_movies_form/v14/api.php`
+      - `frontend/public/temp_add_movie_barcode/v1/submit.php`
+      - `frontend/public/website_template_example/v18/api.php`
+      - `frontend/public/website_template_example/v19/api.php`
+      - `frontend/public/custom_list_manager/v3/index.php` and
+        `v4/index.php`
+      - `frontend/public/add_to_wishlist/v4/bildopp.php`
+      Worth doing incrementally (one tool at a time, verified live like
+      the first rollout) rather than all at once, since each file's
+      curl setup differs slightly (some use multipart uploads, not
+      plain JSON POSTs).
 - [ ] Review remaining raw-SQL call sites for proper parameterization
       (avoid SQL injection risk in code paths outside the ORM).
 - [ ] General API rate-limiting (not just `/auth/login`) to guard
@@ -277,7 +317,83 @@ backlog to pick from.
 ## New features
 
 - [ ] Form for registering physical copies of TV series box sets
-      (depends on the TV series table support above).
+      (depends on the TV series table support above). v1 form +
+      backend `tv_series_boxset` import endpoint built and working
+      (`frontend/public/tv_series_add_form/v1`,
+      `import_tv_series_boxset_payload` in
+      `backend/app/services/add_data/physical_collection_import.py`),
+      not yet merged to `develop`. Status of previously open issues:
+      - [x] `inner_case_ean` display bug fixed: the per-season inner
+        case collections were correctly imported, but the detail page
+        read path (`_load_physical_copies` in
+        `backend/app/services/media_catalog.py`) treated the outer
+        box collection as its own (empty, confusing) "physical copy"
+        entry instead of recognizing it as a pure container, because
+        its "is this a container collection" check only looked for
+        collections shared by multiple *different* titles - a TV
+        box's outer collection only ever has one title (the series
+        itself) shared across its own per-season rows, so it slipped
+        through. Added a second container rule (a barcode-less
+        collection whose content also has a sibling collection with a
+        barcode is a container) plus season labelling: each
+        `physical_copies` entry now gets `season_number`/
+        `season_title` derived from `disc_contains_episode` ->
+        `episode` -> `season` when all its discs belong to one
+        season. Verified via live DB test (2-season box, no spurious
+        empty entry, correct season labels) and cleaned up afterwards.
+      - [x] Mixed boxset support (multiple series + standalone TV
+        movies sharing discs in one physical box, e.g. a box with 2
+        series + 2-3 TV movies) implemented as a new `mixed_boxset`
+        payload `kind` - see `import_mixed_boxset_payload` in
+        `backend/app/services/add_data/physical_collection_import.py`
+        and the matching schemas in
+        `backend/app/schemas/physical_collection_import.py`.
+        References series/movies from discs by their 0-based position
+        in the payload's `series`/`movies` lists. No new frontend
+        needed yet - the existing "paste finished JSON payload" box in
+        `frontend/public/tv_series_add_form/v1` already posts to the
+        same generic `/import/physical-collection` endpoint. Verified
+        via live DB test + full cleanup.
+      - [ ] `_load_box_set_items` (used only when `box_set_barcode` is
+        set on the outer box - not the typical case for TV payloads so
+        far) still has the same "one collection = one distinct title"
+        assumption and would misbehave for a TV series with per-season
+        inner cases if `box_set_barcode` were ever set. Not an active
+        bug today since TV payloads currently leave `box_set_barcode`
+        unset, but worth revisiting if that changes.
+      - [ ] No detail-page frontend template renders season/episode
+        structure yet (season/episode tables have zero references in
+        `media_catalog.py`'s templates/consumers beyond the new
+        `season_number`/`season_title` fields added above) - the data
+        is now available via the API, but UI work to actually display
+        it (e.g. grouping discs under season headings) is still open.
+      - [x] Guided (non-paste-JSON) frontend fields for `mixed_boxset`
+        added to `frontend/public/tv_series_add_form/v1`: a "Type
+        registrering" mode toggle switches the form between single-
+        series (`tv_series_boxset`) and mixed-box (`mixed_boxset`)
+        entry, with repeatable "series in box" and "standalone movies
+        in box" cards (each series block has its own seasons/episodes
+        + its own TVDB search) and a discs card with multi-select
+        content/episode references. Verified via a jsdom-driven
+        simulation of the real `script.js` producing a schema-valid
+        payload, live-imported, and checked via SQL, then cleaned up.
+        The "Boksen" card was also moved earlier in the page and the
+        step numbering made consistent across both modes after initial
+        user feedback that it wasn't clear where to add movies.
+      - [x] Episode-to-disc assignment UX for large seasons: after
+        live-testing a real box, manually ctrl-clicking every episode
+        in a `<select multiple>` was reported as tedious for a
+        22-episode season. Added to the single-series mode's disc
+        table: a per-disc "range quick-add" text input (e.g.
+        `1-6,9`) that merges episodes into a disc's selection without
+        clearing existing picks, and an "auto-distribute" control that
+        evenly splits a season's episodes, in order, across whichever
+        discs are already assigned to that season. Verified via jsdom
+        (22 episodes across 5 discs -> 5/5/4/4/4). Mixed-boxset mode's
+        disc table does not have this yet (lower priority - mixed
+        boxes mix in movies too, so per-disc episode counts tend to be
+        much smaller) - worth adding the same range quick-add there if
+        it turns out to be needed in practice.
 - [ ] Dedicated API endpoint(s) for a local FileMaker database to
       connect directly against (rather than a one-off CSV export) -
       likely needs its own export-oriented endpoint(s), separate from
@@ -286,13 +402,12 @@ backlog to pick from.
       blobs) and may need per-table access rather than one big
       flattened payload.
 - [ ] Read-only share link for a custom list (e.g. a public,
-
-
       unguessable URL) so a list can be shared with friends/family
       without giving them a login.
 - [ ] Price/availability tracking for wishlist items (e.g. periodic
       check against a shop/price API), to get notified when a wanted
       title becomes available or drops in price.
+      USSER NOTE: Can be hard, if there are no API available
 
 ## Technical debt / cleanup
 

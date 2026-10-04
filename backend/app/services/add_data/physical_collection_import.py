@@ -55,7 +55,9 @@ def _get_content_by_imdb_id(db: Session, imdb_id: Optional[str]) -> Optional[byt
     return row[0] if row else None
 
 
-def _fetch_external_source_payload(source: str, external_id: str) -> tuple[dict, Optional[datetime]]:
+def _fetch_external_source_payload(
+    source: str, external_id: str, content_type: str = "movie"
+) -> tuple[dict, Optional[datetime]]:
     """Henter fulle detaljer fra TMDB/TVDB for en ekstern id oppgitt ved
     import, samme funksjoner som brukes av "oppdater fra kilde"-
     endepunktet (update_content_external_source).
@@ -69,9 +71,9 @@ def _fetch_external_source_payload(source: str, external_id: str) -> tuple[dict,
 
     try:
         if source == "tmdb":
-            data = fetch_tmdb_details(external_id, "movie")
+            data = fetch_tmdb_details(external_id, content_type)
         else:
-            data = fetch_tvdb_details(external_id, "movie")
+            data = fetch_tvdb_details(external_id, content_type)
         return data, datetime.utcnow()
     except ExternalApiError as e:
         logger.warning(
@@ -90,6 +92,7 @@ def _create_content(
     tmdb_id: Optional[str],
     tvdb_id: Optional[str] = None,
     temporary_flag: int = 0,
+    content_type: str = "movie",
 ) -> bytes:
     content_id = _new_uuid_bytes()
 
@@ -117,7 +120,7 @@ def _create_content(
         {
             "content_id": content_id,
             "title": title,
-            "content_type": "movie",
+            "content_type": content_type,
             "imdb_id": imdb_id,
             "overview": "",
             "watched_flag": 0,
@@ -153,7 +156,7 @@ def _create_content(
         )
 
     if tmdb_id:
-        tmdb_data, tmdb_fetched_at = _fetch_external_source_payload("tmdb", tmdb_id)
+        tmdb_data, tmdb_fetched_at = _fetch_external_source_payload("tmdb", tmdb_id, content_type)
         db.execute(
             text("""
                 INSERT INTO content_external_source (
@@ -181,7 +184,7 @@ def _create_content(
         )
 
     if tvdb_id:
-        tvdb_data, tvdb_fetched_at = _fetch_external_source_payload("tvdb", tvdb_id)
+        tvdb_data, tvdb_fetched_at = _fetch_external_source_payload("tvdb", tvdb_id, content_type)
         db.execute(
             text("""
                 INSERT INTO content_external_source (
@@ -217,6 +220,7 @@ def _get_or_create_content(
     imdb_id: Optional[str],
     tmdb_id: Optional[str],
     tvdb_id: Optional[str] = None,
+    content_type: str = "movie",
 ) -> tuple[bytes, bool]:
     if imdb_id:
         existing_content_id = _get_content_by_imdb_id(db, imdb_id)
@@ -230,6 +234,7 @@ def _get_or_create_content(
             tmdb_id=tmdb_id,
             tvdb_id=tvdb_id,
             temporary_flag=0,
+            content_type=content_type,
         ), True
 
     return _create_content(
@@ -239,6 +244,7 @@ def _get_or_create_content(
         tmdb_id=tmdb_id,
         tvdb_id=tvdb_id,
         temporary_flag=1,
+        content_type=content_type,
     ), True
 
 
@@ -559,6 +565,124 @@ def _create_disc_in_storage(
             "disc_id": disc_id,
             "number_in_storage": number_in_storage,
         },
+    )
+
+
+def _find_season(db: Session, content_id: bytes, season_number: int) -> Optional[bytes]:
+    row = db.execute(
+        text("""
+            SELECT season_id
+            FROM season
+            WHERE content_id = :content_id
+              AND season_number = :season_number
+            LIMIT 1
+        """),
+        {"content_id": content_id, "season_number": season_number},
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _create_season(
+    db: Session,
+    content_id: bytes,
+    season_number: int,
+    title: Optional[str],
+    air_date: Optional[str],
+) -> bytes:
+    season_id = _new_uuid_bytes()
+
+    db.execute(
+        text("""
+            INSERT INTO season (
+                season_id,
+                content_id,
+                season_number,
+                title,
+                air_date
+            )
+            VALUES (
+                :season_id,
+                :content_id,
+                :season_number,
+                :title,
+                :air_date
+            )
+        """),
+        {
+            "season_id": season_id,
+            "content_id": content_id,
+            "season_number": season_number,
+            "title": title,
+            "air_date": air_date,
+        },
+    )
+
+    return season_id
+
+
+def _find_episode(db: Session, season_id: bytes, episode_number: int) -> Optional[bytes]:
+    row = db.execute(
+        text("""
+            SELECT episode_id
+            FROM episode
+            WHERE season_id = :season_id
+              AND episode_number = :episode_number
+            LIMIT 1
+        """),
+        {"season_id": season_id, "episode_number": episode_number},
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _create_episode(
+    db: Session,
+    season_id: bytes,
+    episode_number: int,
+    title: Optional[str],
+    runtime: Optional[int],
+    original_air_date: Optional[str],
+) -> bytes:
+    episode_id = _new_uuid_bytes()
+
+    db.execute(
+        text("""
+            INSERT INTO episode (
+                episode_id,
+                season_id,
+                episode_number,
+                title,
+                runtime,
+                original_air_date
+            )
+            VALUES (
+                :episode_id,
+                :season_id,
+                :episode_number,
+                :title,
+                :runtime,
+                :original_air_date
+            )
+        """),
+        {
+            "episode_id": episode_id,
+            "season_id": season_id,
+            "episode_number": episode_number,
+            "title": title,
+            "runtime": runtime,
+            "original_air_date": original_air_date,
+        },
+    )
+
+    return episode_id
+
+
+def _create_disc_contains_episode(db: Session, disc_id: bytes, episode_id: bytes) -> None:
+    db.execute(
+        text("""
+            INSERT INTO disc_contains_episode (disc_id, episode_id)
+            VALUES (:disc_id, :episode_id)
+        """),
+        {"disc_id": disc_id, "episode_id": episode_id},
     )
 
 
@@ -964,6 +1088,604 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
     }
 
 
+def import_tv_series_boxset_payload(db: Session, payload: dict) -> dict:
+    """Imports a single physical TV series box set (kind:
+    tv_series_boxset - see frontend/public/tv_series_add_form/v1).
+
+    Unlike import_box_sets_bulk_payload (movies), this only ever
+    imports one box per call - by design, see TODO.md/session notes:
+    a TV box's season/episode data stays reasonably small even with
+    many episodes (they're entered as a count, not one row each), so
+    there's no real need to support submitting several boxes in one
+    request, and keeping it to one box keeps error handling simple
+    (a failed import only ever loses one box, not a whole batch).
+
+    season_number is used (not season_id) to link discs to seasons in
+    the payload, since the frontend form doesn't have real season ids
+    until after this import runs - episode_refs on a disc are
+    similarly keyed by (season_number, episode_number).
+    """
+
+    series = payload.get("series") or {}
+    box = payload.get("box") or {}
+    seasons_payload = payload.get("seasons", [])
+    discs_payload = payload.get("discs", [])
+
+    title = series.get("title")
+    if not title:
+        raise ValueError("series.title is required")
+
+    imdb_id = series.get("imdb_id")
+    tvdb_id = series.get("tvdb_id")
+
+    content_id, content_was_created = _get_or_create_content(
+        db=db,
+        title=title,
+        imdb_id=imdb_id,
+        tmdb_id=None,
+        tvdb_id=tvdb_id,
+        content_type="series",
+    )
+
+    format_value = box.get("format")
+    box_set_barcode = box.get("box_set_barcode")
+    copy_count = box.get("copy_count", 1)
+    storage_id = _uuid_str_to_bytes(box.get("storage_id"))
+
+    existing_box_collection_id = _find_physical_collection_by_barcode(
+        db=db,
+        barcode=None,
+        box_set_barcode=box_set_barcode,
+    )
+    if existing_box_collection_id and box_set_barcode is not None:
+        raise ValueError(f"Box set with barcode {box_set_barcode} already exists")
+
+    box_collection_id = _create_physical_collection(
+        db=db,
+        format_value=format_value,
+        barcode=None,
+        box_set_barcode=box_set_barcode,
+    )
+    created_collections = 1
+
+    for copy_id in range(1, copy_count + 1):
+        _ensure_physical_copy(db=db, collection_id=box_collection_id, copy_id=copy_id)
+
+    _ensure_content_in_collection(
+        db=db,
+        collection_id=box_collection_id,
+        content_id=content_id,
+        box_set_title_sort=1,
+    )
+
+    # season_number -> {"season_id": ..., "inner_collection_id": ...}
+    season_lookup: dict[int, dict] = {}
+    # (season_number, episode_number) -> episode_id
+    episode_lookup: dict[tuple[int, int], bytes] = {}
+
+    created_seasons = 0
+    created_episodes = 0
+
+    for season_payload in seasons_payload:
+        season_number = season_payload["season_number"]
+        season_title = season_payload.get("title")
+        air_date = season_payload.get("air_date")
+        inner_case_ean = season_payload.get("inner_case_ean")
+
+        existing_season_id = _find_season(db, content_id, season_number)
+        if existing_season_id:
+            season_id = existing_season_id
+        else:
+            season_id = _create_season(
+                db=db,
+                content_id=content_id,
+                season_number=season_number,
+                title=season_title,
+                air_date=air_date,
+            )
+            created_seasons += 1
+
+        inner_collection_id = None
+        if inner_case_ean:
+            existing_inner_id = _find_physical_collection_by_barcode(
+                db=db,
+                barcode=inner_case_ean,
+                box_set_barcode=None,
+            )
+            if existing_inner_id:
+                inner_collection_id = existing_inner_id
+            else:
+                inner_collection_id = _create_physical_collection(
+                    db=db,
+                    format_value=format_value,
+                    barcode=inner_case_ean,
+                    box_set_barcode=box_set_barcode,
+                )
+                created_collections += 1
+
+            _ensure_content_in_collection(
+                db=db,
+                collection_id=inner_collection_id,
+                content_id=content_id,
+                box_set_title_sort=season_number,
+            )
+
+            for copy_id in range(1, copy_count + 1):
+                _ensure_physical_copy(db=db, collection_id=inner_collection_id, copy_id=copy_id)
+
+        season_lookup[season_number] = {
+            "season_id": season_id,
+            "inner_collection_id": inner_collection_id,
+        }
+
+        for ep in season_payload.get("episodes", []):
+            episode_number = ep["episode_number"]
+            existing_episode_id = _find_episode(db, season_id, episode_number)
+            if existing_episode_id:
+                episode_id = existing_episode_id
+            else:
+                episode_id = _create_episode(
+                    db=db,
+                    season_id=season_id,
+                    episode_number=episode_number,
+                    title=ep.get("title"),
+                    runtime=ep.get("runtime"),
+                    original_air_date=ep.get("original_air_date"),
+                )
+                created_episodes += 1
+
+            episode_lookup[(season_number, episode_number)] = episode_id
+
+    created_discs = 0
+    storage_next_slot_cache: dict[bytes, int] = {}
+
+    ordered_discs = sorted(discs_payload, key=lambda d: d["order"])
+
+    for disc_payload in ordered_discs:
+        label = _normalize_label(disc_payload.get("label"))
+        add_to_storage = bool(disc_payload.get("add_to_storage", False))
+        storage_slot_no = disc_payload.get("storage_slot_no")
+        disc_season_number = disc_payload.get("season_number")
+
+        season_info = (
+            season_lookup.get(disc_season_number) if disc_season_number is not None else None
+        )
+        target_collection_id = (
+            (season_info or {}).get("inner_collection_id") or box_collection_id
+        )
+
+        if not label:
+            if disc_season_number is not None:
+                label = f"Season {disc_season_number} \u2013 Disc {disc_payload['order']}"
+            else:
+                label = f"Disc {disc_payload['order']}"
+
+        episode_ids: list[bytes] = []
+        for ref in disc_payload.get("episode_refs", []):
+            key = (ref["season_number"], ref["episode_number"])
+            episode_id = episode_lookup.get(key)
+            if episode_id is None:
+                raise ValueError(
+                    f"Disc order {disc_payload['order']} references unknown episode "
+                    f"S{ref['season_number']}E{ref['episode_number']}"
+                )
+            episode_ids.append(episode_id)
+
+        for copy_id in range(1, copy_count + 1):
+            disc_id = _create_disc(
+                db=db,
+                type_disc="feature",
+                format_value=disc_payload["format"],
+                label=label,
+            )
+            created_discs += 1
+
+            _create_disc_in(
+                db=db,
+                collection_id=target_collection_id,
+                copy_id=copy_id,
+                disc_id=disc_id,
+                box_set_disc_order=disc_payload["order"],
+                related_content_id=content_id,
+            )
+
+            _set_disc_related_content(db=db, disc_id=disc_id, content_ids=[content_id])
+
+            for episode_id in episode_ids:
+                _create_disc_contains_episode(db=db, disc_id=disc_id, episode_id=episode_id)
+
+            if add_to_storage:
+                if storage_id is None:
+                    raise ValueError(
+                        f"Disc order {disc_payload['order']} has add_to_storage=true, "
+                        "but no storage_id is defined on the box"
+                    )
+
+                if storage_slot_no is not None:
+                    assigned_slot = storage_slot_no
+                else:
+                    if storage_id not in storage_next_slot_cache:
+                        current_max = _get_storage_max_slot(db, storage_id)
+                        storage_next_slot_cache[storage_id] = current_max + 1
+
+                    assigned_slot = storage_next_slot_cache[storage_id]
+                    storage_next_slot_cache[storage_id] += 1
+
+                _create_disc_in_storage(
+                    db=db,
+                    storage_id=storage_id,
+                    disc_id=disc_id,
+                    number_in_storage=assigned_slot,
+                )
+
+    return {
+        "status": "ok",
+        "kind": "tv_series_boxset",
+        "created_content": 1 if content_was_created else 0,
+        "created_collections": created_collections,
+        "created_seasons": created_seasons,
+        "created_episodes": created_episodes,
+        "created_discs": created_discs,
+    }
+
+
+def import_mixed_boxset_payload(db: Session, payload: dict) -> dict:
+    """Imports a single physical box that mixes one or more TV series
+    (with their own seasons/episodes, see import_tv_series_boxset_payload)
+    and one or more standalone movies sharing the same box - e.g. a
+    boxset with 2 Italian TV series plus 2-3 related TV movies. Only
+    one box per call, same reasoning as import_tv_series_boxset_payload.
+
+    series/movies are referenced from discs by their 0-based position
+    in the payload's `series`/`movies` lists (series_index/
+    movie_index) rather than a real id, since the caller doesn't have
+    real content ids until after this import runs. episode_refs are
+    keyed by (series_index, season_number, episode_number).
+
+    A disc's target collection (which physical_collection row it's
+    "in", via disc_in) defaults to the outer box, but is overridden by
+    the first referenced movie's or episode's season inner_case_ean
+    collection if one exists - mirroring the existing movie box-set
+    and tv_series_boxset logic. disc_related_content always lists
+    every related content_id (series and/or movies) regardless of
+    which collection the disc physically sits in, so "what's on this
+    disc" stays correct even when a disc is shared across titles.
+    """
+
+    box = payload.get("box") or {}
+    series_payload_list = payload.get("series", [])
+    movies_payload_list = payload.get("movies", [])
+    discs_payload = payload.get("discs", [])
+
+    format_value = box.get("format")
+    box_set_barcode = box.get("box_set_barcode")
+    copy_count = box.get("copy_count", 1)
+    storage_id = _uuid_str_to_bytes(box.get("storage_id"))
+
+    existing_box_collection_id = _find_physical_collection_by_barcode(
+        db=db,
+        barcode=None,
+        box_set_barcode=box_set_barcode,
+    )
+    if existing_box_collection_id and box_set_barcode is not None:
+        raise ValueError(f"Box set with barcode {box_set_barcode} already exists")
+
+    box_collection_id = _create_physical_collection(
+        db=db,
+        format_value=format_value,
+        barcode=None,
+        box_set_barcode=box_set_barcode,
+    )
+    created_collections = 1
+    created_contents = 0
+    created_seasons = 0
+    created_episodes = 0
+
+    for copy_id in range(1, copy_count + 1):
+        _ensure_physical_copy(db=db, collection_id=box_collection_id, copy_id=copy_id)
+
+    # series_index -> content_id
+    series_content_ids: list[bytes] = []
+    # (series_index, season_number) -> {"season_id": ..., "inner_collection_id": ...}
+    season_lookup: dict[tuple[int, int], dict] = {}
+    # (series_index, season_number, episode_number) -> episode_id
+    episode_lookup: dict[tuple[int, int, int], bytes] = {}
+
+    for series_idx, series_entry in enumerate(series_payload_list):
+        title = series_entry.get("title")
+        if not title:
+            raise ValueError(f"series[{series_idx}].title is required")
+        imdb_id = series_entry.get("imdb_id")
+        tvdb_id = series_entry.get("tvdb_id")
+
+        content_id, was_created = _get_or_create_content(
+            db=db,
+            title=title,
+            imdb_id=imdb_id,
+            tmdb_id=None,
+            tvdb_id=tvdb_id,
+            content_type="series",
+        )
+        if was_created:
+            created_contents += 1
+        series_content_ids.append(content_id)
+
+        _ensure_content_in_collection(
+            db=db,
+            collection_id=box_collection_id,
+            content_id=content_id,
+            box_set_title_sort=series_idx + 1,
+        )
+
+        for season_payload in series_entry.get("seasons", []):
+            season_number = season_payload["season_number"]
+            season_title = season_payload.get("title")
+            air_date = season_payload.get("air_date")
+            inner_case_ean = season_payload.get("inner_case_ean")
+
+            existing_season_id = _find_season(db, content_id, season_number)
+            if existing_season_id:
+                season_id = existing_season_id
+            else:
+                season_id = _create_season(
+                    db=db,
+                    content_id=content_id,
+                    season_number=season_number,
+                    title=season_title,
+                    air_date=air_date,
+                )
+                created_seasons += 1
+
+            inner_collection_id = None
+            if inner_case_ean:
+                existing_inner_id = _find_physical_collection_by_barcode(
+                    db=db,
+                    barcode=inner_case_ean,
+                    box_set_barcode=None,
+                )
+                if existing_inner_id:
+                    inner_collection_id = existing_inner_id
+                else:
+                    inner_collection_id = _create_physical_collection(
+                        db=db,
+                        format_value=format_value,
+                        barcode=inner_case_ean,
+                        box_set_barcode=box_set_barcode,
+                    )
+                    created_collections += 1
+
+                _ensure_content_in_collection(
+                    db=db,
+                    collection_id=inner_collection_id,
+                    content_id=content_id,
+                    box_set_title_sort=season_number,
+                )
+
+                for copy_id in range(1, copy_count + 1):
+                    _ensure_physical_copy(
+                        db=db, collection_id=inner_collection_id, copy_id=copy_id
+                    )
+
+            season_lookup[(series_idx, season_number)] = {
+                "season_id": season_id,
+                "inner_collection_id": inner_collection_id,
+            }
+
+            for ep in season_payload.get("episodes", []):
+                episode_number = ep["episode_number"]
+                existing_episode_id = _find_episode(db, season_id, episode_number)
+                if existing_episode_id:
+                    episode_id = existing_episode_id
+                else:
+                    episode_id = _create_episode(
+                        db=db,
+                        season_id=season_id,
+                        episode_number=episode_number,
+                        title=ep.get("title"),
+                        runtime=ep.get("runtime"),
+                        original_air_date=ep.get("original_air_date"),
+                    )
+                    created_episodes += 1
+
+                episode_lookup[(series_idx, season_number, episode_number)] = episode_id
+
+    # movie_index -> {"content_id": ..., "inner_collection_id": ...}
+    movie_lookup: list[dict] = []
+
+    for movie_idx, movie_entry in enumerate(movies_payload_list):
+        title = movie_entry.get("title")
+        if not title:
+            raise ValueError(f"movies[{movie_idx}].title is required")
+        imdb_id = movie_entry.get("imdb_id")
+        tmdb_id = movie_entry.get("tmdb_id")
+        tvdb_id = movie_entry.get("tvdb_id")
+        inner_case_ean = movie_entry.get("inner_case_ean")
+
+        content_id, was_created = _get_or_create_content(
+            db=db,
+            title=title,
+            imdb_id=imdb_id,
+            tmdb_id=tmdb_id,
+            tvdb_id=tvdb_id,
+            content_type="movie",
+        )
+        if was_created:
+            created_contents += 1
+
+        _ensure_content_in_collection(
+            db=db,
+            collection_id=box_collection_id,
+            content_id=content_id,
+            box_set_title_sort=len(series_payload_list) + movie_idx + 1,
+        )
+
+        inner_collection_id = None
+        if inner_case_ean:
+            existing_inner_id = _find_physical_collection_by_barcode(
+                db=db,
+                barcode=inner_case_ean,
+                box_set_barcode=None,
+            )
+            if existing_inner_id:
+                inner_collection_id = existing_inner_id
+            else:
+                inner_collection_id = _create_physical_collection(
+                    db=db,
+                    format_value=format_value,
+                    barcode=inner_case_ean,
+                    box_set_barcode=box_set_barcode,
+                )
+                created_collections += 1
+
+            _ensure_content_in_collection(
+                db=db,
+                collection_id=inner_collection_id,
+                content_id=content_id,
+                box_set_title_sort=1,
+            )
+
+            for copy_id in range(1, copy_count + 1):
+                _ensure_physical_copy(db=db, collection_id=inner_collection_id, copy_id=copy_id)
+
+        movie_lookup.append(
+            {"content_id": content_id, "inner_collection_id": inner_collection_id}
+        )
+
+    created_discs = 0
+    storage_next_slot_cache: dict[bytes, int] = {}
+
+    ordered_discs = sorted(discs_payload, key=lambda d: d["order"])
+
+    for disc_payload in ordered_discs:
+        label = _normalize_label(disc_payload.get("label"))
+        add_to_storage = bool(disc_payload.get("add_to_storage", False))
+        storage_slot_no = disc_payload.get("storage_slot_no")
+
+        related_content_ids: list[bytes] = []
+        target_collection_id = box_collection_id
+
+        for ref in disc_payload.get("content_refs", []):
+            ref_kind = ref.get("kind")
+            if ref_kind == "series":
+                idx = ref["series_index"]
+                if idx < 0 or idx >= len(series_content_ids):
+                    raise ValueError(
+                        f"Disc order {disc_payload['order']} references unknown "
+                        f"series_index={idx}"
+                    )
+                ref_content_id = series_content_ids[idx]
+                if ref_content_id not in related_content_ids:
+                    related_content_ids.append(ref_content_id)
+            elif ref_kind == "movie":
+                idx = ref["movie_index"]
+                if idx < 0 or idx >= len(movie_lookup):
+                    raise ValueError(
+                        f"Disc order {disc_payload['order']} references unknown "
+                        f"movie_index={idx}"
+                    )
+                movie_info = movie_lookup[idx]
+                ref_content_id = movie_info["content_id"]
+                if ref_content_id not in related_content_ids:
+                    related_content_ids.append(ref_content_id)
+                if (
+                    movie_info["inner_collection_id"] is not None
+                    and target_collection_id == box_collection_id
+                ):
+                    target_collection_id = movie_info["inner_collection_id"]
+            else:
+                raise ValueError(
+                    f"Disc order {disc_payload['order']} has unknown content_refs "
+                    f"kind={ref_kind!r}"
+                )
+
+        episode_ids: list[bytes] = []
+        for ref in disc_payload.get("episode_refs", []):
+            key = (ref["series_index"], ref["season_number"], ref["episode_number"])
+            episode_id = episode_lookup.get(key)
+            if episode_id is None:
+                raise ValueError(
+                    f"Disc order {disc_payload['order']} references unknown episode "
+                    f"series_index={ref['series_index']} "
+                    f"S{ref['season_number']}E{ref['episode_number']}"
+                )
+            episode_ids.append(episode_id)
+
+            season_info = season_lookup.get((ref["series_index"], ref["season_number"]))
+            if (
+                season_info
+                and season_info.get("inner_collection_id") is not None
+                and target_collection_id == box_collection_id
+            ):
+                target_collection_id = season_info["inner_collection_id"]
+
+            series_content_id = series_content_ids[ref["series_index"]]
+            if series_content_id not in related_content_ids:
+                related_content_ids.append(series_content_id)
+
+        if not label:
+            label = f"Disc {disc_payload['order']}"
+
+        for copy_id in range(1, copy_count + 1):
+            disc_id = _create_disc(
+                db=db,
+                type_disc="feature",
+                format_value=disc_payload["format"],
+                label=label,
+            )
+            created_discs += 1
+
+            _create_disc_in(
+                db=db,
+                collection_id=target_collection_id,
+                copy_id=copy_id,
+                disc_id=disc_id,
+                box_set_disc_order=disc_payload["order"],
+                related_content_id=related_content_ids[0] if related_content_ids else None,
+            )
+
+            if related_content_ids:
+                _set_disc_related_content(
+                    db=db, disc_id=disc_id, content_ids=related_content_ids
+                )
+
+            for episode_id in episode_ids:
+                _create_disc_contains_episode(db=db, disc_id=disc_id, episode_id=episode_id)
+
+            if add_to_storage:
+                if storage_id is None:
+                    raise ValueError(
+                        f"Disc order {disc_payload['order']} has add_to_storage=true, "
+                        "but no storage_id is defined on the box"
+                    )
+
+                if storage_slot_no is not None:
+                    assigned_slot = storage_slot_no
+                else:
+                    if storage_id not in storage_next_slot_cache:
+                        current_max = _get_storage_max_slot(db, storage_id)
+                        storage_next_slot_cache[storage_id] = current_max + 1
+
+                    assigned_slot = storage_next_slot_cache[storage_id]
+                    storage_next_slot_cache[storage_id] += 1
+
+                _create_disc_in_storage(
+                    db=db,
+                    storage_id=storage_id,
+                    disc_id=disc_id,
+                    number_in_storage=assigned_slot,
+                )
+
+    return {
+        "status": "ok",
+        "kind": "mixed_boxset",
+        "created_content": created_contents,
+        "created_collections": created_collections,
+        "created_seasons": created_seasons,
+        "created_episodes": created_episodes,
+        "created_discs": created_discs,
+    }
+
+
 def import_physical_collection_payload(db: Session, payload: dict) -> dict:
     kind = payload.get("kind")
 
@@ -972,6 +1694,10 @@ def import_physical_collection_payload(db: Session, payload: dict) -> dict:
             result = import_singles_payload(db, payload)
         elif kind == "box_sets_bulk":
             result = import_box_sets_bulk_payload(db, payload)
+        elif kind == "tv_series_boxset":
+            result = import_tv_series_boxset_payload(db, payload)
+        elif kind == "mixed_boxset":
+            result = import_mixed_boxset_payload(db, payload)
         else:
             raise ValueError(f"Unsupported payload kind: {kind}")
 

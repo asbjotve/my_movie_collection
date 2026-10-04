@@ -190,7 +190,7 @@ function auth_login(string $username, string $password): array
         return ['requires_2fa', $data['pre_auth_token']];
     }
 
-    auth_set_session($username, $data['access_token']);
+    auth_set_session($username, $data['access_token'], $data['refresh_token'] ?? null);
     return ['ok', $username];
 }
 
@@ -209,7 +209,7 @@ function auth_login_2fa(string $preAuthToken, string $code, string $username): a
         return ['error', $data['detail'] ?? 'Feil kode'];
     }
 
-    auth_set_session($username, $data['access_token']);
+    auth_set_session($username, $data['access_token'], $data['refresh_token'] ?? null);
     return ['ok', $username];
 }
 
@@ -235,13 +235,17 @@ function auth_fetch_role(string $accessToken): ?string
     return $data['role'] ?? null;
 }
 
-/** Lagrer innlogget bruker + access_token i PHP-sesjonen. */
-function auth_set_session(string $username, string $accessToken): void
+/** Lagrer innlogget bruker + access_token (+ ev. refresh_token) i
+ * PHP-sesjonen. */
+function auth_set_session(string $username, string $accessToken, ?string $refreshToken = null): void
 {
     auth_start_session();
     session_regenerate_id(true); // hindre session fixation ved innlogging
     $_SESSION['auth_username'] = $username;
     $_SESSION['auth_access_token'] = $accessToken;
+    if ($refreshToken !== null) {
+        $_SESSION['auth_refresh_token'] = $refreshToken;
+    }
     // Rolle er kun til fremtidig bruk (per i dag finnes bare "admin", og
     // ingenting i frontend skiller på den) - lagres likevel her slik at
     // current_user_role() er klar til bruk uten videre endringer.
@@ -538,4 +542,65 @@ function auth_bearer_header(): string
 {
     auth_start_session();
     return 'Authorization: Bearer ' . ($_SESSION['auth_access_token'] ?? '');
+}
+
+/**
+ * Prøver å fornye access_token stille, uten å be brukeren om passord
+ * på nytt - via POST /auth/refresh med refresh_token fra sesjonen (satt
+ * av auth_set_session() ved innlogging, se der).
+ *
+ * Returnerer true og oppdaterer $_SESSION['auth_access_token'] hvis det
+ * lyktes, false ellers (f.eks. hvis det ikke finnes noe refresh_token i
+ * sesjonen fordi brukeren logget inn før denne funksjonen fantes, eller
+ * hvis selve refresh_token-et også er utløpt/ugyldig - da må brukeren
+ * faktisk logge inn på nytt med passord).
+ *
+ * Brukes av auth_call_with_retry() under for å gi verktøy et
+ * "automatisk re-login" ved 401 - se tv_series_add_form/v1/api.php.
+ */
+function auth_refresh_access_token(): bool
+{
+    auth_start_session();
+    $refreshToken = $_SESSION['auth_refresh_token'] ?? null;
+    if (!$refreshToken) {
+        return false;
+    }
+
+    [$httpCode, $data] = auth_api_post('/auth/refresh', [
+        'refresh_token' => $refreshToken,
+    ]);
+
+    if ($httpCode !== 200 || $data === null || empty($data['access_token'])) {
+        return false;
+    }
+
+    $_SESSION['auth_access_token'] = $data['access_token'];
+    return true;
+}
+
+/**
+ * Kjører $makeRequest (en funksjon som tar access_token som
+ * parameter og returnerer [httpCode, decoded_json_body_or_null], f.eks.
+ * et curl-kall mot backend) og prøver automatisk å fornye access_token
+ * og kjøre forespørselen på nytt ÉN gang hvis den først feiler med 401 -
+ * slik at et utløpt access_token (30 min levetid, se backend/app/
+ * security.py) ikke lenger krever at brukeren merker det og logger inn
+ * på nytt manuelt.
+ *
+ * Hvis fornyingen også feiler (f.eks. refresh_token selv er utløpt, eller
+ * brukeren logget inn før refresh_token fantes), returneres det
+ * opprinnelige 401-svaret uendret - da er brukeren reelt sett logget ut
+ * og må faktisk skrive inn passord på nytt.
+ */
+function auth_call_with_retry(callable $makeRequest): array
+{
+    auth_start_session();
+    $accessToken = $_SESSION['auth_access_token'] ?? '';
+    [$httpCode, $data] = $makeRequest($accessToken);
+
+    if ($httpCode === 401 && auth_refresh_access_token()) {
+        [$httpCode, $data] = $makeRequest($_SESSION['auth_access_token']);
+    }
+
+    return [$httpCode, $data];
 }
