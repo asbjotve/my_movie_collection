@@ -24,6 +24,7 @@ from app.services.media_catalog import (
     get_content_by_id,
     get_collection_stats,
     get_data_health_issues,
+    get_similar_content,
     list_content,
     list_content_covers,
     list_group_names,
@@ -110,6 +111,18 @@ def get_content_detail(
     if item is None:
         raise HTTPException(status_code=404, detail="Fant ikke content med denne IDen")
     return item
+
+
+@router.get("/content/{content_id}/similar", dependencies=[Depends(require_api_key)])
+def get_content_similar(content_id: str, db: Session = Depends(get_media_db)):
+    """"Lignende filmer"-forslag til detaljsiden - se
+    get_similar_content() i media_catalog.py for hvordan de velges
+    ut (delt sjanger, filmer i samme gruppe ekskludert). Returnerer
+    bare en liste (ingen 404) - en tom liste betyr enten at filmen
+    ikke har noen sjangre lagret ennå, eller at ingen andre filmer
+    deler en sjanger med den.
+    """
+    return get_similar_content(db, content_id)
 
 
 @router.patch("/content/{content_id}")

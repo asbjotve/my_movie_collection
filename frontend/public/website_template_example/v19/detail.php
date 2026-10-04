@@ -489,6 +489,9 @@ $sectionAccess = [
 
       <!-- Vises kun for filmgrupper filmen faktisk tilhører (se renderGroupMovies()) - én boks PER gruppe, siden en film nå kan tilhøre flere grupper samtidig (movie_group/content_group_membership), for enkel navigering mellom f.eks. en trilogi. -->
       <div id="groupMoviesSections"></div>
+
+      <!-- "Lignende filmer"-seksjon basert på delt sjanger, lastes separat via GET api.php?action=similar (se loadSimilarMovies()) - filmer som allerede er vist i en filmgruppe over er med vilje ekskludert av backend, se get_similar_content() i media_catalog.py. Tom/skjult hvis ingen treff. -->
+      <div id="similarMoviesSection"></div>
     </div>
   </div>
 
@@ -883,6 +886,42 @@ $sectionAccess = [
     applySortModeAttrs();
   }
 
+  // "Lignende filmer": separat, ikke-blokkerende henting (se
+  // get_similar_content() i media_catalog.py / api.php?action=similar)
+  // - lastes etter renderDetail() er ferdig, slik at selve detaljsiden
+  // ikke venter på denne ekstra spørringen. Skjuler hele seksjonen
+  // (tom innerHTML) hvis det ikke finnes noen treff.
+  async function loadSimilarMovies(id){
+    const container = document.getElementById("similarMoviesSection");
+    if (!container || !id) return;
+    try {
+      const res = await fetch("api.php?action=similar&id=" + encodeURIComponent(id));
+      const movies = await res.json();
+      if (!Array.isArray(movies) || !movies.length) {
+        container.innerHTML = "";
+        return;
+      }
+
+      const cardsHtml = movies.map((m) => {
+        const cover = m.cover_image
+          ? `<img class="groupMovieCover" loading="lazy" decoding="async" src="${escapeHtml(m.cover_image)}" alt="${escapeHtml(m.title || WTE_I18N.detail.untitled)}">`
+          : `<div class="groupMovieCover"></div>`;
+        const title = escapeHtml(m.title || WTE_I18N.detail.untitled);
+        return `<a class="groupMovieCard" href="detail.php?id=${encodeURIComponent(m.content_id)}"><div class="groupMovieCoverWrap">${cover}</div><div class="groupMovieTitle">${title}</div></a>`;
+      }).join("");
+
+      container.innerHTML = `<div class="sourcesBox groupMoviesBox">
+        <h3>${escapeHtml(WTE_I18N.detail.similar_movies_heading)}</h3>
+        <div class="groupMoviesList">${cardsHtml}</div>
+      </div>`;
+    } catch (err) {
+      // Stille feil her - "lignende filmer" er en ekstra, ikke-kritisk
+      // seksjon, så vi vil ikke vise en feilmelding midt på detaljsiden
+      // bare fordi denne ene tilleggsspørringen feilet.
+      container.innerHTML = "";
+    }
+  }
+
   // Dra-og-slipp-sortering: aktiveres/deaktiveres pr. gruppe-boks med
   // "Sorter"-knappen. Rekkefølgen på ALLE kortene i den boksen (inkl.
   // denne filmen selv) sendes samlet til
@@ -1151,6 +1190,7 @@ $sectionAccess = [
     renderPurchaseTab(item);
     renderLockIcons(item);
     renderGroupMovies(item);
+    loadSimilarMovies(item.content_id);
 
     // "Bytt cover"-knappen krever bare at content finnes (contentId er
     // allerede kjent fra URL-en) - ingen ekstra betingelse. Finnes ikke

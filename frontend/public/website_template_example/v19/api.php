@@ -185,6 +185,43 @@ if (($_GET['action'] ?? '') === 'list_groups') {
     exit;
 }
 
+// GET ?action=similar&id=<content_id>
+// Brukes av detail.php: "Lignende filmer"-forslag basert på delt
+// sjanger (filmer i samme filmgruppe er allerede dekket av den
+// separate "Andre filmer i denne filmgruppen"-seksjonen, og
+// ekskluderes derfor her) - se GET /media/content/{id}/similar og
+// get_similar_content() i backend/app/services/media_catalog.py.
+if (($_GET['action'] ?? '') === 'similar') {
+    $contentId = $_GET['id'] ?? '';
+    if ($contentId === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler id']);
+        exit;
+    }
+
+    $similarUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/similar';
+
+    $ch = curl_init($similarUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=list_stats
 // Brukes av stats.php: aggregerte statistikk-tall for samlingen
 // (totalt antall, per tiår/sjanger/format, mest-fylte filmgrupper) -

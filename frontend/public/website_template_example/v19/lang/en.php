@@ -205,6 +205,7 @@ return [
             'save_field_error_prefix'=> 'Failed to save: ',
             'group_movies_heading'   => 'Movies in the group "%s"',
             'group_movies_current_tag' => 'this movie',
+            'similar_movies_heading' => 'Similar movies',
             'group_sort_toggle_btn'  => '🔀 Sort',
             'group_sort_by_year_btn' => '📅 Sort by year',
             'group_sort_toggle_done_btn' => '✓ Done',
