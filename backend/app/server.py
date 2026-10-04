@@ -10,6 +10,7 @@ from app.routes.auth_route import router as auth_router
 from app.routes.section_access_route import router as section_access_router
 from app.routes.app_settings_route import router as app_settings_router
 from app.routes.app_settings_route import currency_router as default_currency_router
+from app.routes.plex_settings_route import router as plex_settings_router
 
 # =========================================================
 # Init DB ved oppstart (opprett tabeller om nødvendig)
@@ -34,6 +35,7 @@ app.include_router(auth_router)
 app.include_router(section_access_router)
 app.include_router(app_settings_router)
 app.include_router(default_currency_router)
+app.include_router(plex_settings_router)
 
 @app.get("/")
 async def root():
