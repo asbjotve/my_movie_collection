@@ -30,7 +30,7 @@ Sette opp 2FA (krever at man allerede er innlogget - se get_current_user):
 GET /auth/me - info om innlogget bruker (også om 2FA er på).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth import (
@@ -43,6 +43,7 @@ from app.auth import (
     verify_totp_code,
 )
 from app.db import User, get_db
+from app.rate_limit import get_client_ip, ip_rate_limiter, username_rate_limiter
 from app.security import (
     create_access_token,
     create_preauth_token,
@@ -68,13 +69,24 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+async def login(credentials: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Validerer brukernavn/passord. Hvis brukeren har 2FA på, returneres
     IKKE et access_token her - kun et kortlevd pre_auth_token som må
-    veksles inn mot en gyldig kode via POST /auth/login/2fa."""
+    veksles inn mot en gyldig kode via POST /auth/login/2fa.
+
+    Rate-limitet mot brute-force på to uavhengige lag (se
+    app/rate_limit.py) - per brukernavn og per (sluttbruker-)IP."""
+    ip = get_client_ip(request)
+    username_key = credentials.username.lower()
+
+    username_rate_limiter.raise_if_locked(username_key)
+    ip_rate_limiter.raise_if_locked(ip)
+
     user = get_user_by_username(db, credentials.username)
 
     if not user or not verify_password(credentials.password, user.hashed_password):
+        username_rate_limiter.record_failure(username_key)
+        ip_rate_limiter.record_failure(ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Feil brukernavn eller passord",
@@ -93,6 +105,7 @@ async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
             pre_auth_token=create_preauth_token(user.username),
         )
 
+    username_rate_limiter.record_success(username_key)
     return LoginResponse(
         access_token=create_access_token(user.username),
         refresh_token=create_refresh_token(user.username),
@@ -101,16 +114,28 @@ async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login/2fa", response_model=TokenResponse)
-async def login_2fa(payload: TwoFaLoginRequest, db: Session = Depends(get_db)):
+async def login_2fa(payload: TwoFaLoginRequest, request: Request, db: Session = Depends(get_db)):
     """Andre steg i innlogging når 2FA er på: veksler et pre_auth_token
-    + en gyldig TOTP- eller recovery-kode inn i et ekte access_token."""
+    + en gyldig TOTP- eller recovery-kode inn i et ekte access_token.
+
+    Rate-limitet på samme måte som POST /auth/login (se der) - nøkkelen
+    her er brukernavnet dekodet fra pre_auth_token, ikke selve tokenet,
+    slik at et nytt login-forsøk (som gir et nytt pre_auth_token) ikke
+    kan brukes til å omgå låsen."""
     username = decode_token(payload.pre_auth_token, expected_type="preauth")
+    ip = get_client_ip(request)
+    username_key = username.lower()
+
+    username_rate_limiter.raise_if_locked(username_key)
+    ip_rate_limiter.raise_if_locked(ip)
+
     user = get_user_by_username(db, username)
 
     if user is None or not user.is_active or not user.totp_enabled:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ugyldig forespørsel")
 
     if verify_totp_code(user.totp_secret, payload.code):
+        username_rate_limiter.record_success(username_key)
         return TokenResponse(
             access_token=create_access_token(user.username),
             refresh_token=create_refresh_token(user.username),
@@ -123,11 +148,14 @@ async def login_2fa(payload: TwoFaLoginRequest, db: Session = Depends(get_db)):
     if matched:
         user.recovery_codes_json = updated_codes_json
         db.commit()
+        username_rate_limiter.record_success(username_key)
         return TokenResponse(
             access_token=create_access_token(user.username),
             refresh_token=create_refresh_token(user.username),
         )
 
+    username_rate_limiter.record_failure(username_key)
+    ip_rate_limiter.record_failure(ip)
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ugyldig kode")
 
 

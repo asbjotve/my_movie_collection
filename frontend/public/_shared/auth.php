@@ -153,7 +153,15 @@ function auth_api_post(string $path, array $body): array
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            // Backend kalles server-til-server herfra, så uten dette
+            // ville den alltid sett DENNE serverens IP, ikke
+            // sluttbrukerens - se app/rate_limit.py sin get_client_ip()
+            // i backend-repoet for hvordan den brukes (brute-force-
+            // beskyttelse på /auth/login og /auth/login/2fa).
+            'X-Forwarded-For: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+        ],
         CURLOPT_POSTFIELDS => json_encode($body),
         CURLOPT_TIMEOUT => 10,
     ]);
