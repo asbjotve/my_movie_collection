@@ -280,10 +280,14 @@ backlog to pick from.
       merges immediately; a preview would let the user catch an
       unwanted overwrite before it happens, complementing the existing
       per-field `locked_fields` protection).
-- [ ] Debounce the free-text search/filter input on `index.php`
-      (`mineFilmerSearch` currently re-renders on every keystroke) -
-      not an issue yet, but worth doing before/alongside the
-      pagination item above as the collection grows.
+- [x] Debounce the free-text search/filter input on `index.php`
+      (`mineFilmerSearch`) - was re-rendering the full filtered
+      list/grid on every keystroke. Added a small generic `debounce()`
+      helper and wrapped the `input` listener with a 250ms delay, so
+      `renderMineFilmer()` only runs once typing pauses, not per
+      character. Verified the debounce logic standalone (rapid calls
+      collapse into a single call with the last argument, after the
+      delay).
 - [ ] Bulk actions on the movie list (e.g. select several movies and
       add them all to a group/list at once), instead of one at a time.
 - [ ] A `CHANGELOG.md` documenting notable changes per release/version,

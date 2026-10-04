@@ -787,6 +787,19 @@ $sectionAccess = [
     }[c]));
   }
 
+  // Generisk debounce: utsetter kallet til fn til det har gått `delay`
+  // ms siden siste kall - brukes på søkefeltet nedenfor slik at
+  // renderMineFilmer() (filtrering + DOM-bygging over hele katalogen)
+  // ikke kjører på hvert eneste tastetrykk, bare når brukeren stopper
+  // litt opp.
+  function debounce(fn, delay){
+    let timeoutId;
+    return function(...args){
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
   function renderMineFilmerGrid(items){
     mineFilmerGrid.innerHTML = items.map(item => `
       <div class="card" data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
@@ -1042,7 +1055,7 @@ $sectionAccess = [
     renderMineFilmer();
   });
 
-  mineFilmerSearch.addEventListener("input", renderMineFilmer);
+  mineFilmerSearch.addEventListener("input", debounce(renderMineFilmer, 250));
   mineFilmerOnlyUnwatched.addEventListener("change", renderMineFilmer);
 
   function renderMineFilmer(resetLimit = true){
