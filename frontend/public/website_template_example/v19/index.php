@@ -421,6 +421,18 @@ $sectionAccess = [
       color: var(--muted);
     }
     .noteBox strong{ color: var(--text); }
+
+    /* ---- Mobile-responsive breakpoint (<=480px, e.g. phones in
+       portrait) - index.php previously had no @media breakpoints at
+       all, unlike detail.php which already had two. ---- */
+    @media (max-width: 480px){
+      main{ padding: 8px 10px; }
+      .grid{ grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+      .filterBar{ flex-direction:column; align-items:stretch; flex-wrap:nowrap; }
+      .filterBar .search{ max-width:none; min-width:0; }
+      .filterBar .chiprow{ justify-content:flex-start; }
+      .filterBar .viewToggle{ margin-left:0; }
+    }
   </style>
 </head>
 <body>

@@ -131,17 +131,25 @@ backlog to pick from.
 
 ## Frontend / UX
 
-- [ ] Mobile-responsive layout for `website_template_example`
-      (`index.php` currently has no `@media` breakpoints, unlike
-      `detail.php` which already has two). Concrete starting points:
-      - Add a `max-width: 480px` breakpoint for the movie card grid
-        (currently `grid-template-columns: repeat(auto-fill,
-        minmax(200px, 1fr))`).
-      - Reduce `main` padding on small screens.
-      - Stack the filter bar vertically instead of `flex-wrap` on
-        narrow viewports.
-      - Verify the edit modal doesn't cause horizontal overflow on
-        mobile widths (375px/390px).
+- [x] Mobile-responsive layout for `website_template_example`
+      (`index.php` previously had no `@media` breakpoints, unlike
+      `detail.php` which already had two). Added a single
+      `@media (max-width: 480px)` block to `v19/index.php`:
+      - Tightened the movie card grid to `minmax(140px, 1fr)` (was
+        `200px`) so 2-3 columns fit on a phone instead of being
+        squeezed to 1.
+      - Reduced `main` padding to `8px 10px` (was `14px 22px`).
+      - `.filterBar` switches to `flex-direction: column` (was relying
+        on `flex-wrap` alone, which left an uneven mix of items on the
+        last wrapped row).
+      - Verified (no code change needed): the edit modal (`.modalBox`,
+        `width:92%` + global `box-sizing:border-box`) does not
+        overflow horizontally at 320/375/390px - confirmed with a
+        headless-Chromium measurement of `scrollWidth` vs
+        `clientWidth` against the real extracted CSS, both for the
+        movie grid/filter bar and the modal.
+      - Only `v19` (the version actually in use) was updated; `v18`
+        was intentionally left alone.
 - [ ] Barcode scanning from a phone camera (e.g. the `BarcodeDetector`
       web API) as a faster alternative to manual entry in
       `temp_add_movie_barcode` (keep that page as-is otherwise - it's
