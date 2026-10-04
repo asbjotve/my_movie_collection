@@ -70,6 +70,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
         require_login_or_json_401();
     }
 
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
+
     $source = (string)($_GET['source'] ?? '');
     $externalId = (string)($_GET['external_id'] ?? '');
 
@@ -113,6 +117,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_
     if (!is_logged_in()) {
         require_login_or_json_401();
     }
+
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
 
     $source = (string)($_GET['source'] ?? '');
     $externalId = (string)($_GET['external_id'] ?? '');
@@ -249,6 +257,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_r
         require_login_or_json_401();
     }
 
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
+
     $bulkUrl = MEDIA_API_BASE_URL . '/media/health-check/bulk-refresh-tmdb';
 
     $ch = curl_init($bulkUrl);
@@ -351,6 +363,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
         require_login_or_json_401();
     }
 
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
+
     $contentId = (string)($_GET['id'] ?? '');
     if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
         http_response_code(400);
@@ -405,6 +421,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_a
         require_login_or_json_401();
     }
 
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
+
     $body = file_get_contents('php://input');
 
     $bulkGroupUrl = MEDIA_API_BASE_URL . '/media/content/bulk-group';
@@ -441,6 +461,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'PATCH' && ($_GET['action'] ?? '') === 'reord
     if (!is_logged_in()) {
         require_login_or_json_401();
     }
+
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
 
     $groupId = (int)($_GET['group_id'] ?? 0);
     if ($groupId <= 0) {
@@ -485,6 +509,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'add_co
     if (!is_logged_in()) {
         require_login_or_json_401();
     }
+
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
 
     $contentId = $_GET['id'] ?? '';
     if ($contentId === '') {
@@ -532,6 +560,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'remove
         require_login_or_json_401();
     }
 
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
+
     $contentId = $_GET['id'] ?? '';
     $groupId = (int)($_GET['group_id'] ?? 0);
     if ($contentId === '' || $groupId <= 0) {
@@ -575,6 +607,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
     if (!is_logged_in()) {
         require_login_or_json_401();
     }
+
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
 
     $contentId = (string)($_GET['id'] ?? '');
     if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
@@ -621,6 +657,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
         require_login_or_json_401();
     }
 
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
+
     $contentId = (string)($_GET['id'] ?? '');
     if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
         http_response_code(400);
@@ -665,6 +705,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
     if (!is_logged_in()) {
         require_login_or_json_401();
     }
+
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
 
     $collectionId = (string)($_GET['collection_id'] ?? '');
     $copyId = (string)($_GET['copy_id'] ?? '');

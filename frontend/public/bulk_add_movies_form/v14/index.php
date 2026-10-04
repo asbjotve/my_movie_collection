@@ -19,6 +19,7 @@ function h(string $s): string
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <?= csrf_meta_tag() ?>
   <title><?= h(tr($t, 'page.title')) ?></title>
   <style>
     :root{

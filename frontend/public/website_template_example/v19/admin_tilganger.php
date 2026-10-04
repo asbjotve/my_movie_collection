@@ -24,7 +24,12 @@ $saved = false;
 $langError = null;
 $langSaved = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['section'])) {
+$csrfOk = $_SERVER['REQUEST_METHOD'] !== 'POST' || csrf_verify($_POST['csrf_token'] ?? null);
+if (!$csrfOk) {
+    $error = t('wte.login.csrf_error');
+}
+
+if ($csrfOk && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['section'])) {
     $sections = [];
     foreach (array_keys($labels) as $key) {
         $sections[$key] = isset($_POST['section'][$key]);
@@ -38,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['section'])) {
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_language'])) {
+if ($csrfOk && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_language'])) {
     $requestedLang = (string)$_POST['default_language'];
     if (in_array($requestedLang, WTE_AVAILABLE_LANGS, true)) {
         [$httpCode, $data] = update_default_language_setting($requestedLang);
@@ -55,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_language'])) 
 $currencyError = null;
 $currencySaved = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_currency'])) {
+if ($csrfOk && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_currency'])) {
     $requestedCurrency = strtoupper(trim((string)$_POST['default_currency']));
     if (preg_match('/^[A-Z]{3}$/', $requestedCurrency)) {
         [$httpCode, $data] = update_default_currency_setting($requestedCurrency);
@@ -165,6 +170,7 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
     <?php endif; ?>
 
     <form method="post">
+      <?= csrf_field() ?>
       <?php foreach ($labels as $key => $label): ?>
         <div class="rowItem">
           <span><?= htmlspecialchars($label) ?></span>
@@ -190,6 +196,7 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
     <?php endif; ?>
 
     <form method="post">
+      <?= csrf_field() ?>
       <select name="default_language" style="width:100%; padding:10px; border-radius:7px; background:var(--bg); color:var(--text); border:1px solid var(--border); font-size:14px;">
         <?php foreach (WTE_AVAILABLE_LANGS as $langCode): ?>
           <option value="<?= htmlspecialchars($langCode) ?>" <?= $currentDefaultLang === $langCode ? 'selected' : '' ?>>
@@ -213,6 +220,7 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
     <?php endif; ?>
 
     <form method="post">
+      <?= csrf_field() ?>
       <input
         type="text"
         name="default_currency"

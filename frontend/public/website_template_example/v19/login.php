@@ -23,7 +23,12 @@ if (is_logged_in()) {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify($_POST['csrf_token'] ?? null)) {
+    // Ugyldig/utløpt CSRF-token - avvis forespørselen før noen
+    // innlogging forsøkes, men behold gjeldende steg (password/2fa)
+    // slik at brukeren ser riktig skjema med feilmeldingen.
+    $error = t('wte.login.csrf_error');
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['action'] ?? '') === 'password') {
         $username = trim((string)($_POST['username'] ?? ''));
         $password = (string)($_POST['password'] ?? '');
@@ -127,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php if ($step === '2fa'): ?>
     <p class="subtitle"><?= t('wte.login.2fa_prompt', '<strong>' . htmlspecialchars($_SESSION['login_pending_username']) . '</strong>') ?></p>
     <form method="post">
+      <?= csrf_field() ?>
       <input type="hidden" name="action" value="2fa">
       <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
       <label for="code"><?= htmlspecialchars(t('wte.login.2fa_code_label')) ?></label>
@@ -134,12 +140,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <button type="submit" class="submitBtn"><?= htmlspecialchars(t('wte.login.confirm_btn')) ?></button>
     </form>
     <form method="post">
+      <?= csrf_field() ?>
       <input type="hidden" name="action" value="restart">
       <button type="submit" class="linkBtn"><?= htmlspecialchars(t('wte.login.cancel_2fa_btn')) ?></button>
     </form>
   <?php else: ?>
     <p class="subtitle"><?= htmlspecialchars(t('wte.login.subtitle')) ?></p>
     <form method="post">
+      <?= csrf_field() ?>
       <input type="hidden" name="action" value="password">
       <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
       <label for="username"><?= htmlspecialchars(t('wte.login.username_label')) ?></label>

@@ -58,6 +58,10 @@ try {
         require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
         require_login_or_json_401();
 
+        // Krever et gyldig CSRF-token (header X-CSRF-Token, satt av
+        // script.js fra <meta name="csrf-token">) FØR noen import skjer.
+        require_csrf_or_json_403();
+
         $rawBody = file_get_contents('php://input');
         if (!is_string($rawBody) || trim($rawBody) === '') {
             http_response_code(400);

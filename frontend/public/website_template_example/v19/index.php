@@ -85,6 +85,7 @@ $sectionAccess = [
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <?= csrf_meta_tag() ?>
   <title><?= htmlspecialchars(t('wte.index.meta_title')) ?></title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -787,6 +788,15 @@ $sectionAccess = [
     }[c]));
   }
 
+  // CSRF-token lest fra <meta name="csrf-token"> (satt server-side av
+  // csrf_meta_tag() i _shared/auth.php) - sendes som header på alle
+  // state-endrende fetch()-kall mot api.php (se require_csrf_or_json_403()
+  // der). Returnerer et objekt klar til å spres inn i fetch()'s headers.
+  function csrfHeader(){
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    return { "X-CSRF-Token": token };
+  }
+
   // Generisk debounce: utsetter kallet til fn til det har gått `delay`
   // ms siden siste kall - brukes på søkefeltet nedenfor slik at
   // renderMineFilmer() (filtrering + DOM-bygging over hele katalogen)
@@ -1198,7 +1208,7 @@ $sectionAccess = [
     try {
       const res = await fetch("api.php?action=bulk_add_to_group", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
         body: JSON.stringify({ content_ids: [...selectedMineFilmerIds], group: groupName }),
       });
       const json = await res.json();
