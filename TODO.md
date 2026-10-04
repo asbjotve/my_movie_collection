@@ -270,10 +270,20 @@ backlog to pick from.
             `bulk_add_movies_form/v1-v13` (older superseded
             versions) - lower priority since v19/v14 are the actively
             used versions.
-- [ ] Basic security response headers (`Content-Security-Policy`,
+- [x] Basic security response headers (`Content-Security-Policy`,
       `X-Frame-Options`/`frame-ancestors`, `X-Content-Type-Options:
-      nosniff`) - not currently set anywhere in the PHP apps or Apache
-      vhost config.
+      nosniff`) - added at the Apache vhost level (not per PHP app),
+      so it covers every tool/version under mmc.plexcity.net with one
+      change. Tracked in `infra/apache/mmc.plexcity.net.conf` (see
+      `infra/apache/README.md` for how to apply it on the server and
+      the reasoning behind the CSP's allowed origins). Verified live:
+      headers present on every response, Apache itself (and all other
+      vhosts on the shared host) still serving normally after the
+      `a2enmod headers` + restart.
+      - [ ] Longer-term: move `script-src`/`style-src` from
+            `'unsafe-inline'` to a nonce-based CSP - would need every
+            page's inline `<script>`/`<style>` blocks touched, so left
+            as a follow-up rather than done alongside this.
 - [ ] Consistent network-error handling for `fetch()` calls (e.g. show
       a clear "connection lost" message and a retry button) - several
       places assume the request either succeeds or returns JSON with
