@@ -32,7 +32,15 @@ if ($csrfOk && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['base_url']
     $requestedBaseUrl = trim((string)$_POST['base_url']);
     $requestedToken = trim((string)($_POST['token'] ?? ''));
 
-    [$httpCode, $data] = update_plex_settings($requestedBaseUrl, $requestedToken !== '' ? $requestedToken : null);
+    $requestedServerIdentifier = trim((string)($_POST['server_identifier'] ?? ''));
+    $requestedVerifySsl = isset($_POST['verify_ssl']);
+
+    [$httpCode, $data] = update_plex_settings(
+        $requestedBaseUrl,
+        $requestedToken !== '' ? $requestedToken : null,
+        $requestedServerIdentifier !== '' ? $requestedServerIdentifier : null,
+        $requestedVerifySsl
+    );
     if ($httpCode === 200) {
         $saved = true;
     } else {
@@ -52,7 +60,7 @@ if ($csrfOk && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_conne
 // Gjeldende lagrede Plex-innstillinger, hentet på nytt etter en
 // eventuell lagring over, slik at siden alltid viser ferskest mulig
 // tilstand (samme mønster som admin_tilganger.php).
-$currentPlexSettings = fetch_plex_settings() ?? ['base_url' => null, 'token_set' => false, 'token_last4' => null];
+$currentPlexSettings = fetch_plex_settings() ?? ['base_url' => null, 'token_set' => false, 'token_last4' => null, 'server_identifier' => null, 'verify_ssl' => true];
 ?>
 <!doctype html>
 <html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
@@ -85,6 +93,9 @@ $currentPlexSettings = fetch_plex_settings() ?? ['base_url' => null, 'token_set'
     color:var(--text); border:1px solid var(--border); font-size:14px;
   }
   .fieldHint{ font-size:12px; color:var(--muted); margin-top:4px; }
+  .checkboxRow{ display:flex; align-items:flex-start; gap:8px; margin:16px 0 6px; }
+  .checkboxRow input[type="checkbox"]{ margin-top:3px; }
+  .checkboxRow label{ margin:0; font-size:13px; color:var(--text); }
   button{
     padding:10px 16px; border-radius:7px; border:none; font-size:14px; font-weight:600;
     cursor:pointer;
@@ -146,6 +157,28 @@ $currentPlexSettings = fetch_plex_settings() ?? ['base_url' => null, 'token_set'
           <?= htmlspecialchars(t('wte.plex_settings.token_hint_unset')) ?>
         <?php endif; ?>
       </div>
+
+      <label for="server_identifier"><?= htmlspecialchars(t('wte.plex_settings.server_identifier_label')) ?></label>
+      <input
+        type="text"
+        id="server_identifier"
+        name="server_identifier"
+        value="<?= htmlspecialchars($currentPlexSettings['server_identifier'] ?? '') ?>"
+        placeholder="<?= htmlspecialchars(t('wte.plex_settings.server_identifier_hint')) ?>"
+      >
+      <div class="fieldHint"><?= htmlspecialchars(t('wte.plex_settings.server_identifier_desc')) ?></div>
+
+      <div class="checkboxRow">
+        <input
+          type="checkbox"
+          id="verify_ssl"
+          name="verify_ssl"
+          value="1"
+          <?= ($currentPlexSettings['verify_ssl'] ?? true) ? 'checked' : '' ?>
+        >
+        <label for="verify_ssl"><?= htmlspecialchars(t('wte.plex_settings.verify_ssl_label')) ?></label>
+      </div>
+      <div class="fieldHint"><?= htmlspecialchars(t('wte.plex_settings.verify_ssl_desc')) ?></div>
 
       <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.plex_settings.save_btn')) ?></button>
     </form>

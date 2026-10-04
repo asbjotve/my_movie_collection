@@ -592,14 +592,14 @@ function fetch_plex_settings(): ?array
  *
  * Returnerer [httpCode, data].
  */
-function update_plex_settings(string $baseUrl, ?string $token): array
+function update_plex_settings(string $baseUrl, ?string $token, ?string $serverIdentifier = null, bool $verifySsl = true): array
 {
     $accessToken = $_SESSION['auth_access_token'] ?? null;
     if (!$accessToken) {
         return [401, ['error' => 'Ikke innlogget']];
     }
 
-    $body = ['base_url' => $baseUrl];
+    $body = ['base_url' => $baseUrl, 'server_identifier' => $serverIdentifier, 'verify_ssl' => $verifySsl];
     if ($token !== null && $token !== '') {
         $body['token'] = $token;
     }

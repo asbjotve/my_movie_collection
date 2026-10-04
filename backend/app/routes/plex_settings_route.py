@@ -34,6 +34,8 @@ router = APIRouter(
 
 BASE_URL_KEY = "plex_base_url"
 TOKEN_KEY = "plex_token"
+SERVER_IDENTIFIER_KEY = "plex_server_identifier"
+VERIFY_SSL_KEY = "plex_verify_ssl"
 
 
 def _get_setting(db: Session, key: str) -> str | None:
@@ -57,10 +59,14 @@ async def get_plex_settings(
 ) -> dict:
     base_url = _get_setting(db, BASE_URL_KEY)
     token = _get_setting(db, TOKEN_KEY)
+    verify_ssl_raw = _get_setting(db, VERIFY_SSL_KEY)
     return {
         "base_url": base_url,
         "token_set": bool(token),
         "token_last4": token[-4:] if token and len(token) >= 4 else None,
+        "server_identifier": _get_setting(db, SERVER_IDENTIFIER_KEY),
+        # Mangler raden -> default True (streng verifisering), se schema.
+        "verify_ssl": verify_ssl_raw != "0",
     }
 
 
@@ -73,6 +79,8 @@ async def update_plex_settings(
     _set_setting(db, BASE_URL_KEY, body.base_url)
     if body.token is not None:
         _set_setting(db, TOKEN_KEY, body.token)
+    _set_setting(db, SERVER_IDENTIFIER_KEY, body.server_identifier)
+    _set_setting(db, VERIFY_SSL_KEY, "1" if body.verify_ssl else "0")
     db.commit()
 
     token = _get_setting(db, TOKEN_KEY)
@@ -80,6 +88,8 @@ async def update_plex_settings(
         "base_url": body.base_url,
         "token_set": bool(token),
         "token_last4": token[-4:] if token and len(token) >= 4 else None,
+        "server_identifier": body.server_identifier,
+        "verify_ssl": body.verify_ssl,
     }
 
 
@@ -98,9 +108,11 @@ async def test_plex_settings(
 
     base_url = _get_setting(db, BASE_URL_KEY)
     token = _get_setting(db, TOKEN_KEY)
+    server_identifier = _get_setting(db, SERVER_IDENTIFIER_KEY)
+    verify_ssl = _get_setting(db, VERIFY_SSL_KEY) != "0"
 
     try:
-        result = test_plex_connection(base_url or "", token or "")
+        result = test_plex_connection(base_url or "", token or "", server_identifier, verify_ssl)
     except PlexConnectionError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

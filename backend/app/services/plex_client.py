@@ -19,11 +19,29 @@ class PlexConnectionError(ValueError):
     lekke stack traces/interne detaljer til frontend."""
 
 
-def test_plex_connection(base_url: str, token: str) -> dict:
+def test_plex_connection(
+    base_url: str,
+    token: str,
+    server_identifier: str | None = None,
+    verify_ssl: bool = True,
+) -> dict:
     """Pinger Plex sitt /identity-endepunkt (krever ikke tilgang til et
     spesifikt bibliotek, kun en gyldig token) og returnerer et lite
     sammendrag av serveren hvis det svarer. Kaster PlexConnectionError
     med en norsk feilmelding hvis noe går galt.
+
+    `server_identifier` er valgfri: hvis satt, sjekkes den mot
+    `machineIdentifier` i svaret, slik at man er sikker på at man
+    faktisk snakker med RIKTIG Plex-server (og ikke bare en vilkårlig
+    server som godtar tokenet) - nyttig hvis man noen gang bytter
+    URL/DDNS-adresse og vil unngå å importere fra feil server ved et
+    uhell.
+
+    `verify_ssl=False` lar brukeren koble til servere der Plex sitt
+    TLS-sertifikat ikke matcher hostnavnet som brukes (typisk ved eget
+    DDNS-navn, siden Plex sitt sertifikat kun er gyldig for dets egne
+    "*.plex.direct"-adresser) - dette er brukerens eget valg/ansvar,
+    default er fortsatt streng verifisering.
     """
 
     if not base_url:
@@ -41,7 +59,15 @@ def test_plex_connection(base_url: str, token: str) -> dict:
                 "Accept": "application/json",
             },
             timeout=REQUEST_TIMEOUT_SECONDS,
+            verify=verify_ssl,
         )
+    except requests.exceptions.SSLError as exc:
+        raise PlexConnectionError(
+            "SSL-sertifikatfeil - Plex sitt sertifikat er vanligvis kun gyldig for "
+            "*.plex.direct-adresser, ikke egendefinerte hostnavn/DDNS. Kryss av for "
+            "\"Ignorer SSL-sertifikatfeil\" hvis du stoler på adressen, eller bruk "
+            f"server-URL-en som slutter på .plex.direct i stedet. ({exc})"
+        ) from exc
     except requests.exceptions.RequestException as exc:
         raise PlexConnectionError(f"Fikk ikke kontakt med Plex-serveren: {exc}") from exc
 
@@ -56,7 +82,16 @@ def test_plex_connection(base_url: str, token: str) -> dict:
         raise PlexConnectionError("Klarte ikke å tolke svaret fra Plex som JSON") from exc
 
     container = data.get("MediaContainer", {})
+    machine_identifier = container.get("machineIdentifier")
+
+    if server_identifier and machine_identifier and server_identifier != machine_identifier:
+        raise PlexConnectionError(
+            f"Serveren svarte, men identifikatoren stemmer ikke "
+            f"(forventet \"{server_identifier}\", fikk \"{machine_identifier}\") - "
+            "sjekk at URL-en peker til riktig Plex-server"
+        )
+
     return {
-        "machine_identifier": container.get("machineIdentifier"),
+        "machine_identifier": machine_identifier,
         "version": container.get("version"),
     }
