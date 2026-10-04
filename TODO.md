@@ -380,6 +380,20 @@ backlog to pick from.
         The "Boksen" card was also moved earlier in the page and the
         step numbering made consistent across both modes after initial
         user feedback that it wasn't clear where to add movies.
+      - [x] Episode-to-disc assignment UX for large seasons: after
+        live-testing a real box, manually ctrl-clicking every episode
+        in a `<select multiple>` was reported as tedious for a
+        22-episode season. Added to the single-series mode's disc
+        table: a per-disc "range quick-add" text input (e.g.
+        `1-6,9`) that merges episodes into a disc's selection without
+        clearing existing picks, and an "auto-distribute" control that
+        evenly splits a season's episodes, in order, across whichever
+        discs are already assigned to that season. Verified via jsdom
+        (22 episodes across 5 discs -> 5/5/4/4/4). Mixed-boxset mode's
+        disc table does not have this yet (lower priority - mixed
+        boxes mix in movies too, so per-disc episode counts tend to be
+        much smaller) - worth adding the same range quick-add there if
+        it turns out to be needed in practice.
 - [ ] Dedicated API endpoint(s) for a local FileMaker database to
       connect directly against (rather than a one-off CSV export) -
       likely needs its own export-oriented endpoint(s), separate from
