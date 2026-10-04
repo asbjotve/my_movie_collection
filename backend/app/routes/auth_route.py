@@ -3,13 +3,24 @@ auth_route.py – innlogging (JWT) + TOTP-basert 2FA.
 
 Flyt uten 2FA:
     POST /auth/login {username, password}
-    -> {access_token, requires_2fa: false}
+    -> {access_token, refresh_token, requires_2fa: false}
 
 Flyt med 2FA aktivert:
     POST /auth/login {username, password}
     -> {requires_2fa: true, pre_auth_token}          (ingen access_token ennå)
     POST /auth/login/2fa {pre_auth_token, code}
-    -> {access_token}                                 (code = TOTP- ELLER recovery-kode)
+    -> {access_token, refresh_token}                  (code = TOTP- ELLER recovery-kode)
+
+Fornying av utløpt access_token (uten å be om passord på nytt):
+    POST /auth/refresh {refresh_token}
+    -> {access_token}
+
+    refresh_token lever mye lenger enn access_token (se
+    security.py's REFRESH_TOKEN_EXPIRE_MINUTES) og brukes av
+    frontend/_shared/auth.php's auth_refresh_access_token() til å
+    stille hente et nytt access_token når et API-kall feiler med 401
+    pga. utløpt token - se f.eks. tv_series_add_form/v1/api.php sin
+    submit-handling for et konkret eksempel på automatisk retry.
 
 Sette opp 2FA (krever at man allerede er innlogget - se get_current_user):
     POST /auth/2fa/setup            -> {secret, otpauth_uri, qr_code_data_uri}
@@ -35,6 +46,7 @@ from app.db import User, get_db
 from app.security import (
     create_access_token,
     create_preauth_token,
+    create_refresh_token,
     decode_token,
     get_current_user,
     get_user_by_username,
@@ -43,6 +55,7 @@ from app.schemas.auth import (
     CurrentUserResponse,
     LoginRequest,
     LoginResponse,
+    RefreshRequest,
     TokenResponse,
     TwoFaDisableRequest,
     TwoFaEnableRequest,
@@ -82,6 +95,7 @@ async def login(credentials: LoginRequest, db: Session = Depends(get_db)):
 
     return LoginResponse(
         access_token=create_access_token(user.username),
+        refresh_token=create_refresh_token(user.username),
         requires_2fa=False,
     )
 
@@ -97,7 +111,10 @@ async def login_2fa(payload: TwoFaLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ugyldig forespørsel")
 
     if verify_totp_code(user.totp_secret, payload.code):
-        return TokenResponse(access_token=create_access_token(user.username))
+        return TokenResponse(
+            access_token=create_access_token(user.username),
+            refresh_token=create_refresh_token(user.username),
+        )
 
     # Prøv som recovery-kode hvis TOTP-koden ikke matchet.
     matched, updated_codes_json = verify_and_consume_recovery_code(
@@ -106,9 +123,28 @@ async def login_2fa(payload: TwoFaLoginRequest, db: Session = Depends(get_db)):
     if matched:
         user.recovery_codes_json = updated_codes_json
         db.commit()
-        return TokenResponse(access_token=create_access_token(user.username))
+        return TokenResponse(
+            access_token=create_access_token(user.username),
+            refresh_token=create_refresh_token(user.username),
+        )
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ugyldig kode")
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
+    """Veksler et gyldig, ikke-utløpt refresh_token inn i et nytt
+    access_token - uten å be brukeren om passord på nytt. Brukes av
+    frontend/_shared/auth.php's auth_refresh_access_token() til å stille
+    fornye en utløpt innlogging (access_token lever kun 30 min, se
+    security.py) når et API-kall feiler med 401."""
+    username = decode_token(payload.refresh_token, expected_type="refresh")
+    user = get_user_by_username(db, username)
+
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ugyldig refresh-token")
+
+    return TokenResponse(access_token=create_access_token(user.username))
 
 
 @router.get("/me", response_model=CurrentUserResponse)

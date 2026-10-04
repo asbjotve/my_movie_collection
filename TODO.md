@@ -231,9 +231,13 @@ backlog to pick from.
 - [ ] Client-side form validation feedback (e.g. highlighting the
       specific invalid field) instead of only a generic status-line
       message like "name is required".
-- [ ] A visible session-expiry warning (e.g. "you'll be logged out in
-      2 minutes") before the JWT access token actually expires, so an
-      in-progress edit isn't silently lost to a 401.
+- [x] Session-expiry handling for `tv_series_add_form/v1`: instead of
+      a visible "you'll be logged out soon" warning, an automatic,
+      silent re-login was built - see the "Refresh tokens" item below
+      for the implementation. A user-visible warning banner is no
+      longer needed for this form since the 401 is now recovered from
+      transparently; still worth considering for other tools that
+      don't yet use the shared `auth_call_with_retry()` helper.
 - [ ] Show a diff/preview of what would actually change before
       applying a TMDB/TVDB "refresh + merge" (currently it fetches and
       merges immediately; a preview would let the user catch an
@@ -263,8 +267,30 @@ backlog to pick from.
 
 - [ ] Rate-limiting on `/auth/login` (and `/auth/login/2fa`) to guard
       against brute-force password/2FA guessing.
-- [ ] Refresh tokens, so users don't need to log in again every 30
-      minutes (current `ACCESS_TOKEN_EXPIRE_MINUTES`).
+- [x] Refresh tokens, so users don't need to log in again every 30
+      minutes (current `ACCESS_TOKEN_EXPIRE_MINUTES`). Implemented as
+      a new `"refresh"` JWT type (`REFRESH_TOKEN_EXPIRE_MINUTES`, 7
+      days) issued alongside the access token on `/auth/login` and
+      `/auth/login/2fa`, plus a new `POST /auth/refresh` endpoint that
+      exchanges a valid refresh token for a fresh access token without
+      a password. `frontend/public/_shared/auth.php` stores the
+      refresh token in the PHP session and exposes
+      `auth_refresh_access_token()` + a generic
+      `auth_call_with_retry()` wrapper that retries a failed backend
+      call exactly once after a silent refresh if it first gets a 401.
+      Wired into `tv_series_add_form/v1/api.php`'s submit action so a
+      user mid-form never sees "Kunne ikke validere token" unless the
+      refresh token itself has also expired/is missing (genuinely
+      logged out). Verified end-to-end against the live backend/DB
+      with forged expired/valid tokens (confirmed: expired access +
+      valid refresh transparently recovers and the session's stored
+      access token is replaced; expired access + no refresh token
+      still correctly surfaces a 401). Not yet adopted by the other
+      tools sharing `auth.php` (`custom_list_manager`,
+      `add_to_wishlist`, `bulk_add_movies_form`,
+      `temp_add_movie_barcode`, `website_template_example`) - they
+      could reuse the same `auth_call_with_retry()` helper with little
+      extra work if wanted later.
 - [ ] Review remaining raw-SQL call sites for proper parameterization
       (avoid SQL injection risk in code paths outside the ORM).
 - [ ] General API rate-limiting (not just `/auth/login`) to guard
@@ -327,6 +353,19 @@ backlog to pick from.
         `season_number`/`season_title` fields added above) - the data
         is now available via the API, but UI work to actually display
         it (e.g. grouping discs under season headings) is still open.
+      - [x] Guided (non-paste-JSON) frontend fields for `mixed_boxset`
+        added to `frontend/public/tv_series_add_form/v1`: a "Type
+        registrering" mode toggle switches the form between single-
+        series (`tv_series_boxset`) and mixed-box (`mixed_boxset`)
+        entry, with repeatable "series in box" and "standalone movies
+        in box" cards (each series block has its own seasons/episodes
+        + its own TVDB search) and a discs card with multi-select
+        content/episode references. Verified via a jsdom-driven
+        simulation of the real `script.js` producing a schema-valid
+        payload, live-imported, and checked via SQL, then cleaned up.
+        The "Boksen" card was also moved earlier in the page and the
+        step numbering made consistent across both modes after initial
+        user feedback that it wasn't clear where to add movies.
 - [ ] Dedicated API endpoint(s) for a local FileMaker database to
       connect directly against (rather than a one-off CSV export) -
       likely needs its own export-oriented endpoint(s), separate from

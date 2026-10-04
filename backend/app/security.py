@@ -32,13 +32,21 @@ if not SECRET_KEY:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 PRE_AUTH_TOKEN_EXPIRE_MINUTES = 5
+# Lenge nok til at et lengre skjema (f.eks. mixed_boxset-skjemaet i
+# tv_series_add_form) kan fylles ut over tid uten at brukeren merker
+# at access-tokenet (30 min) har utløpt - se auth_route.py's
+# POST /auth/refresh og auth.php's auth_refresh_access_token() for
+# hvordan dette brukes til en stille, automatisk fornying ved 401,
+# uten å be brukeren om passord på nytt.
+REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 dager
 
 security = HTTPBearer()
 
 
 def create_token(data: dict, token_type: str, expires_delta: timedelta) -> str:
-    """Lager et JWT-token. 'type'-claim settes til token_type ("access"
-    eller "preauth") slik at tokens ikke kan brukes om hverandre."""
+    """Lager et JWT-token. 'type'-claim settes til token_type ("access",
+    "preauth" eller "refresh") slik at tokens ikke kan brukes om
+    hverandre."""
     to_encode = data.copy()
     expire = datetime.utcnow() + expires_delta
     to_encode.update({"exp": expire, "type": token_type})
@@ -59,6 +67,15 @@ def create_preauth_token(username: str) -> str:
         token_type="preauth",
         expires_delta=timedelta(minutes=PRE_AUTH_TOKEN_EXPIRE_MINUTES),
     )
+
+
+def create_refresh_token(username: str) -> str:
+    return create_token(
+        {"sub": username},
+        token_type="refresh",
+        expires_delta=timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES),
+    )
+
 
 
 def decode_token(token: str, expected_type: str) -> str:

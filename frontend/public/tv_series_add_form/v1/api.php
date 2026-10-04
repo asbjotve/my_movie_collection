@@ -93,22 +93,39 @@ try {
             exit;
         }
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => INTERNAL_API_BASE_URL . '/import/physical-collection',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST  => 'POST',
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', auth_bearer_header()],
-            CURLOPT_POSTFIELDS     => json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            CURLOPT_TIMEOUT        => 20,
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
+        $curlError = null;
+        $rawPayload = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        if ($response === false) {
-            error_log('tv_series_add_form submit cURL-feil: ' . $curlError);
+        // Automatisk, stille fornying av access_token (uten å be om
+        // passord på nytt) hvis det første forsøket feiler med 401 -
+        // se auth_call_with_retry()/auth_refresh_access_token() i
+        // auth.php. Fjerner behovet for at brukeren selv merker at
+        // tokenet (30 min levetid) har utløpt og logger inn på nytt.
+        [$httpCode, $response] = auth_call_with_retry(
+            function (string $accessToken) use ($rawPayload, &$curlError): array {
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL            => INTERNAL_API_BASE_URL . '/import/physical-collection',
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_CUSTOMREQUEST  => 'POST',
+                    CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Authorization: Bearer ' . $accessToken],
+                    CURLOPT_POSTFIELDS     => $rawPayload,
+                    CURLOPT_TIMEOUT        => 20,
+                ]);
+                $raw = curl_exec($ch);
+                $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
+                curl_close($ch);
+
+                if ($raw === false) {
+                    return [502, null];
+                }
+                return [$code, $raw];
+            }
+        );
+
+        if ($response === null) {
+            error_log('tv_series_add_form submit cURL-feil: ' . ($curlError ?? ''));
             http_response_code(502);
             echo json_encode(['error' => 'Kunne ikke kontakte backend (nettverksfeil).'], JSON_UNESCAPED_UNICODE);
             exit;
