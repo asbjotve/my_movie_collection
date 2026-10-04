@@ -1,8 +1,8 @@
 """Klient mot Plex Media Server sitt eget (ikke-offentlig, men stabilt
-og mye brukt) HTTP-API - kun for "Test tilkobling"-funksjonen i
-innstillingene foreløpig (se plex_settings_route.py). Selve
-import-jobben (lese biblioteker/filmer via /library/sections) bygges i
-en senere omgang, se TODO.md.
+og mye brukt) HTTP-API. Brukes av "Test tilkobling" (plex_settings_route.py)
+og selve import-jobben (plex_import.py) - henter bibliotekliste, filmliste
+per bibliotek, og fulle detaljer (inkl. eksterne id-er for matching) per
+element.
 
 Plex svarer med XML by default - "Accept: application/json" gjør at
 den svarer med JSON i stedet, som er enklere å jobbe med herfra.
@@ -95,3 +95,89 @@ def test_plex_connection(
         "machine_identifier": machine_identifier,
         "version": container.get("version"),
     }
+
+
+def _plex_request(base_url: str, token: str, path: str, verify_ssl: bool) -> dict:
+    """Felles GET-helper mot Plex sitt API - samme feilhåndtering som
+    test_plex_connection(), men brukes av de faktiske import-kallene
+    under (bibliotekliste, filmliste, enkelt-item-detaljer)."""
+
+    try:
+        response = requests.get(
+            f"{base_url}{path}",
+            headers={
+                "X-Plex-Token": token,
+                "Accept": "application/json",
+            },
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            verify=verify_ssl,
+        )
+    except requests.exceptions.RequestException as exc:
+        raise PlexConnectionError(f"Fikk ikke kontakt med Plex-serveren ({path}): {exc}") from exc
+
+    if response.status_code == 401:
+        raise PlexConnectionError("Plex avviste token (401 Unauthorized)")
+    if response.status_code != 200:
+        raise PlexConnectionError(f"Plex svarte med uventet status {response.status_code} for {path}")
+
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise PlexConnectionError(f"Klarte ikke å tolke svaret fra Plex som JSON ({path})") from exc
+
+
+def fetch_library_sections(base_url: str, token: str, verify_ssl: bool = True) -> list[dict]:
+    """Lister alle bibliotekseksjoner på serveren (GET /library/sections),
+    f.eks. "Filmer"/"Serier" - brukes i innstillingene til å velge
+    hvilke(t) bibliotek som skal importeres."""
+
+    data = _plex_request(base_url, token, "/library/sections", verify_ssl)
+    directories = data.get("MediaContainer", {}).get("Directory", [])
+    return [
+        {"key": d.get("key"), "title": d.get("title"), "type": d.get("type")}
+        for d in directories
+    ]
+
+
+def fetch_library_items(base_url: str, token: str, section_key: str, verify_ssl: bool = True) -> list[dict]:
+    """Henter alle elementer (f.eks. filmer) i én bibliotekseksjon (GET
+    /library/sections/{key}/all). Gir en forenklet liste per item -
+    fulle detaljer (eksterne id-er for matching, media/part-info for
+    filene) hentes separat per item via fetch_item_detail(), siden
+    denne listen ikke inkluderer Plex sin <Guid>-liste for nyere
+    metadata-agenter."""
+
+    data = _plex_request(base_url, token, f"/library/sections/{section_key}/all", verify_ssl)
+    return data.get("MediaContainer", {}).get("Metadata", [])
+
+
+def fetch_item_detail(base_url: str, token: str, rating_key: str, verify_ssl: bool = True) -> dict | None:
+    """Henter full metadata for ett enkelt element (GET
+    /library/metadata/{ratingKey}), inkludert <Guid>-listen med
+    eksterne id-er (tmdb://, imdb://, tvdb://) som fetch_library_items()
+    ikke gir, samt Media/Part-info om filene på disk."""
+
+    data = _plex_request(base_url, token, f"/library/metadata/{rating_key}", verify_ssl)
+    items = data.get("MediaContainer", {}).get("Metadata", [])
+    return items[0] if items else None
+
+
+def extract_tmdb_id_from_guids(item: dict) -> str | None:
+    """Plex sin nyere metadata-agent oppgir eksterne id-er som en liste
+    under "Guid": [{"id": "tmdb://603"}, {"id": "imdb://tt0133093"}, ...].
+    Den eldre agenten oppgir i stedet toppnivå-feltet "guid" direkte som
+    f.eks. "com.plexapp.agents.themoviedb://603?lang=en" - begge formater
+    sjekkes her."""
+
+    for guid_entry in item.get("Guid", []):
+        guid_id = guid_entry.get("id", "")
+        if guid_id.startswith("tmdb://"):
+            return guid_id.removeprefix("tmdb://")
+
+    top_level_guid = item.get("guid", "")
+    if "themoviedb://" in top_level_guid:
+        # f.eks. "com.plexapp.agents.themoviedb://603?lang=en" -> "603"
+        after = top_level_guid.split("themoviedb://", 1)[1]
+        return after.split("?", 1)[0]
+
+    return None

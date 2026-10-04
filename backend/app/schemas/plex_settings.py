@@ -62,3 +62,12 @@ class PlexSettingsUpdateRequest(BaseModel):
             return None
         value = value.strip()
         return value or None
+
+
+class PlexLibrarySelectionRequest(BaseModel):
+    """Body for PUT /settings/plex/libraries - hvilke Plex-biblioteker
+    (identifisert ved Plex sin "key", f.eks. "1") som skal tas med i
+    import-jobben (se plex_import.py). Lagres som en JSON-liste i
+    app_settings (plex_selected_libraries)."""
+
+    library_keys: list[str] = []

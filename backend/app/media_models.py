@@ -28,11 +28,19 @@ Being modeled here table-by-table, in small batches:
 - Batch 4 (done): disc_bonus_item, disc_in_storage, disc_in,
   custom_list_entries - the last of the "real" (non-legacy) tables;
   only "list" remains unmodeled (see TODO.md).
+- Batch 5 (done): season, episode, disc_contains_episode (TV series
+  support).
+- Batch 6 (done): digital_library, content_in_digital_library,
+  digital_media_version, digital_media_part - the Plex import feature
+  (see TODO.md). As with all other tables here, the actual
+  read/write logic (app/services/plex_import.py) uses raw SQL via
+  text(), not these ORM classes - they exist purely for Alembic.
 
 See TODO.md for the remaining tables.
 """
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Column,
     DECIMAL,
@@ -508,5 +516,115 @@ class DiscContainsEpisode(MediaBase):
         BINARY(16),
         ForeignKey("episode.episode_id", ondelete="CASCADE", onupdate="CASCADE"),
         primary_key=True,
+    )
+
+
+class DigitalLibrary(MediaBase):
+    """One imported Plex library section (e.g. "Filmer") - mirrors a
+    row per Plex "key" on the configured server. Created/updated by
+    the import job (plex_import.py) the first time that section is
+    synced; the actual choice of WHICH sections to import is a
+    separate per-admin setting (plex_selected_libraries in
+    app_settings, mmc_userdb - not stored here since this table only
+    tracks sections that have actually been imported at least once)."""
+
+    __tablename__ = "digital_library"
+
+    digital_library_id = Column(BINARY(16), primary_key=True)
+    plex_section_key = Column(String(20), nullable=False)
+    title = Column(String(255), nullable=True)
+    library_type = Column(String(20), nullable=True)
+    last_synced_at = Column(TIMESTAMP, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("plex_section_key", name="uk_digital_library__plex_section_key"),
+    )
+
+
+class ContentInDigitalLibrary(MediaBase):
+    """Links a `content` row to the Plex item it was imported from -
+    one row per Plex library item (content_id may also have physical
+    copies, a wishlist entry, etc., entirely independently of this).
+    Matching logic (TMDB id first, then title+year, otherwise a new
+    content row is created) lives in plex_import.py, not here."""
+
+    __tablename__ = "content_in_digital_library"
+
+    id = Column(BINARY(16), primary_key=True)
+    content_id = Column(
+        BINARY(16),
+        ForeignKey("content.content_id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+    digital_library_id = Column(
+        BINARY(16),
+        ForeignKey("digital_library.digital_library_id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+    # Plex sin egen (per bibliotek) item-id - brukes til å gjenkjenne
+    # samme element ved neste sync (oppdatere i stedet for å duplisere).
+    plex_rating_key = Column(String(20), nullable=False)
+    plex_guid = Column(String(255), nullable=True)
+    added_at = Column(TIMESTAMP, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "digital_library_id", "plex_rating_key",
+            name="uk_content_in_digital_library__library_rating_key",
+        ),
+        Index("idx_content_in_digital_library__content_id", "content_id"),
+    )
+
+
+class DigitalMediaVersion(MediaBase):
+    """One "Media" entry Plex reports for a library item - i.e. one
+    specific encoded version of the file (resolution/codec/etc.). Most
+    items only have one, but Plex supports multiple versions of the
+    same title (e.g. a 1080p and a 4K cut)."""
+
+    __tablename__ = "digital_media_version"
+
+    media_version_id = Column(BINARY(16), primary_key=True)
+    content_in_digital_library_id = Column(
+        BINARY(16),
+        ForeignKey("content_in_digital_library.id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+    plex_media_id = Column(String(20), nullable=True)
+    resolution = Column(String(20), nullable=True)
+    video_codec = Column(String(20), nullable=True)
+    audio_codec = Column(String(20), nullable=True)
+    container = Column(String(20), nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    bitrate = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "idx_digital_media_version__cidl_id",
+            "content_in_digital_library_id",
+        ),
+    )
+
+
+class DigitalMediaPart(MediaBase):
+    """One physical file on disk belonging to a DigitalMediaVersion - a
+    single movie file is normally exactly one part, but Plex supports
+    splitting very long recordings/legacy rips into several parts."""
+
+    __tablename__ = "digital_media_part"
+
+    part_id = Column(BINARY(16), primary_key=True)
+    media_version_id = Column(
+        BINARY(16),
+        ForeignKey("digital_media_version.media_version_id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+    plex_part_id = Column(String(20), nullable=True)
+    file_path = Column(Text, nullable=True)
+    size_bytes = Column(BigInteger, nullable=True)
+    part_index = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index("idx_digital_media_part__media_version_id", "media_version_id"),
     )
 
