@@ -6,6 +6,12 @@ Kjøres synkront via en manuell "Kjør import nå"-knapp (ingen
 jobbkø/scheduler ennå) - se plex_import_route.py.
 
 Matching mot eksisterende content (bekreftet med brukeren):
+0. Allerede importert tidligere (samme digital_library_id +
+   plex_rating_key finnes i content_in_digital_library fra en
+   tidligere kjøring)? Gjenbruk da samme content_id uendret - dette
+   sjekkes FØR TMDB-/tittel-matchingen under, ellers vil filmer uten
+   TMDB-id (der steg 2 ikke gir nøyaktig ett treff) få en ny duplikat
+   content-rad på hver reimport.
 1. Plex sin TMDB-guid (hvis filmen har en) slås opp mot
    content_external_source (source='tmdb') - finnes en match, kobles
    Plex-elementet til den content-raden UTEN å endre noe på den.
@@ -91,9 +97,30 @@ def _plex_epoch_to_datetime(value) -> datetime | None:
     return parsed
 
 
-def _match_or_create_content(db: Session, tmdb_id: str | None, title: str, year: int | None) -> tuple[bytes, bool]:
+def _match_or_create_content(
+    db: Session, digital_library_id: bytes, rating_key: str, tmdb_id: str | None, title: str, year: int | None
+) -> tuple[bytes, bool]:
     """Returnerer (content_id, ble_opprettet_nå). Se modulens docstring
-    for selve matching-strategien."""
+    for selve matching-strategien.
+
+    VIKTIG: sjekker FØRST om dette Plex-elementet (digital_library_id +
+    plex_rating_key) allerede er koblet til en content-rad fra en
+    tidligere import - dette MÅ sjekkes før TMDB-/tittel-matchingen
+    under, ellers vil filmer uten TMDB-id (som ikke kan reproduseres
+    pålitelig via tittel+år) få en ny duplikat content-rad opprettet
+    på hver eneste reimport, mens den gamle raden blir værende igjen
+    som et foreldreløst duplikat (siden content_in_digital_library-
+    raden bare peker på den nyeste)."""
+
+    existing_link = db.execute(
+        text(
+            "SELECT content_id FROM content_in_digital_library "
+            "WHERE digital_library_id = :lib AND plex_rating_key = :rk"
+        ),
+        {"lib": digital_library_id, "rk": rating_key},
+    ).fetchone()
+    if existing_link:
+        return existing_link[0], False
 
     if tmdb_id:
         row = db.execute(
@@ -501,7 +528,9 @@ def run_plex_import(
                 title = detail.get("title") or title
                 year = detail.get("year") or item.get("year")
 
-                content_id, was_created = _match_or_create_content(db, tmdb_id, title, year)
+                content_id, was_created = _match_or_create_content(
+                    db, digital_library_id, rating_key, tmdb_id, title, year
+                )
                 cidl_id = _upsert_content_in_digital_library(db, content_id, digital_library_id, rating_key, detail)
                 _replace_media_versions(db, cidl_id, detail.get("Media", []))
                 _store_plex_raw_source(db, content_id, rating_key, detail)
