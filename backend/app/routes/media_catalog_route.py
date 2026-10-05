@@ -17,6 +17,7 @@ from app.schemas.media_catalog import (
     PhysicalCopyFieldUpdateRequest,
     SeasonCreateRequest,
     SeasonUpdateRequest,
+    SeasonWatchedRequest,
     SetContentExternalIdRequest,
 )
 from app.security import get_current_user
@@ -54,6 +55,7 @@ from app.services.media_catalog import (
     update_content_fields,
     update_episode,
     update_physical_copy_fields,
+    set_season_watched,
     update_season,
 )
 
@@ -542,6 +544,21 @@ def delete_season_route(
     Krever innlogging. Se delete_season()."""
     try:
         return delete_season(db, season_id)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/seasons/{season_id}/watched")
+def patch_season_watched(
+    season_id: str,
+    payload: SeasonWatchedRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Merker samtlige episoder i en sesong som sett/usett under ett.
+    Krever innlogging. Se set_season_watched()."""
+    try:
+        return set_season_watched(db, season_id, payload.watched_flag)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

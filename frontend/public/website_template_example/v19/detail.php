@@ -736,6 +736,10 @@ $sectionAccess = [
     font-size:14px; padding:2px 4px;
   }
   .seasonActions button:hover, .episodeActions button:hover{ color: var(--text); }
+  .seasonActions .btnToggleSeasonWatched{
+    font-size:12px; border:1px solid var(--line); border-radius:6px; padding:3px 8px;
+  }
+  .seasonActions .btnToggleSeasonWatched:disabled{ opacity:.4; cursor:not-allowed; }
   .seasonBody{ padding:10px 12px; }
   .seasonBlock.collapsed .seasonBody{ display:none; }
   .episodeTable{ width:100%; border-collapse:collapse; font-size:12px; }
@@ -1041,6 +1045,8 @@ $sectionAccess = [
 
     const blocks = seasons.map(season => {
       const isCollapsed = collapsedSeasons.has(season.season_id);
+      const episodeCount = (season.episodes || []).length;
+      const allWatched = episodeCount > 0 && (season.episodes || []).every(ep => ep.watched_flag);
       const episodeRows = (season.episodes || []).map(ep => `
         <tr data-episode-id="${escapeHtml(ep.episode_id)}">
           <td>${ep.episode_number ?? "-"}</td>
@@ -1070,6 +1076,7 @@ $sectionAccess = [
             <span class="seasonMeta">${wteFormat(WTE_I18N.detail.season_episode_count, (season.episodes || []).length)}</span>
             ${IS_LOGGED_IN ? `
             <div class="seasonActions">
+              <button type="button" class="btnToggleSeasonWatched" data-watched="${allWatched ? "1" : "0"}" ${episodeCount ? "" : "disabled"}>${escapeHtml(allWatched ? WTE_I18N.detail.season_mark_unwatched_btn : WTE_I18N.detail.season_mark_watched_btn)}</button>
               <button type="button" class="btnRefreshSeason" data-source="tmdb" title="${escapeHtml(WTE_I18N.detail.refresh_tmdb_btn)}">TMDB⟳</button>
               <button type="button" class="btnRefreshSeason" data-source="tvdb" title="${escapeHtml(WTE_I18N.detail.refresh_tvdb_btn)}">TVDB⟳</button>
               <button type="button" class="btnEditSeason" title="${escapeHtml(WTE_I18N.detail.edit_btn)}">✏️</button>
@@ -1118,6 +1125,9 @@ $sectionAccess = [
       block.querySelectorAll(".btnRefreshSeason").forEach(btn => {
         btn.addEventListener("click", () => refreshSeason(contentId, season, btn.dataset.source, block));
       });
+
+      const toggleWatchedBtn = block.querySelector(".btnToggleSeasonWatched");
+      if (toggleWatchedBtn) toggleWatchedBtn.addEventListener("click", () => toggleSeasonWatched(contentId, season, toggleWatchedBtn.dataset.watched === "1"));
 
       const addEpBtn = block.querySelector(".btnAddEpisode");
       if (addEpBtn) addEpBtn.addEventListener("click", () => openEpisodeModal(contentId, seasonId, null));
@@ -1169,6 +1179,21 @@ $sectionAccess = [
       if (!res.ok) throw new Error("HTTP " + res.status);
     } catch (err) {
       checkboxEl.checked = !checkboxEl.checked; // rull tilbake ved feil
+      alert(WTE_I18N.detail.save_error_prefix + err.message);
+    }
+  }
+
+  async function toggleSeasonWatched(contentId, season, currentlyAllWatched){
+    const newWatchedFlag = !currentlyAllWatched;
+    try {
+      const res = await fetch("api.php?action=update_season_watched&season_id=" + encodeURIComponent(season.season_id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ watched_flag: newWatchedFlag }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.detail || j.error || ("HTTP " + res.status)); }
+      await loadSeasonsTab(contentId);
+    } catch (err) {
       alert(WTE_I18N.detail.save_error_prefix + err.message);
     }
   }

@@ -1045,6 +1045,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
     exit;
 }
 
+// POST ?action=update_season_watched&season_id=<hex>
+// (body: {"watched_flag": true|false}) - merker samtlige episoder i
+// sesongen som sett/usett under ett. Bruker POST i stedet for PATCH
+// her (samme begrunnelse som andre steder i denne filen) - selve
+// backend-kallet er fortsatt en ekte HTTP PATCH. Se
+// PATCH /media/seasons/{season_id}/watched i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update_season_watched') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $seasonId = (string)($_GET['season_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $seasonId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig season_id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $updateUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/watched';
+
+    $ch = curl_init($updateUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // POST ?action=delete_season&season_id=<hex>
 // Sletter en sesong og alle dens episoder (ON DELETE CASCADE). Bruker
 // POST i stedet for DELETE (samme begrunnelse som andre steder i

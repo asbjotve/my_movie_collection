@@ -197,6 +197,13 @@ class SeasonUpdateRequest(BaseModel):
     overview: str | None = None
 
 
+class SeasonWatchedRequest(BaseModel):
+    """Body for PATCH /media/seasons/{season_id}/watched - merker samtlige
+    episoder i sesongen som sett/usett under ett, se set_season_watched()."""
+
+    watched_flag: bool
+
+
 class EpisodeCreateRequest(BaseModel):
     """Body for POST /media/seasons/{season_id}/episodes - legger til én
     episode manuelt i en eksisterende sesong."""

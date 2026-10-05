@@ -191,6 +191,8 @@ return [
             'episode_field_disc'     => 'Disk',
             'episode_watched_label'  => 'Sett',
             'episode_disc_none'      => 'Ingen disk',
+            'season_mark_watched_btn'   => 'Merk alle sett',
+            'season_mark_unwatched_btn' => 'Merk alle usett',
             'refresh_tmdb_btn'       => 'Hent fra TMDB',
             'refresh_tvdb_btn'       => 'Hent fra TVDB',
             'refreshing_season'      => 'Henter episoder…',

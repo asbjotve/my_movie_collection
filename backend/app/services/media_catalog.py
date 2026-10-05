@@ -3167,6 +3167,19 @@ def delete_season(db: Session, season_id: str) -> dict:
     return {"deleted": True, "season_id": _hex_id(row.season_id)}
 
 
+def set_season_watched(db: Session, season_id: str, watched_flag: bool) -> dict:
+    """Setter watched_flag for samtlige episoder i en sesong under ett."""
+    row = _get_season_row(db, season_id)
+    db.execute(
+        text("UPDATE episode SET watched_flag = :watched_flag WHERE season_id = :season_id"),
+        {"watched_flag": 1 if watched_flag else 0, "season_id": row.season_id},
+    )
+    db.commit()
+
+    seasons = list_seasons(db, _hex_id(row.content_id))
+    return next(s for s in seasons if s["season_id"] == _hex_id(row.season_id))
+
+
 def create_episode(db: Session, season_id: str, fields: dict) -> dict:
     row = _get_season_row(db, season_id)
 

@@ -188,6 +188,8 @@ return [
             'episode_field_disc'     => 'Disc',
             'episode_watched_label'  => 'Watched',
             'episode_disc_none'      => 'No disc',
+            'season_mark_watched_btn'   => 'Mark all watched',
+            'season_mark_unwatched_btn' => 'Mark all unwatched',
             'refresh_tmdb_btn'       => 'Fetch from TMDB',
             'refresh_tvdb_btn'       => 'Fetch from TVDB',
             'refreshing_season'      => 'Fetching episodes…',
