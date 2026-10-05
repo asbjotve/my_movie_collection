@@ -142,6 +142,11 @@ backlog to pick from.
       since TVDB's isn't clearly documented.
 - [ ] Duplicate detection (same TMDB/TVDB ID registered more than
       once, e.g. from a bad import).
+- [ ] Ability to manually set a TMDB/TVDB ID on a content row that
+      doesn't have one yet (e.g. a movie TMDB/TVDB couldn't be
+      auto-matched for during import/creation) - today an ID can only
+      be viewed/refreshed if one is already registered, not assigned
+      from scratch.
 - [ ] Background job queue (Celery, RQ, or FastAPI `BackgroundTasks`)
       for TMDB/TVDB imports, so large imports don't depend on
       ever-increasing proxy/timeout settings.
