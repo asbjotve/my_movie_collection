@@ -15,6 +15,7 @@ from app.schemas.media_catalog import (
     SetContentExternalIdRequest,
 )
 from app.security import get_current_user
+from app.services.external_apis import ExternalApiError, search_tmdb, search_tvdb
 from app.services.media_catalog import (
     ContentExternalSourceConflict,
     ContentExternalSourceError,
@@ -262,6 +263,33 @@ def patch_physical_copy_fields(
     try:
         return update_physical_copy_fields(db, collection_id, copy_id, fields)
     except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.get("/external-search/{source}")
+def external_search(
+    source: str,
+    query: str,
+    content_type: str = "movie",
+    current_user: User = Depends(get_current_user),
+):
+    """Søk i TMDB/TVDB (brukes av søkemodalen for å SETTE en manglende
+    TMDB/TVDB-id på detail.php - se set_content_external_id() under).
+    Rent søk - lagrer ingenting, i motsetning til selve
+    tildelingsendepunktet."""
+    if source not in ("tmdb", "tvdb"):
+        raise HTTPException(status_code=400, detail="source må være 'tmdb' eller 'tvdb'.")
+    query = query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="query kan ikke være tom.")
+    if content_type not in ("movie", "tv"):
+        raise HTTPException(status_code=400, detail="content_type må være 'movie' eller 'tv'.")
+
+    try:
+        if source == "tmdb":
+            return {"results": search_tmdb(query, content_type)}
+        return {"results": search_tvdb(query, content_type)}
+    except ExternalApiError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
 

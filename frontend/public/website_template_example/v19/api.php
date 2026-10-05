@@ -209,6 +209,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_ex
     exit;
 }
 
+// GET ?action=search_external_source&source=tmdb|tvdb&query=...&content_type=movie|tv
+// Brukes av søkemodalen for å SETTE en manglende TMDB/TVDB-id: søker
+// TMDB/TVDB server-side og returnerer en kort, normalisert treffliste
+// (ingenting lagres) - se GET /media/external-search/{source} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'search_external_source') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $source = (string)($_GET['source'] ?? '');
+    $query = (string)($_GET['query'] ?? '');
+    $contentType = (string)($_GET['content_type'] ?? 'movie');
+
+    if (!in_array($source, ['tmdb', 'tvdb'], true) || trim($query) === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler eller ugyldig source/query-parameter']);
+        exit;
+    }
+
+    $searchUrl = MEDIA_API_BASE_URL . '/media/external-search/' . rawurlencode($source) . '?' . http_build_query([
+        'query' => $query,
+        'content_type' => $contentType,
+    ]);
+
+    $ch = curl_init($searchUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=list_groups
 // Brukes til autofullføring i redigerings-popupen for "group"-feltet på
 // detail.php: lister alle eksisterende filmgrupper (movie_group), slik
