@@ -217,6 +217,7 @@ return [
             'table_format'        => 'Format',
             'table_storage'       => 'Storage location',
             'table_disc'          => 'Disc',
+            'table_episodes'      => 'Episodes',
             'disc_default_label'  => 'Disc',
 
             'format_bd'           => 'Blu-ray',

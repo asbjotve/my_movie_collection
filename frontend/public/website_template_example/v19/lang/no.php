@@ -220,6 +220,7 @@ return [
             'table_format'        => 'Format',
             'table_storage'       => 'Lagringsplass',
             'table_disc'          => 'Plate',
+            'table_episodes'      => 'Episoder',
             'disc_default_label'  => 'Plate',
 
             'format_bd'           => 'Blu-ray',

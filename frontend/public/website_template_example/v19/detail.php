@@ -904,11 +904,13 @@ $sectionAccess = [
     }
 
     function renderDiscsTable(copy){
+      const hasEpisodes = (copy.discs || []).some(d => d.episode_summary);
       const tableRows = (copy.discs || []).map(d => `
         <tr>
           <td>${escapeHtml(d.label || d.type_disc || WTE_I18N.detail.disc_default_label)}</td>
           <td>${escapeHtml(d.format || "-")}</td>
           <td>${d.number_in_storage ?? "-"}</td>
+          ${hasEpisodes ? `<td>${escapeHtml(d.episode_summary || "-")}</td>` : ""}
         </tr>
       `).join("");
 
@@ -916,7 +918,7 @@ $sectionAccess = [
         <h4>${WTE_I18N.detail.discs_in_copy_heading}</h4>
         <table>
           <thead>
-            <tr><th>${WTE_I18N.detail.table_disc}</th><th>${WTE_I18N.detail.table_format}</th><th>${WTE_I18N.detail.table_storage}</th></tr>
+            <tr><th>${WTE_I18N.detail.table_disc}</th><th>${WTE_I18N.detail.table_format}</th><th>${WTE_I18N.detail.table_storage}</th>${hasEpisodes ? `<th>${WTE_I18N.detail.table_episodes}</th>` : ""}</tr>
           </thead>
           <tbody>${tableRows}</tbody>
         </table>

@@ -89,6 +89,37 @@ def _to_proxied_cover_image(cover_image: str | None) -> str | None:
     return f"{TMDB_IMAGE_PROXY_BASE_URL}/{size}/{file_name}"
 
 
+def _format_episode_ranges(by_season: dict[int | None, list[int]]) -> str:
+    """Komprimerer episodenumrene på én plate til kompakte rekkevidder,
+    f.eks. [1,2,3,4,7,9,10] -> "E1-E4, E7, E9-E10" - en plate inneholder
+    ofte sammenhengende episoder, men ikke alltid (bonusdisker, spesielt
+    klippede samleutgivelser e.l. kan ha episoder spredt utover).
+    Grupperes pr. sesong hvis platen (sjeldent) spenner over flere
+    sesonger, f.eks. "S1: E11-E12 | S2: E1-E2"."""
+
+    def ranges_for(numbers: list[int]) -> str:
+        numbers = sorted(set(numbers))
+        parts: list[str] = []
+        start = prev = numbers[0]
+        for n in numbers[1:]:
+            if n == prev + 1:
+                prev = n
+                continue
+            parts.append(f"E{start}" if start == prev else f"E{start}-E{prev}")
+            start = prev = n
+        parts.append(f"E{start}" if start == prev else f"E{start}-E{prev}")
+        return ", ".join(parts)
+
+    if len(by_season) == 1:
+        return ranges_for(next(iter(by_season.values())))
+
+    segments = []
+    for season_number in sorted(by_season, key=lambda s: (s is None, s)):
+        label = f"S{season_number}" if season_number is not None else "?"
+        segments.append(f"{label}: {ranges_for(by_season[season_number])}")
+    return " | ".join(segments)
+
+
 def _load_physical_copies(
     db: Session,
     collections: list[dict],
@@ -332,6 +363,43 @@ def _load_physical_copies(
             season_by_disc_hex.setdefault(_hex_id(row.disc_id), set()).add(
                 (row.season_number, row.season_title)
             )
+
+    # Henter episodenumrene som faktisk ligger på hver enkelt plate
+    # (samme disc_contains_episode-kobling som season_by_disc_hex over,
+    # men her pr. plate i stedet for samlet pr. eksemplar) - brukes til
+    # å vise f.eks. "S1: E1-E4, E7" i platetabellen på
+    # "Samlingsopplysninger", se _format_episode_ranges().
+    episodes_by_disc_hex: dict[str, dict[int | None, list[int]]] = {}
+    if disc_id_by_hex:
+        episode_stmt = text(
+            """
+            SELECT
+                dce.disc_id AS disc_id,
+                sea.season_number AS season_number,
+                ep.episode_number AS episode_number
+            FROM disc_contains_episode dce
+            JOIN episode ep ON ep.episode_id = dce.episode_id
+            JOIN season sea ON sea.season_id = ep.season_id
+            WHERE dce.disc_id IN :ids
+            ORDER BY dce.disc_id, sea.season_number, ep.episode_number
+            """
+        ).bindparams(bindparam("ids", expanding=True))
+        episode_rows = db.execute(
+            episode_stmt, {"ids": list(disc_id_by_hex.values())}
+        ).fetchall()
+        for row in episode_rows:
+            if row.episode_number is None:
+                continue
+            dk = _hex_id(row.disc_id)
+            by_season = episodes_by_disc_hex.setdefault(dk, {})
+            by_season.setdefault(row.season_number, []).append(row.episode_number)
+
+        for discs in discs_by_copy.values():
+            for d in discs:
+                by_season = episodes_by_disc_hex.get(d["disc_id"])
+                d["episode_summary"] = (
+                    _format_episode_ranges(by_season) if by_season else None
+                )
 
     physical_copies: list[dict] = []
     for row in copy_rows:
