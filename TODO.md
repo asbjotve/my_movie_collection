@@ -37,10 +37,12 @@ backlog to pick from.
       TV shows/box sets can be catalogued alongside movies. Added
       `season`, `episode`, `disc_contains_episode` on
       `feature/tv-series-schema` (migration `ca92db17e42f`).
-- [ ] Import digital movies/episodes from Plex Media Server via its
+- [x] Import digital movies/episodes from Plex Media Server via its
       API, as a separate "digital library" alongside the physical
-      collection. Requires new tables - design was already sketched
-      out in an earlier session (not yet implemented):
+      collection. New tables `digital_library`,
+      `content_in_digital_library`, `digital_media_version`,
+      `digital_media_part`, plus `content_external_source` reused
+      with `source='plex'` for raw Plex metadata per item.
       - [x] Step 1 - Plex connection settings: admin-configurable
             server URL + `X-Plex-Token`, instead of a new `.env`
             variable, with a "Test connection" button (pings Plex's
@@ -55,30 +57,28 @@ backlog to pick from.
             echoed back in full by `GET` (only "ends in XXXX"), and
             saving a blank token field keeps the existing one
             unchanged.
-      - [ ] Step 2 (not started) - the actual import job: new tables,
-        listed below, and the logic to read Plex's
-        `/library/sections` and populate them.
-      - New tables: `digital_library`, `content_in_digital_library`,
-        `digital_media_version`, `digital_media_part` (one physical
-        movie file can be split into multiple parts), optionally
-        `digital_storage`/`digital_part_in_storage` if digital copies
-        also need a storage-location concept later.
-      - Reuse `content_external_source` with `source='plex'` for the
-        raw metadata Plex returns per item (same pattern as
-        `source='tmdb'`/`source='tvdb'`), instead of inventing a
-        parallel metadata table.
-      - Data-flow philosophy (confirmed with the user): import is
+      - [x] Step 2 - the actual import job: reads Plex's
+        `/library/sections` + per-library items, lets the admin pick
+        which library/libraries to import, runs as a background job
+        (polled via `GET /plex/import/status`), matches existing
+        content via `(digital_library_id, plex_rating_key)` first
+        (see `_match_or_create_content()` in `plex_import.py`), then
+        falls back to TMDB-guid match, then exact title+year match,
+        otherwise creates a new `content` row. Verified end-to-end
+        with a full re-import of the "Filmer" library (1355 items,
+        0 created/0 errors on re-run, confirming idempotency).
+      - [x] Data-flow philosophy (confirmed with the user): import is
         strictly one-way, FROM Plex only - the app must never write
         back to Plex over its API. The `content` row itself CAN still
         be edited manually afterwards (e.g. translating a title)
         independent of what Plex reports.
-      - Manual edits must not be silently overwritten by a later Plex
+      - [x] Manual edits must not be silently overwritten by a later Plex
         re-sync - this is exactly what `content.locked_fields` (the
         comma-separated locked-field column, already implemented and
         in active use for the TMDB/TVDB merge logic, see
         `MERGEABLE_CONTENT_FIELDS` in `media_catalog.py`) is for, so
-        this item should reuse that existing mechanism rather than
-        add a new one.
+        this item reuses that existing mechanism rather than add a
+        new one.
 
 ## DevOps / CI / deployment
 
@@ -140,13 +140,23 @@ backlog to pick from.
       to reuse a single login token per batch (it currently logs in
       to TVDB on every call) and picking a conservative rate limit
       since TVDB's isn't clearly documented.
-- [ ] Duplicate detection (same TMDB/TVDB ID registered more than
-      once, e.g. from a bad import).
-- [ ] Ability to manually set a TMDB/TVDB ID on a content row that
+- [x] Duplicate detection (same TMDB/TVDB ID registered more than
+      once, e.g. from a bad import) - done as part of manual-ID
+      assignment below (set_content_external_id() in
+      media_catalog.py detects a conflicting content_external_source
+      row and offers a merge instead of creating a duplicate).
+- [x] Ability to manually set a TMDB/TVDB ID on a content row that
       doesn't have one yet (e.g. a movie TMDB/TVDB couldn't be
       auto-matched for during import/creation) - today an ID can only
       be viewed/refreshed if one is already registered, not assigned
-      from scratch.
+      from scratch. Implemented via
+      POST /media/content/{content_id}/external-source/{source}.
+- [ ] Proper handling when a manual TMDB/TVDB ID merge hits a
+      content_type mismatch (e.g. trying to merge a "movie" row into
+      a "tv" row, or vice versa) - set_content_external_id() currently
+      just blocks this case with an error instead of offering a real
+      resolution (e.g. letting the user pick which content_type is
+      correct, or converting one row).
 - [ ] Background job queue (Celery, RQ, or FastAPI `BackgroundTasks`)
       for TMDB/TVDB imports, so large imports don't depend on
       ever-increasing proxy/timeout settings.

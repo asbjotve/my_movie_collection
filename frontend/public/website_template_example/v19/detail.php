@@ -236,6 +236,18 @@ $sectionAccess = [
     }
     body.editModeActive .editPencilBtn{ display:inline-block; }
     .editPencilBtn:hover{ color: var(--accent, #5b8def); }
+    /* ---- "+"-knapp for å SETTE en manglende TMDB/TVDB-id (vises
+       uavhengig av redigeringsmodus - styres i stedet av JS ut fra om
+       kilden mangler, se renderDetail()). Egen klasse (ikke
+       .editPencilBtn) slik at den unngår den delegerte klikk-
+       handleren for .editPencilBtn (som åpner "Rediger felt"-modalen
+       basert på data-field, noe disse knappene ikke har). ---- */
+    .setIdBtn{
+      appearance:none; cursor:pointer; background:none; border:none;
+      color: var(--muted); font-size:13px; padding:0 0 0 6px; line-height:1;
+      vertical-align:middle;
+    }
+    .setIdBtn:hover{ color: var(--accent, #5b8def); }
     .titleEditRow{ display:flex; align-items:center; gap:6px; }
     .factCard .vRow{ display:flex; align-items:center; gap:6px; }
 
@@ -468,8 +480,8 @@ $sectionAccess = [
 
       <div class="factsGrid" id="idsGrid">
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="vRow"><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="imdb_id" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="v" id="fTmdb">-</div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="v" id="fTvdb">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="vRow"><div class="v" id="fTmdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTmdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="vRow"><div class="v" id="fTvdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTvdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
       </div>
 
       <div class="factsGrid">
@@ -557,6 +569,52 @@ $sectionAccess = [
   </div>
 </div>
 
+<!--
+  "Sett TMDB/TVDB-id"-modal: søk i TMDB/TVDB (faner) og velg riktig
+  treff i stedet for å skrive inn en numerisk id direkte - se
+  openSetIdModal()/searchExternalId() lenger ned.
+-->
+<div id="setIdModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox" style="max-width:640px;">
+    <div class="modalHeader">
+      <h3 id="setIdModalTitle"></h3>
+      <button type="button" id="btnCloseSetIdModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <div class="setIdTabs">
+      <button type="button" class="setIdTabBtn" data-source="tmdb">TMDB</button>
+      <button type="button" class="setIdTabBtn" data-source="tvdb">TVDB</button>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+      <select id="setIdContentType" style="flex:0 0 auto;">
+        <option value="movie"><?= htmlspecialchars(t('wte.detail.set_id_type_movie')) ?></option>
+        <option value="tv"><?= htmlspecialchars(t('wte.detail.set_id_type_tv')) ?></option>
+      </select>
+      <input type="text" id="setIdSearchInput" placeholder="<?= htmlspecialchars(t('wte.detail.set_id_search_placeholder')) ?>" style="flex:1;">
+    </div>
+    <div id="setIdModalStatus" class="refreshStatus" style="margin-top:8px;"></div>
+    <div id="setIdResultsList" class="setIdResultsList"></div>
+  </div>
+</div>
+
+<!--
+  Generisk bekreftelsesmodal, brukt i stedet for confirm() (f.eks. ved
+  ID-konflikt der filmen må slås sammen med en eksisterende) - se
+  showConfirmModal() lenger ned.
+-->
+<div id="confirmModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox" style="max-width:460px;">
+    <div class="modalHeader">
+      <h3 id="confirmModalTitle"></h3>
+      <button type="button" id="btnCloseConfirmModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <p id="confirmModalMessage" style="margin:0 0 16px; line-height:1.5;"></p>
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button type="button" id="btnConfirmModalCancel" class="refreshBtn"></button>
+      <button type="button" id="btnConfirmModalOk" class="refreshBtn"></button>
+    </div>
+  </div>
+</div>
+
 <style>
   .modalOverlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.6);
@@ -578,6 +636,28 @@ $sectionAccess = [
     position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.7);
     color: #fff; font-size: 11px; text-align: center; padding: 2px 0;
   }
+
+  /* ---- "Sett TMDB/TVDB-id"-modal ---- */
+  .setIdTabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); }
+  .setIdTabBtn{
+    appearance:none; cursor:pointer; background:none; border:none;
+    color: var(--muted); font-size:13px; font-weight:700; padding:8px 14px;
+    border-bottom:2px solid transparent;
+  }
+  .setIdTabBtn.active{ color: var(--text); border-bottom-color: var(--accent, #5b8def); }
+  .setIdResultsList{ display:flex; flex-direction:column; gap:8px; margin-top:12px; max-height:50vh; overflow-y:auto; }
+  .setIdResultItem{
+    display:flex; gap:10px; align-items:flex-start; cursor:pointer;
+    border:1px solid var(--line); border-radius:8px; padding:8px;
+  }
+  .setIdResultItem:hover{ background: rgba(111,141,255,.10); border-color: rgba(111,141,255,.55); }
+  .setIdResultItem .poster{
+    width:46px; height:69px; flex-shrink:0; border-radius:4px; background-size:cover; background-position:center;
+    background-color: rgba(255,255,255,.06);
+  }
+  .setIdResultItem .meta .title{ font-weight:700; font-size:14px; }
+  .setIdResultItem .meta .year{ color: var(--muted); font-size:12px; }
+  .setIdResultItem .meta .overview{ color: var(--muted); font-size:12px; margin-top:4px; }
 </style>
 
 <script>
@@ -610,6 +690,38 @@ $sectionAccess = [
     const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
     return { "X-CSRF-Token": token };
   }
+
+  // Generisk bekreftelsesmodal (erstatter confirm()). Returnerer et
+  // Promise<boolean> som løses når brukeren klikker "Avbryt" eller
+  // "Bekreft" (eller lukker/klikker utenfor - teller som avbryt).
+  const confirmModalOverlay = document.getElementById("confirmModalOverlay");
+  const confirmModalTitle = document.getElementById("confirmModalTitle");
+  const confirmModalMessage = document.getElementById("confirmModalMessage");
+  const btnConfirmModalCancel = document.getElementById("btnConfirmModalCancel");
+  const btnConfirmModalOk = document.getElementById("btnConfirmModalOk");
+  const btnCloseConfirmModal = document.getElementById("btnCloseConfirmModal");
+  let confirmModalResolve = null;
+
+  function showConfirmModal({ title, message, confirmLabel, cancelLabel }){
+    confirmModalTitle.textContent = title || WTE_I18N.detail.confirm_title;
+    confirmModalMessage.textContent = message || "";
+    btnConfirmModalOk.textContent = confirmLabel || WTE_I18N.detail.confirm_ok;
+    btnConfirmModalCancel.textContent = cancelLabel || WTE_I18N.detail.confirm_cancel;
+    confirmModalOverlay.style.display = "flex";
+    return new Promise((resolve) => { confirmModalResolve = resolve; });
+  }
+
+  function resolveConfirmModal(result){
+    confirmModalOverlay.style.display = "none";
+    const resolve = confirmModalResolve;
+    confirmModalResolve = null;
+    if (resolve) resolve(result);
+  }
+
+  btnConfirmModalOk.addEventListener("click", () => resolveConfirmModal(true));
+  btnConfirmModalCancel.addEventListener("click", () => resolveConfirmModal(false));
+  btnCloseConfirmModal.addEventListener("click", () => resolveConfirmModal(false));
+  confirmModalOverlay.addEventListener("click", (e) => { if (e.target === confirmModalOverlay) resolveConfirmModal(false); });
 
   const params = new URLSearchParams(window.location.search);
   const contentId = params.get("id");
@@ -1143,6 +1255,15 @@ $sectionAccess = [
     document.getElementById("fTmdb").textContent = tmdbSource?.external_id || "-";
     document.getElementById("fTvdb").textContent = tvdbSource?.external_id || "-";
 
+    // "+"-knappene for å SETTE en TMDB/TVDB-id vises bare når kilden
+    // mangler fra før (motsatt av "Bytt data fra kilde"-knappene under,
+    // som bare er aktive når kilden finnes) - se
+    // set_content_external_id() i backend.
+    const btnSetTmdbId = document.getElementById("btnSetTmdbId");
+    const btnSetTvdbId = document.getElementById("btnSetTvdbId");
+    if (btnSetTmdbId) btnSetTmdbId.style.display = tmdbSource?.external_id ? "none" : "";
+    if (btnSetTvdbId) btnSetTvdbId.style.display = tvdbSource?.external_id ? "none" : "";
+
     // Knappene for å bytte data fra TMDB/TVDB er bare aktive når kilden
     // finnes fra før (content_external_source-raden må allerede finnes -
     // se update_content_external_source() i backend). Knappene finnes
@@ -1283,6 +1404,201 @@ $sectionAccess = [
   // $isLoggedIn i HTML-delen over) - derfor null-sjekk før addEventListener.
   document.getElementById("btnRefreshTmdb")?.addEventListener("click", (e) => refreshSource("tmdb", e.currentTarget));
   document.getElementById("btnRefreshTvdb")?.addEventListener("click", (e) => refreshSource("tvdb", e.currentTarget));
+
+  // "Sett TMDB/TVDB-id"-modal: søk i TMDB/TVDB (faner) og velg riktig
+  // treff fra en liste i stedet for å skrive inn en numerisk id blindt
+  // via prompt(). Selve tildelingen (+ konflikt/merge-håndtering) skjer
+  // i applyExternalId() under, som kalles når brukeren klikker et
+  // søkeresultat.
+  const setIdModalOverlay = document.getElementById("setIdModalOverlay");
+  const setIdModalTitle = document.getElementById("setIdModalTitle");
+  const setIdSearchInput = document.getElementById("setIdSearchInput");
+  const setIdContentType = document.getElementById("setIdContentType");
+  const setIdModalStatus = document.getElementById("setIdModalStatus");
+  const setIdResultsList = document.getElementById("setIdResultsList");
+  const setIdTabBtns = document.querySelectorAll(".setIdTabBtn");
+  let setIdActiveSource = "tmdb";
+  let setIdSearchTimeout = null;
+
+  function openSetIdModal(source){
+    setIdActiveSource = source;
+    setIdTabBtns.forEach(b => b.classList.toggle("active", b.dataset.source === source));
+    setIdModalTitle.textContent = wteFormat(WTE_I18N.detail.set_id_modal_title, currentItem?.title || "");
+    // Foreslår samme type som filmen allerede er registrert som, men
+    // brukeren kan overstyre - f.eks. hvis en Plex-import feilaktig
+    // har satt content_type=movie for noe som egentlig er en tv-serie.
+    setIdContentType.value = currentItem?.content_type === "tv" ? "tv" : "movie";
+    setIdSearchInput.value = currentItem?.title || "";
+    setIdResultsList.innerHTML = "";
+    setIdModalStatus.className = "refreshStatus";
+    setIdModalStatus.textContent = "";
+    setIdModalOverlay.style.display = "flex";
+    setIdSearchInput.focus();
+    setIdSearchInput.select();
+    runSetIdSearch();
+  }
+
+  function closeSetIdModal(){
+    setIdModalOverlay.style.display = "none";
+    clearTimeout(setIdSearchTimeout);
+  }
+
+  document.getElementById("btnSetTmdbId")?.addEventListener("click", () => openSetIdModal("tmdb"));
+  document.getElementById("btnSetTvdbId")?.addEventListener("click", () => openSetIdModal("tvdb"));
+  document.getElementById("btnCloseSetIdModal").addEventListener("click", closeSetIdModal);
+  setIdModalOverlay.addEventListener("click", (e) => { if (e.target === setIdModalOverlay) closeSetIdModal(); });
+
+  setIdContentType.addEventListener("change", runSetIdSearch);
+
+  setIdTabBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      setIdActiveSource = btn.dataset.source;
+      setIdTabBtns.forEach(b => b.classList.toggle("active", b === btn));
+      runSetIdSearch();
+    });
+  });
+
+  setIdSearchInput.addEventListener("input", () => {
+    clearTimeout(setIdSearchTimeout);
+    setIdSearchTimeout = setTimeout(runSetIdSearch, 400);
+  });
+
+  async function runSetIdSearch(){
+    const query = setIdSearchInput.value.trim();
+    setIdResultsList.innerHTML = "";
+    if (query.length < 2){
+      setIdModalStatus.className = "refreshStatus";
+      setIdModalStatus.textContent = WTE_I18N.detail.set_id_search_min_chars;
+      return;
+    }
+
+    setIdModalStatus.className = "refreshStatus";
+    setIdModalStatus.textContent = WTE_I18N.detail.set_id_searching;
+
+    try {
+      const contentType = setIdContentType.value === "tv" ? "tv" : "movie";
+      const res = await fetch(
+        "api.php?action=search_external_source&source=" + encodeURIComponent(setIdActiveSource) +
+          "&query=" + encodeURIComponent(query) +
+          "&content_type=" + encodeURIComponent(contentType)
+      );
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
+
+      const results = json.results || [];
+      if (!results.length){
+        setIdModalStatus.textContent = WTE_I18N.detail.set_id_no_results;
+        return;
+      }
+      setIdModalStatus.textContent = "";
+      renderSetIdResults(results);
+    } catch (err) {
+      setIdModalStatus.className = "refreshStatus error";
+      setIdModalStatus.textContent = wteFormat(WTE_I18N.detail.refresh_error_prefix, setIdActiveSource.toUpperCase(), err.message);
+    }
+  }
+
+  function renderSetIdResults(results){
+    setIdResultsList.innerHTML = results.map(r => `
+      <div class="setIdResultItem" data-external-id="${escapeHtml(r.external_id)}">
+        <div class="poster" style="${r.poster_url ? `background-image:url('${r.poster_url.replace(/'/g, "%27")}')` : ""}"></div>
+        <div class="meta">
+          <div class="title">${escapeHtml(r.title || "?")}</div>
+          <div class="year">${escapeHtml(r.year || "")} · ${escapeHtml(r.external_id)}</div>
+          ${r.overview ? `<div class="overview">${escapeHtml(r.overview.length > 160 ? r.overview.slice(0, 157) + "…" : r.overview)}</div>` : ""}
+        </div>
+      </div>
+    `).join("");
+
+    setIdResultsList.querySelectorAll(".setIdResultItem").forEach(el => {
+      el.addEventListener("click", () => applyExternalId(setIdActiveSource, el.dataset.externalId));
+    });
+  }
+
+  // Selve tildelingen: kalles når brukeren klikker et søkeresultat i
+  // "Sett TMDB/TVDB-id"-modalen. Håndterer også 409-konflikt (IDen
+  // tilhører allerede en annen film) med en confirm()-dialog for å
+  // slå filmene sammen, samme mønster som "fjern fra filmgruppe"
+  // lenger ned i filen.
+  async function applyExternalId(source, externalId){
+    const statusEl = document.getElementById("refreshStatus");
+
+    async function callSet(confirmMerge){
+      const res = await fetch(
+        "api.php?action=set_external_id&content_id=" + encodeURIComponent(contentId) +
+          "&source=" + encodeURIComponent(source) +
+          "&external_id=" + encodeURIComponent(externalId) +
+          (confirmMerge ? "&confirm_merge=1" : ""),
+        { method: "POST", headers: csrfHeader() }
+      );
+      const json = await res.json();
+      return { ok: res.ok, status: res.status, json };
+    }
+
+    setIdModalStatus.className = "refreshStatus";
+    setIdModalStatus.textContent = wteFormat(WTE_I18N.detail.setting_id, source.toUpperCase());
+
+    try {
+      let { ok, status, json } = await callSet(false);
+
+      if (!ok && status === 409) {
+        const conflict = json.detail || json;
+        const ownership = conflict.physically_owned
+          ? WTE_I18N.detail.conflict_physically_owned
+          : (conflict.digitally_owned ? WTE_I18N.detail.conflict_digitally_owned : WTE_I18N.detail.conflict_not_owned);
+        const confirmed = await showConfirmModal({
+          title: WTE_I18N.detail.conflict_merge_title,
+          message: wteFormat(WTE_I18N.detail.conflict_merge_confirm, conflict.conflict_title || "?", ownership),
+          confirmLabel: WTE_I18N.detail.conflict_merge_ok,
+          cancelLabel: WTE_I18N.detail.confirm_cancel
+        });
+        if (!confirmed) {
+          setIdModalStatus.className = "refreshStatus";
+          setIdModalStatus.textContent = "";
+          return;
+        }
+        ({ ok, status, json } = await callSet(true));
+      }
+
+      if (!ok) {
+        throw new Error((json.detail && json.detail.message) || json.error || json.detail || ("HTTP " + status));
+      }
+
+      if (json.merged) {
+        // Filmen som manglet ID var faktisk et duplikat av en annen
+        // film - all data ble flyttet dit, og denne raden ble slettet.
+        // Går derfor til den filmen i stedet for å laste denne siden
+        // på nytt (denne content_id-en finnes ikke lenger).
+        closeSetIdModal();
+        statusEl.className = "refreshStatus success";
+        statusEl.textContent = wteFormat(WTE_I18N.detail.merge_done, json.into_title);
+        window.location.href = "detail.php?id=" + encodeURIComponent(json.into_content_id);
+        return;
+      }
+
+      // Ingen konflikt - koblingen er opprettet, men feltene (title/
+      // overview/runtime osv.) er ikke flettet inn i content-tabellen
+      // ennå. Gjør det samme andre steget som refreshSource() gjør.
+      setIdModalStatus.textContent = wteFormat(WTE_I18N.detail.merging_from, source.toUpperCase());
+      const mergeRes = await fetch(
+        "api.php?action=merge_external_source&source=" + encodeURIComponent(source) +
+          "&external_id=" + encodeURIComponent(externalId),
+        { method: "POST", headers: csrfHeader() }
+      );
+      const mergeJson = await mergeRes.json();
+      if (!mergeRes.ok || mergeJson.error) {
+        throw new Error(mergeJson.error || mergeJson.detail || ("HTTP " + mergeRes.status));
+      }
+
+      closeSetIdModal();
+      statusEl.className = "refreshStatus success";
+      statusEl.textContent = wteFormat(WTE_I18N.detail.source_updated, source.toUpperCase(), json.fetched_at || WTE_I18N.detail.now);
+      await loadDetail();
+    } catch (err) {
+      setIdModalStatus.className = "refreshStatus error";
+      setIdModalStatus.textContent = wteFormat(WTE_I18N.detail.refresh_error_prefix, source.toUpperCase(), err.message);
+    }
+  }
 
   // "Bytt cover"-modal: henter alle tilgjengelige TMDB-postere for
   // filmen (fra sist lagrede data_json - ingen nye TMDB-kall) og lar

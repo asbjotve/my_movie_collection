@@ -37,6 +37,27 @@ class ContentExternalSourceError(ValueError):
         self.status_code = status_code
 
 
+class ContentExternalSourceConflict(ContentExternalSourceError):
+    """En TMDB/TVDB-id som forsøkes satt via set_content_external_id()
+    er allerede registrert på en ANNEN content-rad - sendes som 409 slik
+    at frontend kan spørre brukeren om å slå de to radene sammen (se
+    set_content_external_id())."""
+
+    def __init__(
+        self,
+        message: str,
+        conflict_content_id: str,
+        conflict_title: str,
+        physically_owned: bool,
+        digitally_owned: bool,
+    ) -> None:
+        super().__init__(message, status_code=409)
+        self.conflict_content_id = conflict_content_id
+        self.conflict_title = conflict_title
+        self.physically_owned = physically_owned
+        self.digitally_owned = digitally_owned
+
+
 def _hex_id(raw: bytes) -> str:
     return uuid.UUID(bytes=raw).hex.upper()
 
@@ -2104,6 +2125,266 @@ def list_group_names(db: Session) -> list[dict]:
     """
     rows = db.execute(text("SELECT group_id, name FROM movie_group ORDER BY name ASC")).fetchall()
     return [{"group_id": r.group_id, "name": r.name} for r in rows]
+
+
+# Tabeller (utenom content_external_source, som håndteres separat siden
+# den har source i primærnøkkelen) som kan peke på en content-rad -
+# brukt av _move_content_references() ved sammenslåing av to
+# content-rader (se set_content_external_id()). Hver oppføring er
+# (tabellnavn, kolonnenavn, kollisjons-nøkkelkolonner) - kollisjons-
+# nøkkelkolonnene er resten av en evt. UNIQUE/PRIMARY-nøkkel utenom
+# content_id selv, og brukes til å oppdage at "into" allerede har en
+# rad med samme nøkkel (da beholdes "into" sin rad, og "from" sin
+# droppes i stedet for å flyttes, for å unngå brudd på nøkkelen).
+_CONTENT_REFERENCE_TABLES = (
+    ("content_in_physical_collection", "content_id", ("collection_id",)),
+    ("content_group_membership", "content_id", ("group_id",)),
+    ("disc_related_content", "content_id", ("disc_id",)),
+    # content_in_digital_library/season/disc_in.related_content_id har
+    # ingen UNIQUE-nøkkel som involverer content_id (kun content_id selv
+    # som vanlig indeks) - en ren flytting kan derfor aldri kollidere.
+    ("content_in_digital_library", "content_id", ()),
+    ("season", "content_id", ()),
+    ("disc_in", "related_content_id", ()),
+    # wishlist sin PRIMARY KEY ER content_id - "into" kan derfor allerede
+    # ha en rad helt uten noen ekstra kollisjons-kolonne å sjekke mot.
+    ("wishlist", "content_id", ()),
+)
+
+
+def _move_content_references(db: Session, from_content_id: bytes, into_content_id: bytes) -> dict:
+    """Flytter alt som i dag peker på from_content_id til å peke på
+    into_content_id i stedet - brukt når to content-rader slås sammen
+    fordi de viste seg å gjelde samme film (se set_content_external_id()).
+    Håndterer kollisjoner (into har allerede en rad med samme
+    nøkkel/kolonne) ved å beholde into sin rad og droppe from sin.
+
+    content_external_source håndteres for seg (se kallstedet) siden
+    den alltid har nøyaktig én rad per (source, content_id) og selve
+    poenget med sammenslåingen er at into skal beholde/få riktig id for
+    kilden brukeren nettopp satte."""
+
+    moved: dict[str, int] = {}
+
+    for table, column, collision_columns in _CONTENT_REFERENCE_TABLES:
+        if collision_columns:
+            collision_select = ", ".join(collision_columns)
+            into_keys = {
+                tuple(row)
+                for row in db.execute(
+                    text(f"SELECT {collision_select} FROM {table} WHERE {column} = :id"),
+                    {"id": into_content_id},
+                ).fetchall()
+            }
+            from_rows = db.execute(
+                text(f"SELECT {collision_select} FROM {table} WHERE {column} = :id"),
+                {"id": from_content_id},
+            ).fetchall()
+            colliding = [row for row in from_rows if tuple(row) in into_keys]
+            if colliding:
+                where_extra = " AND ".join(f"{col} = :{col}" for col in collision_columns)
+                for row in colliding:
+                    params = {"id": from_content_id, **dict(zip(collision_columns, row))}
+                    db.execute(
+                        text(f"DELETE FROM {table} WHERE {column} = :id AND {where_extra}"),
+                        params,
+                    )
+
+        result = db.execute(
+            text(f"UPDATE {table} SET {column} = :into_id WHERE {column} = :from_id"),
+            {"into_id": into_content_id, "from_id": from_content_id},
+        )
+        if result.rowcount:
+            moved[table] = result.rowcount
+
+    # Andre kilder (f.eks. from har en tvdb-kobling som into mangler) -
+    # flytt over med mindre into allerede har en rad for samme source.
+    into_sources = {
+        row[0]
+        for row in db.execute(
+            text("SELECT source FROM content_external_source WHERE content_id = :id"),
+            {"id": into_content_id},
+        ).fetchall()
+    }
+    from_sources = db.execute(
+        text("SELECT source FROM content_external_source WHERE content_id = :id"),
+        {"id": from_content_id},
+    ).fetchall()
+    for (source_name,) in from_sources:
+        if source_name in into_sources:
+            db.execute(
+                text("DELETE FROM content_external_source WHERE content_id = :id AND source = :source"),
+                {"id": from_content_id, "source": source_name},
+            )
+        else:
+            db.execute(
+                text(
+                    "UPDATE content_external_source SET content_id = :into_id "
+                    "WHERE content_id = :from_id AND source = :source"
+                ),
+                {"into_id": into_content_id, "from_id": from_content_id, "source": source_name},
+            )
+            moved["content_external_source"] = moved.get("content_external_source", 0) + 1
+
+    return moved
+
+
+def set_content_external_id(
+    db: Session,
+    content_id: str,
+    source: str,
+    external_id: str,
+    confirm_merge: bool = False,
+) -> dict:
+    """Setter en TMDB/TVDB-id på en content-rad som i dag mangler en (i
+    motsetning til update_content_external_source(), som krever at
+    koblingen finnes fra før) - eller erstatter en feil id.
+
+    Validerer external_id-en ved å faktisk hente detaljer fra TMDB/TVDB
+    med den FØR noe lagres, slik at en ugyldig/feilstavet id feiler
+    tydelig i stedet for å lagre en død kobling.
+
+    Hvis denne (source, external_id) allerede er registrert på en ANNEN
+    content-rad (bekreftet med brukeren - duplikat-scenario, f.eks. en
+    film som finnes både fra fysisk import og separat Plex/manuell
+    opprettelse), opprettes IKKE en duplikat-kobling:
+    - uten confirm_merge: kastes ContentExternalSourceConflict (409)
+      med info om hvilken content-rad IDen allerede tilhører, slik at
+      frontend kan spørre brukeren om å slå sammen.
+    - med confirm_merge=True: alt som pekte på denne content-raden
+      (fysisk eierskap, digitalt bibliotek, boxset/gruppe-medlemskap,
+      disc-ekstramateriale, ønskeliste, andre kilder) flyttes over til
+      den eksisterende raden (se _move_content_references()), og denne
+      (nå tomme, duplikate) content-raden slettes. content_type må
+      stemme overens mellom radene, ellers avvises sammenslåingen (se
+      TODO.md - "Duplicate detection" for videre arbeid med dette)."""
+
+    if source not in ("tmdb", "tvdb"):
+        raise ContentExternalSourceError(
+            f"Kun 'tmdb' og 'tvdb' kan settes her, ikke source={source!r}.",
+            status_code=400,
+        )
+
+    external_id = external_id.strip()
+    if not external_id:
+        raise ContentExternalSourceError("external_id kan ikke være tom.", status_code=400)
+
+    try:
+        content_id_bytes = _parse_hex_id(content_id)
+    except ValueError as e:
+        raise ContentExternalSourceError(f"Ugyldig content_id={content_id!r}.", status_code=400) from e
+
+    content_row = db.execute(
+        text("SELECT content_type FROM content WHERE content_id = :content_id"),
+        {"content_id": content_id_bytes},
+    ).fetchone()
+    if content_row is None:
+        raise ContentExternalSourceError(f"Fant ingen content-rad med id={content_id!r}.", status_code=404)
+
+    content_type = content_row.content_type or "movie"
+
+    try:
+        if source == "tmdb":
+            data_json = fetch_tmdb_details(external_id, content_type)
+        else:
+            data_json = fetch_tvdb_details(external_id, content_type)
+    except ExternalApiError as e:
+        raise ContentExternalSourceError(str(e), status_code=e.status_code) from e
+
+    conflict = db.execute(
+        text(
+            """
+            SELECT ces.content_id, c.title, c.content_type
+            FROM content_external_source ces
+            JOIN content c ON c.content_id = ces.content_id
+            WHERE ces.source = :source AND ces.external_id = :external_id
+              AND ces.content_id != :content_id
+            """
+        ),
+        {"source": source, "external_id": external_id, "content_id": content_id_bytes},
+    ).fetchone()
+
+    if conflict is not None:
+        if not confirm_merge:
+            is_physically_owned = db.execute(
+                text("SELECT 1 FROM content_in_physical_collection WHERE content_id = :id LIMIT 1"),
+                {"id": conflict.content_id},
+            ).fetchone() is not None
+            is_digitally_owned = db.execute(
+                text("SELECT 1 FROM content_in_digital_library WHERE content_id = :id LIMIT 1"),
+                {"id": conflict.content_id},
+            ).fetchone() is not None
+            raise ContentExternalSourceConflict(
+                f"Denne {source.upper()}-IDen er allerede registrert på '{conflict.title}'.",
+                conflict_content_id=_hex_id(conflict.content_id),
+                conflict_title=conflict.title,
+                physically_owned=is_physically_owned,
+                digitally_owned=is_digitally_owned,
+            )
+
+        if conflict.content_type != content_type:
+            raise ContentExternalSourceError(
+                f"Kan ikke slå sammen - '{conflict.title}' er content_type={conflict.content_type!r}, "
+                f"denne raden er content_type={content_type!r}. Antagelig feil id oppgitt.",
+                status_code=409,
+            )
+
+        _move_content_references(db, content_id_bytes, conflict.content_id)
+        db.execute(text("DELETE FROM content WHERE content_id = :id"), {"id": content_id_bytes})
+        db.commit()
+
+        return {
+            "merged": True,
+            "into_content_id": _hex_id(conflict.content_id),
+            "into_title": conflict.title,
+        }
+
+    if source == "tmdb":
+        facet_genres, facet_cast, facet_release_year = _compute_search_facets(data_json)
+    else:
+        facet_genres, facet_cast, facet_release_year = [], [], None
+
+    now = datetime.now(timezone.utc)
+    db.execute(
+        text(
+            """
+            INSERT INTO content_external_source (
+                source, content_id, external_id, data_json, fetched_at,
+                facet_genres, facet_cast, facet_release_year
+            )
+            VALUES (
+                :source, :content_id, :external_id, :data_json, :fetched_at,
+                :facet_genres, :facet_cast, :facet_release_year
+            )
+            ON DUPLICATE KEY UPDATE
+                external_id = VALUES(external_id),
+                data_json = VALUES(data_json),
+                fetched_at = VALUES(fetched_at),
+                facet_genres = VALUES(facet_genres),
+                facet_cast = VALUES(facet_cast),
+                facet_release_year = VALUES(facet_release_year)
+            """
+        ),
+        {
+            "source": source,
+            "content_id": content_id_bytes,
+            "external_id": external_id,
+            "data_json": json.dumps(data_json, ensure_ascii=False),
+            "fetched_at": now,
+            "facet_genres": json.dumps(facet_genres),
+            "facet_cast": json.dumps(facet_cast),
+            "facet_release_year": facet_release_year,
+        },
+    )
+    db.commit()
+
+    return {
+        "merged": False,
+        "content_id": _hex_id(content_id_bytes),
+        "source": source,
+        "external_id": external_id,
+        "fetched_at": str(now)[:19],
+    }
 
 
 def update_content_external_source(

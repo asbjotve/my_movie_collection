@@ -6,10 +6,12 @@ fulle detaljer og sender dem som JSON-payload (kan bli mye data),
 henter backend selv fulle detaljer fra TMDB/TVDB rett før de lagres i
 content_external_source.data_json.
 
-Samme mønster (URL-er/parametre) som PHP-versjonene i
-frontend/public/tmdb_live_search og frontend/public/tvdb_live_search
-bruker for søk - denne filen dekker kun "hent fulle detaljer for én
-kjent ekstern ID", ikke søk.
+search_tmdb()/search_tvdb() brukes av søkemodalen for å SETTE en
+manglende TMDB/TVDB-id på detail.php (se set_content_external_id() i
+media_catalog.py) - samme mønster (URL-er/parametre) som PHP-versjonene
+i frontend/public/tmdb_live_search og frontend/public/tvdb_live_search,
+bare portet til Python/requests og normalisert til samme resultatform
+for begge kildene, slik at frontend kan vise dem side om side.
 """
 
 import requests
@@ -26,6 +28,94 @@ class ExternalApiError(ValueError):
     def __init__(self, message: str, status_code: int = 502) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+def search_tmdb(query: str, content_type: str) -> list[dict]:
+    """Søker TMDB (film eller serie) og returnerer en normalisert liste:
+    [{external_id, title, year, overview, poster_url}, ...] - sortert
+    som TMDB selv sorterer (popularitet/relevans)."""
+
+    if not settings.TMDB_API_KEY:
+        raise ExternalApiError(
+            "TMDB_API_KEY er ikke satt i backend/config/.env", status_code=500
+        )
+
+    media_type = "movie" if content_type == "movie" else "tv"
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/search/{media_type}",
+            params={
+                "api_key": settings.TMDB_API_KEY,
+                "language": "nb-NO",
+                "query": query,
+                "page": 1,
+            },
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as e:
+        raise ExternalApiError(f"Kunne ikke nå TMDB: {e}") from e
+
+    if response.status_code != 200:
+        raise ExternalApiError(
+            f"TMDB svarte med feilkode {response.status_code}: {response.text[:300]}"
+        )
+
+    results = response.json().get("results") or []
+    normalized = []
+    for r in results:
+        title = r.get("title") or r.get("name") or ""
+        release_date = r.get("release_date") or r.get("first_air_date") or ""
+        poster_path = r.get("poster_path")
+        normalized.append(
+            {
+                "external_id": str(r.get("id")),
+                "title": title,
+                "year": release_date[:4] if release_date else None,
+                "overview": r.get("overview") or "",
+                "poster_url": f"https://image.tmdb.org/t/p/w154{poster_path}" if poster_path else None,
+            }
+        )
+    return normalized
+
+
+def search_tvdb(query: str, content_type: str) -> list[dict]:
+    """Søker TVDB (film eller serie) og returnerer samme normaliserte
+    form som search_tmdb()."""
+
+    token = _get_tvdb_token()
+    tvdb_type = "movie" if content_type == "movie" else "series"
+
+    try:
+        response = requests.get(
+            f"{TVDB_BASE_URL}/search",
+            params={"query": query, "type": tvdb_type, "limit": 25},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as e:
+        raise ExternalApiError(f"Kunne ikke nå TVDB: {e}") from e
+
+    if response.status_code != 200:
+        raise ExternalApiError(
+            f"TVDB svarte med feilkode {response.status_code}: {response.text[:300]}"
+        )
+
+    results = response.json().get("data") or []
+    normalized = []
+    for r in results:
+        external_id = r.get("tvdb_id") or r.get("id")
+        if external_id is None:
+            continue
+        normalized.append(
+            {
+                "external_id": str(external_id),
+                "title": r.get("name") or r.get("title") or r.get("slug") or "",
+                "year": r.get("year"),
+                "overview": r.get("overview") or "",
+                "poster_url": r.get("image_url") or r.get("thumbnail"),
+            }
+        )
+    return normalized
 
 
 def fetch_tmdb_details(external_id: str, content_type: str) -> dict:

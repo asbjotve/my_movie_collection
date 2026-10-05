@@ -12,9 +12,12 @@ from app.schemas.media_catalog import (
     GroupMembershipAddRequest,
     GroupReorderRequest,
     PhysicalCopyFieldUpdateRequest,
+    SetContentExternalIdRequest,
 )
 from app.security import get_current_user
+from app.services.external_apis import ExternalApiError, search_tmdb, search_tvdb
 from app.services.media_catalog import (
+    ContentExternalSourceConflict,
     ContentExternalSourceError,
     add_content_to_group,
     backfill_tmdb_cover_images,
@@ -32,6 +35,7 @@ from app.services.media_catalog import (
     remove_content_from_group,
     reorder_group,
     set_content_cover_image,
+    set_content_external_id,
     set_content_field_lock,
     update_content_external_source,
     update_content_fields,
@@ -258,6 +262,73 @@ def patch_physical_copy_fields(
     fields = payload.model_dump(exclude_unset=True)
     try:
         return update_physical_copy_fields(db, collection_id, copy_id, fields)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.get("/external-search/{source}")
+def external_search(
+    source: str,
+    query: str,
+    content_type: str = "movie",
+    current_user: User = Depends(get_current_user),
+):
+    """Søk i TMDB/TVDB (brukes av søkemodalen for å SETTE en manglende
+    TMDB/TVDB-id på detail.php - se set_content_external_id() under).
+    Rent søk - lagrer ingenting, i motsetning til selve
+    tildelingsendepunktet."""
+    if source not in ("tmdb", "tvdb"):
+        raise HTTPException(status_code=400, detail="source må være 'tmdb' eller 'tvdb'.")
+    query = query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="query kan ikke være tom.")
+    if content_type not in ("movie", "tv"):
+        raise HTTPException(status_code=400, detail="content_type må være 'movie' eller 'tv'.")
+
+    try:
+        if source == "tmdb":
+            return {"results": search_tmdb(query, content_type)}
+        return {"results": search_tvdb(query, content_type)}
+    except ExternalApiError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/content/{content_id}/external-source/{source}")
+def assign_content_external_id(
+    content_id: str,
+    source: str,
+    payload: SetContentExternalIdRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Setter en TMDB/TVDB-id på en content-rad som mangler en (eller
+    erstatter en feil id) - i motsetning til PATCH
+    /external-source/{source}/{external_id} under, trengs ingen
+    eksisterende kobling fra før, se set_content_external_id().
+
+    Hvis IDen allerede er registrert på en annen content-rad (duplikat),
+    returneres 409 med info om hvilken film den tilhører - kall på nytt
+    med confirm_merge=true for å slå radene sammen i stedet for å
+    opprette en duplikatkobling."""
+    try:
+        return set_content_external_id(
+            db,
+            content_id=content_id,
+            source=source,
+            external_id=payload.external_id,
+            confirm_merge=payload.confirm_merge,
+        )
+    except ContentExternalSourceConflict as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={
+                "message": str(e),
+                "conflict_content_id": e.conflict_content_id,
+                "conflict_title": e.conflict_title,
+                "physically_owned": e.physically_owned,
+                "digitally_owned": e.digitally_owned,
+            },
+        )
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
