@@ -26,6 +26,8 @@ from app.services.external_apis import (
     ExternalApiError,
     fetch_tmdb_details,
     fetch_tvdb_details,
+    fetch_tmdb_season_episodes,
+    fetch_tvdb_season_episodes,
 )
 
 
@@ -2932,3 +2934,463 @@ def backfill_tmdb_cover_images(db: Session) -> dict:
         "errors": errors,
     }
 
+
+
+# --- Sesonger/episoder (TV-serier) --------------------------------------
+#
+# Sesong-fanen på detaljsiden for content_type='series'. Enkel manuell
+# CRUD (opprette/redigere/slette sesong+episode), pluss en "hent fra
+# kilde"-funksjon som henter en hel sesongs episodeliste fra TMDB/TVDB
+# i ett kall i stedet for én episode av gangen (se fetch_tmdb_season_
+# episodes()/fetch_tvdb_season_episodes() i external_apis.py).
+#
+# NB: episode-feltene har (foreløpig) ingen locked_fields-mekanisme slik
+# content har - "hent fra kilde" overskriver alltid tittel/beskrivelse/
+# dato/varighet for episodene som finnes fra kilden. watched_flag
+# påvirkes ALDRI av "hent fra kilde" (den er en lokal, manuell
+# markering uavhengig av TMDB/TVDB).
+
+def _season_to_dict(row) -> dict:
+    return {
+        "season_id": _hex_id(row.season_id),
+        "season_number": row.season_number,
+        "title": row.title,
+        "air_date": row.air_date.isoformat() if row.air_date else None,
+        "overview": row.overview,
+    }
+
+
+def _episode_to_dict(row, disc_by_episode_hex: dict) -> dict:
+    ek = _hex_id(row.episode_id)
+    return {
+        "episode_id": ek,
+        "episode_number": row.episode_number,
+        "title": row.title,
+        "overview": row.overview,
+        "runtime": row.runtime,
+        "original_air_date": row.original_air_date.isoformat() if row.original_air_date else None,
+        "watched_flag": bool(row.watched_flag),
+        "disc": disc_by_episode_hex.get(ek),
+    }
+
+
+def list_seasons(db: Session, content_id: str) -> list[dict]:
+    """Alle sesonger (med nøstede episodelister) for en serie, sortert
+    på sesongnummer - brukt av sesong-fanen på detaljsiden."""
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        return []
+
+    season_rows = db.execute(
+        text(
+            """
+            SELECT season_id, season_number, title, air_date, overview
+            FROM season
+            WHERE content_id = :content_id
+            ORDER BY season_number IS NULL, season_number
+            """
+        ),
+        {"content_id": raw_id},
+    ).fetchall()
+
+    if not season_rows:
+        return []
+
+    season_ids = [row.season_id for row in season_rows]
+    episode_rows = db.execute(
+        text(
+            """
+            SELECT episode_id, season_id, episode_number, title, overview,
+                   runtime, original_air_date, watched_flag
+            FROM episode
+            WHERE season_id IN :season_ids
+            ORDER BY episode_number IS NULL, episode_number
+            """
+        ).bindparams(bindparam("season_ids", expanding=True)),
+        {"season_ids": season_ids},
+    ).fetchall()
+
+    episode_ids = [row.episode_id for row in episode_rows]
+    disc_by_episode_hex: dict[str, dict] = {}
+    if episode_ids:
+        disc_rows = db.execute(
+            text(
+                """
+                SELECT dce.episode_id, d.disc_id, d.label, di.box_set_disc_order
+                FROM disc_contains_episode dce
+                JOIN disc d ON d.disc_id = dce.disc_id
+                LEFT JOIN disc_in di ON di.disc_id = d.disc_id
+                WHERE dce.episode_id IN :episode_ids
+                """
+            ).bindparams(bindparam("episode_ids", expanding=True)),
+            {"episode_ids": episode_ids},
+        ).fetchall()
+        for row in disc_rows:
+            disc_by_episode_hex[_hex_id(row.episode_id)] = {
+                "disc_id": _hex_id(row.disc_id),
+                "label": row.label,
+                "box_set_disc_order": row.box_set_disc_order,
+            }
+
+    episodes_by_season: dict[bytes, list[dict]] = {}
+    for row in episode_rows:
+        episodes_by_season.setdefault(row.season_id, []).append(
+            _episode_to_dict(row, disc_by_episode_hex)
+        )
+
+    return [
+        {**_season_to_dict(row), "episodes": episodes_by_season.get(row.season_id, [])}
+        for row in season_rows
+    ]
+
+
+def list_discs_for_content(db: Session, content_id: str) -> list[dict]:
+    """Flat liste over diskene til en series fysiske eksemplarer - brukt
+    som nedtrekksliste når en episode skal kobles til en disk (se
+    assign_episode_disc()). Viser alle disker uansett om de allerede
+    inneholder episode-koblinger eller ikke."""
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        return []
+
+    rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT d.disc_id, d.label, di.box_set_disc_order, di.copy_id
+            FROM content_in_physical_collection cipc
+            JOIN physical_copy pc ON pc.collection_id = cipc.collection_id
+            JOIN disc_in di ON di.collection_id = pc.collection_id AND di.copy_id = pc.copy_id
+            JOIN disc d ON d.disc_id = di.disc_id
+            WHERE cipc.content_id = :content_id
+            ORDER BY di.box_set_disc_order IS NULL, di.box_set_disc_order
+            """
+        ),
+        {"content_id": raw_id},
+    ).fetchall()
+
+    return [
+        {
+            "disc_id": _hex_id(row.disc_id),
+            "label": row.label,
+            "box_set_disc_order": row.box_set_disc_order,
+            "copy_id": row.copy_id,
+        }
+        for row in rows
+    ]
+
+
+def create_season(db: Session, content_id: str, fields: dict) -> dict:
+    try:
+        raw_content_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError) as e:
+        raise ContentExternalSourceError(f"Ugyldig content_id={content_id!r}.", status_code=400) from e
+
+    content_row = db.execute(
+        text("SELECT content_id FROM content WHERE content_id = :id"),
+        {"id": raw_content_id},
+    ).fetchone()
+    if content_row is None:
+        raise ContentExternalSourceError(f"Fant ingen content-rad med id={content_id!r}.", status_code=404)
+
+    season_id = uuid.uuid4().bytes
+    db.execute(
+        text(
+            """
+            INSERT INTO season (season_id, content_id, season_number, title, air_date, overview)
+            VALUES (:season_id, :content_id, :season_number, :title, :air_date, :overview)
+            """
+        ),
+        {
+            "season_id": season_id,
+            "content_id": raw_content_id,
+            "season_number": fields.get("season_number"),
+            "title": fields.get("title"),
+            "air_date": fields.get("air_date"),
+            "overview": fields.get("overview"),
+        },
+    )
+    db.commit()
+
+    return {**_season_to_dict_from_fields(season_id, fields), "episodes": []}
+
+
+def _season_to_dict_from_fields(season_id: bytes, fields: dict) -> dict:
+    air_date = fields.get("air_date")
+    return {
+        "season_id": _hex_id(season_id),
+        "season_number": fields.get("season_number"),
+        "title": fields.get("title"),
+        "air_date": air_date.isoformat() if air_date else None,
+        "overview": fields.get("overview"),
+    }
+
+
+def _get_season_row(db: Session, season_id: str):
+    try:
+        raw_id = _parse_hex_id(season_id)
+    except (ValueError, AttributeError) as e:
+        raise ContentExternalSourceError(f"Ugyldig season_id={season_id!r}.", status_code=400) from e
+
+    row = db.execute(
+        text("SELECT season_id, content_id, season_number FROM season WHERE season_id = :id"),
+        {"id": raw_id},
+    ).fetchone()
+    if row is None:
+        raise ContentExternalSourceError(f"Fant ingen sesong med id={season_id!r}.", status_code=404)
+    return row
+
+
+def update_season(db: Session, season_id: str, fields: dict) -> dict:
+    row = _get_season_row(db, season_id)
+    if not fields:
+        return list_seasons(db, _hex_id(row.content_id))[0]
+
+    set_clauses = ", ".join(f"{field} = :{field}" for field in fields)
+    db.execute(
+        text(f"UPDATE season SET {set_clauses} WHERE season_id = :season_id"),
+        {**fields, "season_id": row.season_id},
+    )
+    db.commit()
+
+    seasons = list_seasons(db, _hex_id(row.content_id))
+    return next(s for s in seasons if s["season_id"] == _hex_id(row.season_id))
+
+
+def delete_season(db: Session, season_id: str) -> dict:
+    row = _get_season_row(db, season_id)
+    db.execute(text("DELETE FROM season WHERE season_id = :id"), {"id": row.season_id})
+    db.commit()
+    return {"deleted": True, "season_id": _hex_id(row.season_id)}
+
+
+def create_episode(db: Session, season_id: str, fields: dict) -> dict:
+    row = _get_season_row(db, season_id)
+
+    episode_id = uuid.uuid4().bytes
+    db.execute(
+        text(
+            """
+            INSERT INTO episode (
+                episode_id, season_id, episode_number, title, overview,
+                runtime, original_air_date, watched_flag
+            )
+            VALUES (
+                :episode_id, :season_id, :episode_number, :title, :overview,
+                :runtime, :original_air_date, 0
+            )
+            """
+        ),
+        {
+            "episode_id": episode_id,
+            "season_id": row.season_id,
+            "episode_number": fields.get("episode_number"),
+            "title": fields.get("title"),
+            "overview": fields.get("overview"),
+            "runtime": fields.get("runtime"),
+            "original_air_date": fields.get("original_air_date"),
+        },
+    )
+    db.commit()
+
+    seasons = list_seasons(db, _hex_id(row.content_id))
+    season = next(s for s in seasons if s["season_id"] == _hex_id(row.season_id))
+    return next(e for e in season["episodes"] if e["episode_id"] == _hex_id(episode_id))
+
+
+def _get_episode_row(db: Session, episode_id: str):
+    try:
+        raw_id = _parse_hex_id(episode_id)
+    except (ValueError, AttributeError) as e:
+        raise ContentExternalSourceError(f"Ugyldig episode_id={episode_id!r}.", status_code=400) from e
+
+    row = db.execute(
+        text(
+            """
+            SELECT ep.episode_id, ep.season_id, sea.content_id
+            FROM episode ep
+            JOIN season sea ON sea.season_id = ep.season_id
+            WHERE ep.episode_id = :id
+            """
+        ),
+        {"id": raw_id},
+    ).fetchone()
+    if row is None:
+        raise ContentExternalSourceError(f"Fant ingen episode med id={episode_id!r}.", status_code=404)
+    return row
+
+
+def update_episode(db: Session, episode_id: str, fields: dict) -> dict:
+    row = _get_episode_row(db, episode_id)
+    if not fields:
+        pass
+    else:
+        if "watched_flag" in fields:
+            fields = {**fields, "watched_flag": 1 if fields["watched_flag"] else 0}
+        set_clauses = ", ".join(f"{field} = :{field}" for field in fields)
+        db.execute(
+            text(f"UPDATE episode SET {set_clauses} WHERE episode_id = :episode_id"),
+            {**fields, "episode_id": row.episode_id},
+        )
+        db.commit()
+
+    seasons = list_seasons(db, _hex_id(row.content_id))
+    season = next(s for s in seasons if s["season_id"] == _hex_id(row.season_id))
+    return next(e for e in season["episodes"] if e["episode_id"] == _hex_id(row.episode_id))
+
+
+def delete_episode(db: Session, episode_id: str) -> dict:
+    row = _get_episode_row(db, episode_id)
+    db.execute(text("DELETE FROM episode WHERE episode_id = :id"), {"id": row.episode_id})
+    db.commit()
+    return {"deleted": True, "episode_id": _hex_id(row.episode_id)}
+
+
+def assign_episode_disc(db: Session, episode_id: str, disc_id: str | None) -> dict:
+    """Kobler (eller fjerner koblingen for) hvilken fysisk disk en
+    episode ligger på - disc_contains_episode er mange-til-mange i
+    skjemaet, men UI-et her tillater kun én disk pr. episode (det
+    vanlige tilfellet), så eksisterende koblinger for episoden fjernes
+    først. disc_id=None fjerner koblingen uten å sette en ny."""
+
+    row = _get_episode_row(db, episode_id)
+
+    if disc_id is not None:
+        try:
+            raw_disc_id = _parse_hex_id(disc_id)
+        except (ValueError, AttributeError) as e:
+            raise ContentExternalSourceError(f"Ugyldig disc_id={disc_id!r}.", status_code=400) from e
+
+        valid_discs = {d["disc_id"] for d in list_discs_for_content(db, _hex_id(row.content_id))}
+        if disc_id.upper() not in valid_discs:
+            raise ContentExternalSourceError(
+                "Denne disken tilhører ikke denne seriens fysiske eksemplarer.", status_code=400
+            )
+
+    db.execute(text("DELETE FROM disc_contains_episode WHERE episode_id = :id"), {"id": row.episode_id})
+    if disc_id is not None:
+        db.execute(
+            text("INSERT INTO disc_contains_episode (disc_id, episode_id) VALUES (:disc_id, :episode_id)"),
+            {"disc_id": raw_disc_id, "episode_id": row.episode_id},
+        )
+    db.commit()
+
+    seasons = list_seasons(db, _hex_id(row.content_id))
+    season = next(s for s in seasons if s["season_id"] == _hex_id(row.season_id))
+    return next(e for e in season["episodes"] if e["episode_id"] == _hex_id(row.episode_id))
+
+
+def refresh_season_from_source(db: Session, season_id: str, source: str) -> dict:
+    """Henter hele sesongens episodeliste fra TMDB/TVDB i ett kall og
+    oppdaterer/oppretter episoder deretter, matchet på episode_number:
+    - finnes en episode med samme nummer fra før: tittel/beskrivelse/
+      dato/varighet overskrives (watched_flag røres ikke).
+    - finnes ingen: en ny episode-rad opprettes.
+    Episoder i databasen som kilden IKKE lenger har (f.eks. feilskrevet
+    episodenummer) slettes bevisst IKKE automatisk her - det er opp til
+    brukeren å rydde opp manuelt, siden en episode kan ha en disk-
+    kobling man ikke vil miste ved en feiltakelse.
+
+    Henter show-ens TMDB/TVDB-id fra content_external_source (samme
+    kobling som settes via "Sett TMDB/TVDB-id"-modalen på selve serien,
+    IKKE en separat id pr. sesong/episode)."""
+
+    if source not in ("tmdb", "tvdb"):
+        raise ContentExternalSourceError(f"Kun 'tmdb' og 'tvdb' støttes, ikke source={source!r}.", status_code=400)
+
+    row = _get_season_row(db, season_id)
+    if row.season_number is None:
+        raise ContentExternalSourceError(
+            "Denne sesongen mangler sesongnummer - kan ikke hente episoder fra kilde.", status_code=400
+        )
+
+    show_external_id_row = db.execute(
+        text("SELECT external_id FROM content_external_source WHERE content_id = :id AND source = :source"),
+        {"id": row.content_id, "source": source},
+    ).fetchone()
+    if show_external_id_row is None:
+        raise ContentExternalSourceError(
+            f"Serien har ingen {source.upper()}-id ennå - sett den først (se 'Sett ID'-knappen under Oversikt).",
+            status_code=400,
+        )
+
+    try:
+        if source == "tmdb":
+            result = fetch_tmdb_season_episodes(show_external_id_row.external_id, row.season_number)
+        else:
+            result = fetch_tvdb_season_episodes(show_external_id_row.external_id, row.season_number)
+    except ExternalApiError as e:
+        raise ContentExternalSourceError(str(e), status_code=e.status_code) from e
+
+    if result.get("season_overview"):
+        db.execute(
+            text("UPDATE season SET overview = :overview WHERE season_id = :id"),
+            {"overview": result["season_overview"], "id": row.season_id},
+        )
+
+    existing_rows = db.execute(
+        text("SELECT episode_id, episode_number FROM episode WHERE season_id = :id"),
+        {"id": row.season_id},
+    ).fetchall()
+    episode_id_by_number = {r.episode_number: r.episode_id for r in existing_rows if r.episode_number is not None}
+
+    created = 0
+    updated = 0
+    for ep in result.get("episodes") or []:
+        ep_number = ep.get("episode_number")
+        if ep_number is None:
+            continue
+
+        if ep_number in episode_id_by_number:
+            db.execute(
+                text(
+                    """
+                    UPDATE episode
+                    SET title = :title, overview = :overview,
+                        runtime = :runtime, original_air_date = :air_date
+                    WHERE episode_id = :id
+                    """
+                ),
+                {
+                    "title": ep.get("title"),
+                    "overview": ep.get("overview"),
+                    "runtime": ep.get("runtime"),
+                    "air_date": ep.get("air_date"),
+                    "id": episode_id_by_number[ep_number],
+                },
+            )
+            updated += 1
+        else:
+            db.execute(
+                text(
+                    """
+                    INSERT INTO episode (
+                        episode_id, season_id, episode_number, title, overview,
+                        runtime, original_air_date, watched_flag
+                    )
+                    VALUES (
+                        :episode_id, :season_id, :episode_number, :title, :overview,
+                        :runtime, :air_date, 0
+                    )
+                    """
+                ),
+                {
+                    "episode_id": uuid.uuid4().bytes,
+                    "season_id": row.season_id,
+                    "episode_number": ep_number,
+                    "title": ep.get("title"),
+                    "overview": ep.get("overview"),
+                    "runtime": ep.get("runtime"),
+                    "air_date": ep.get("air_date"),
+                },
+            )
+            created += 1
+
+    db.commit()
+
+    seasons = list_seasons(db, _hex_id(row.content_id))
+    season = next(s for s in seasons if s["season_id"] == _hex_id(row.season_id))
+    return {**season, "created": created, "updated": updated}

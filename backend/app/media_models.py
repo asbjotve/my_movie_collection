@@ -477,6 +477,7 @@ class Season(MediaBase):
     season_number = Column(Integer, nullable=True)
     title = Column(Text, nullable=True)
     air_date = Column(Date, nullable=True)
+    overview = Column(Text, nullable=True)
 
     __table_args__ = (Index("idx_season__content_id", "content_id"),)
 
@@ -496,6 +497,8 @@ class Episode(MediaBase):
     title = Column(Text, nullable=True)
     runtime = Column(Integer, nullable=True)
     original_air_date = Column(Date, nullable=True)
+    overview = Column(Text, nullable=True)
+    watched_flag = Column(TINYINT(1), nullable=False, server_default="0")
 
     __table_args__ = (Index("idx_episode__season_id", "season_id"),)
 

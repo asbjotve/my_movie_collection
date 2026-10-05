@@ -882,6 +882,438 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
     exit;
 }
 
+// GET ?action=list_seasons&id=<hex content_id>
+// Brukes av "Sesonger"-fanen på detaljsiden: henter alle sesonger (med
+// nøstede episoder, inkl. tilkoblet disk) for én serie - se
+// GET /media/content/{id}/seasons i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list_seasons') {
+    $contentId = (string)($_GET['id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig id-parameter']);
+        exit;
+    }
+
+    $seasonsUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/seasons';
+
+    $ch = curl_init($seasonsUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// GET ?action=list_discs&id=<hex content_id>
+// Brukes til disk-velgeren i episode-redigering (hvilken fysisk disk
+// en episode ligger på) - se GET /media/content/{id}/discs i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list_discs') {
+    $contentId = (string)($_GET['id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig id-parameter']);
+        exit;
+    }
+
+    $discsUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/discs';
+
+    $ch = curl_init($discsUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=create_season&id=<hex content_id>
+// (body: {"season_number": 1, "title": "...", "air_date": "...", "overview": "..."})
+// Oppretter en ny sesong manuelt - se POST /media/content/{id}/seasons
+// i backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'create_season') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $contentId = (string)($_GET['id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $createUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/seasons';
+
+    $ch = curl_init($createUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=update_season&season_id=<hex>
+// (body: kun feltet(ene) som redigeres, f.eks. {"title": "..."})
+// Bruker POST i stedet for PATCH her (samme begrunnelse som andre
+// steder i denne filen) - selve backend-kallet er fortsatt en ekte
+// HTTP PATCH. Se PATCH /media/seasons/{season_id} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update_season') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $seasonId = (string)($_GET['season_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $seasonId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig season_id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $updateUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId;
+
+    $ch = curl_init($updateUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=delete_season&season_id=<hex>
+// Sletter en sesong og alle dens episoder (ON DELETE CASCADE). Bruker
+// POST i stedet for DELETE (samme begrunnelse som andre steder i
+// denne filen) - selve backend-kallet er fortsatt en ekte HTTP DELETE.
+// Se DELETE /media/seasons/{season_id} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'delete_season') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $seasonId = (string)($_GET['season_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $seasonId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig season_id-parameter']);
+        exit;
+    }
+
+    $deleteUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId;
+
+    $ch = curl_init($deleteUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=refresh_season&season_id=<hex>&source=tmdb|tvdb
+// Henter hele sesongens episodeliste fra TMDB/TVDB og oppdaterer/
+// oppretter episoder deretter (kan ta noen sekunder). Se
+// POST /media/seasons/{season_id}/refresh/{source} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refresh_season') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $seasonId = (string)($_GET['season_id'] ?? '');
+    $source = (string)($_GET['source'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $seasonId) || !in_array($source, ['tmdb', 'tvdb'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig season_id/source-parameter']);
+        exit;
+    }
+
+    $refreshUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/refresh/' . $source;
+
+    $ch = curl_init($refreshUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 20, // henting av hele episodelisten fra TMDB/TVDB kan ta noen sekunder
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=create_episode&season_id=<hex>
+// (body: {"episode_number": 1, "title": "...", ...})
+// Legger til én episode manuelt i en eksisterende sesong - se
+// POST /media/seasons/{season_id}/episodes i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'create_episode') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $seasonId = (string)($_GET['season_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $seasonId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig season_id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $createUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/episodes';
+
+    $ch = curl_init($createUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=update_episode&episode_id=<hex>
+// (body: kun feltet(ene) som redigeres, f.eks. {"watched_flag": true})
+// Bruker POST i stedet for PATCH her (samme begrunnelse som andre
+// steder i denne filen). Se PATCH /media/episodes/{episode_id} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update_episode') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $episodeId = (string)($_GET['episode_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $episodeId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig episode_id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $updateUrl = MEDIA_API_BASE_URL . '/media/episodes/' . $episodeId;
+
+    $ch = curl_init($updateUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=delete_episode&episode_id=<hex>
+// Sletter en episode. Bruker POST i stedet for DELETE (samme
+// begrunnelse som andre steder i denne filen). Se
+// DELETE /media/episodes/{episode_id} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'delete_episode') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $episodeId = (string)($_GET['episode_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $episodeId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig episode_id-parameter']);
+        exit;
+    }
+
+    $deleteUrl = MEDIA_API_BASE_URL . '/media/episodes/' . $episodeId;
+
+    $ch = curl_init($deleteUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=assign_episode_disc&episode_id=<hex>
+// (body: {"disc_id": "<hex>"} eller {"disc_id": null} for å fjerne koblingen)
+// Bruker POST i stedet for PUT her (samme begrunnelse som andre steder
+// i denne filen). Se PUT /media/episodes/{episode_id}/disc i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'assign_episode_disc') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $episodeId = (string)($_GET['episode_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $episodeId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig episode_id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $assignUrl = MEDIA_API_BASE_URL . '/media/episodes/' . $episodeId . '/disc';
+
+    $ch = curl_init($assignUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Uten ?id=... hentes hele listen (GET /media/content), som før.
 // Med ?id=<hex content_id> hentes én enkelt rad for detaljsiden
 // (GET /media/content/{id}), brukt av detail.php.

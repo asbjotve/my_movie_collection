@@ -9,9 +9,14 @@ from app.schemas.media_catalog import (
     BulkGroupAssignRequest,
     ContentFieldLockRequest,
     ContentFieldUpdateRequest,
+    EpisodeCreateRequest,
+    EpisodeDiscAssignRequest,
+    EpisodeUpdateRequest,
     GroupMembershipAddRequest,
     GroupReorderRequest,
     PhysicalCopyFieldUpdateRequest,
+    SeasonCreateRequest,
+    SeasonUpdateRequest,
     SetContentExternalIdRequest,
 )
 from app.security import get_current_user
@@ -20,8 +25,13 @@ from app.services.media_catalog import (
     ContentExternalSourceConflict,
     ContentExternalSourceError,
     add_content_to_group,
+    assign_episode_disc,
     backfill_tmdb_cover_images,
     bulk_assign_group,
+    create_episode,
+    create_season,
+    delete_episode,
+    delete_season,
     get_bulk_refresh_tmdb_status,
     start_bulk_refresh_tmdb_job,
     get_content_by_id,
@@ -30,8 +40,11 @@ from app.services.media_catalog import (
     get_similar_content,
     list_content,
     list_content_covers,
+    list_discs_for_content,
     list_group_names,
+    list_seasons,
     merge_content_from_source,
+    refresh_season_from_source,
     remove_content_from_group,
     reorder_group,
     set_content_cover_image,
@@ -39,7 +52,9 @@ from app.services.media_catalog import (
     set_content_field_lock,
     update_content_external_source,
     update_content_fields,
+    update_episode,
     update_physical_copy_fields,
+    update_season,
 )
 
 
@@ -465,5 +480,143 @@ def set_content_cover(
     """
     try:
         return set_content_cover_image(db, content_id, payload.file_path)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.get("/content/{content_id}/seasons", dependencies=[Depends(require_api_key)])
+def get_content_seasons(content_id: str, db: Session = Depends(get_media_db)):
+    """Alle sesonger+episoder for en serie (sesong-fanen på
+    detaljsiden) - se list_seasons() for detaljer. Returnerer en tom
+    liste (ingen 404) hvis serien ikke har noen sesonger registrert
+    ennå."""
+    return list_seasons(db, content_id)
+
+
+@router.get("/content/{content_id}/discs", dependencies=[Depends(require_api_key)])
+def get_content_discs(content_id: str, db: Session = Depends(get_media_db)):
+    """Diskene til en series fysiske eksemplarer - brukt som
+    nedtrekksliste når en episode skal kobles til en disk, se
+    list_discs_for_content()."""
+    return list_discs_for_content(db, content_id)
+
+
+@router.post("/content/{content_id}/seasons")
+def post_create_season(
+    content_id: str,
+    payload: SeasonCreateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Oppretter en ny sesong manuelt. Krever innlogging. Se
+    create_season()."""
+    try:
+        return create_season(db, content_id, payload.model_dump())
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/seasons/{season_id}")
+def patch_season(
+    season_id: str,
+    payload: SeasonUpdateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Redigerer en sesong (kun feltene som er med i payload). Krever
+    innlogging. Se update_season()."""
+    fields = payload.model_dump(exclude_unset=True)
+    try:
+        return update_season(db, season_id, fields)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.delete("/seasons/{season_id}")
+def delete_season_route(
+    season_id: str,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sletter en sesong og alle dens episoder (ON DELETE CASCADE).
+    Krever innlogging. Se delete_season()."""
+    try:
+        return delete_season(db, season_id)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/seasons/{season_id}/refresh/{source}")
+def post_refresh_season(
+    season_id: str,
+    source: str,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Henter hele sesongens episodeliste fra TMDB/TVDB og oppdaterer/
+    oppretter episoder deretter. Krever innlogging. Se
+    refresh_season_from_source()."""
+    try:
+        return refresh_season_from_source(db, season_id, source)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/seasons/{season_id}/episodes")
+def post_create_episode(
+    season_id: str,
+    payload: EpisodeCreateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Legger til én episode manuelt i en eksisterende sesong. Krever
+    innlogging. Se create_episode()."""
+    try:
+        return create_episode(db, season_id, payload.model_dump())
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/episodes/{episode_id}")
+def patch_episode(
+    episode_id: str,
+    payload: EpisodeUpdateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Redigerer en episode (kun feltene som er med i payload,
+    inkludert watched_flag). Krever innlogging. Se update_episode()."""
+    fields = payload.model_dump(exclude_unset=True)
+    try:
+        return update_episode(db, episode_id, fields)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.delete("/episodes/{episode_id}")
+def delete_episode_route(
+    episode_id: str,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sletter en episode. Krever innlogging. Se delete_episode()."""
+    try:
+        return delete_episode(db, episode_id)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.put("/episodes/{episode_id}/disc")
+def put_episode_disc(
+    episode_id: str,
+    payload: EpisodeDiscAssignRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Kobler (eller fjerner koblingen for, med disc_id=null) hvilken
+    fysisk disk episoden ligger på. Krever innlogging. Se
+    assign_episode_disc()."""
+    try:
+        return assign_episode_disc(db, episode_id, payload.disc_id)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))

@@ -222,3 +222,127 @@ def fetch_tvdb_details(external_id: str, content_type: str) -> dict:
         raise ExternalApiError("TVDB: 'data' mangler i responsen")
 
     return data
+
+
+def fetch_tmdb_season_episodes(show_external_id: str, season_number: int) -> dict:
+    """Henter én sesongs episodeliste fra TMDB (kun relevant for
+    content_type='series') - brukes av "Hent episoder fra kilde" på
+    sesong-fanen på detaljsiden, for å slippe å taste inn hver
+    episodetittel/-beskrivelse manuelt.
+
+    Returnerer {season_overview, episodes: [{episode_number, title,
+    overview, air_date, runtime}, ...]} - samme normaliserte form
+    uansett kilde, se fetch_tvdb_season_episodes()."""
+
+    if not settings.TMDB_API_KEY:
+        raise ExternalApiError(
+            "TMDB_API_KEY er ikke satt i backend/config/.env", status_code=500
+        )
+
+    url = f"{TMDB_BASE_URL}/tv/{show_external_id}/season/{season_number}"
+
+    def _request(language: str) -> dict:
+        try:
+            resp = requests.get(
+                url,
+                params={"api_key": settings.TMDB_API_KEY, "language": language},
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as e:
+            raise ExternalApiError(f"Kunne ikke nå TMDB: {e}") from e
+
+        if resp.status_code != 200:
+            raise ExternalApiError(
+                f"TMDB svarte med feilkode {resp.status_code}: {resp.text[:300]}"
+            )
+        return resp.json()
+
+    data = _request("nb-NO")
+
+    # TMDB mangler ofte norske oversettelser for episodetittel/-beskrivelse
+    # og faller da tilbake til en generisk plassholder ("Episode 1") uten
+    # overview - hent engelsk versjon også og bruk den der norsk mangler,
+    # samme prinsipp som _extract_tmdb_overview() for filmer/serier.
+    english_by_number: dict[int | None, dict] = {}
+    needs_fallback = any(
+        not ep.get("overview")
+        or ep.get("name") == f"Episode {ep.get('episode_number')}"
+        for ep in (data.get("episodes") or [])
+    )
+    if needs_fallback:
+        english_data = _request("en-US")
+        english_by_number = {
+            ep.get("episode_number"): ep for ep in (english_data.get("episodes") or [])
+        }
+
+    def _pick(ep: dict, field: str) -> str | None:
+        value = ep.get(field)
+        if field == "name" and value == f"Episode {ep.get('episode_number')}":
+            value = None
+        if value:
+            return value
+        fallback_ep = english_by_number.get(ep.get("episode_number"))
+        return fallback_ep.get(field) if fallback_ep else None
+
+    return {
+        "season_overview": data.get("overview") or None,
+        "episodes": [
+            {
+                "episode_number": ep.get("episode_number"),
+                "title": _pick(ep, "name"),
+                "overview": _pick(ep, "overview"),
+                "air_date": ep.get("air_date") or None,
+                "runtime": ep.get("runtime"),
+            }
+            for ep in (data.get("episodes") or [])
+        ],
+    }
+
+
+def fetch_tvdb_season_episodes(show_external_id: str, season_number: int) -> dict:
+    """Som fetch_tmdb_season_episodes(), men mot TVDB - se
+    getSeriesEpisodes i TVDBs v4-API (filtrert på ?season=N, season-type
+    'default'). TVDB har som regel mer komplette sesong/episode-data enn
+    TMDB for serier (jf. Season/Episode-docstringene i media_models.py),
+    så dette er ment som hovedkilden for serier.
+
+    NB: TVDB sin /episodes/{season-type}-rute returnerer kun engelsk
+    tekst uten en eksplisitt språk-sti (/default/{lang}) - det holder
+    fint her siden fetch_tvdb_details() allerede faller tilbake til
+    engelsk for TVDB-tekst (se _extract_tvdb_overview() i
+    media_catalog.py)."""
+
+    token = _get_tvdb_token()
+
+    try:
+        response = requests.get(
+            f"{TVDB_BASE_URL}/series/{show_external_id}/episodes/default",
+            params={"page": 0, "season": season_number},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as e:
+        raise ExternalApiError(f"Kunne ikke nå TVDB: {e}") from e
+
+    if response.status_code != 200:
+        raise ExternalApiError(
+            f"TVDB svarte med feilkode {response.status_code}: {response.text[:300]}"
+        )
+
+    data = response.json().get("data") or {}
+    episodes = [
+        ep for ep in (data.get("episodes") or []) if ep.get("seasonNumber") == season_number
+    ]
+    return {
+        "season_overview": None,
+        "episodes": [
+            {
+                "episode_number": ep.get("number"),
+                "title": ep.get("name") or None,
+                "overview": ep.get("overview") or None,
+                "air_date": ep.get("aired") or None,
+                "runtime": ep.get("runtime"),
+            }
+            for ep in episodes
+        ],
+    }
