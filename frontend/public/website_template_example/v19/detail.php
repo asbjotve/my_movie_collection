@@ -468,8 +468,8 @@ $sectionAccess = [
 
       <div class="factsGrid" id="idsGrid">
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="vRow"><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="imdb_id" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="v" id="fTmdb">-</div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="v" id="fTvdb">-</div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="vRow"><div class="v" id="fTmdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" id="btnSetTmdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="vRow"><div class="v" id="fTvdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" id="btnSetTvdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
       </div>
 
       <div class="factsGrid">
@@ -1143,6 +1143,15 @@ $sectionAccess = [
     document.getElementById("fTmdb").textContent = tmdbSource?.external_id || "-";
     document.getElementById("fTvdb").textContent = tvdbSource?.external_id || "-";
 
+    // "+"-knappene for å SETTE en TMDB/TVDB-id vises bare når kilden
+    // mangler fra før (motsatt av "Bytt data fra kilde"-knappene under,
+    // som bare er aktive når kilden finnes) - se
+    // set_content_external_id() i backend.
+    const btnSetTmdbId = document.getElementById("btnSetTmdbId");
+    const btnSetTvdbId = document.getElementById("btnSetTvdbId");
+    if (btnSetTmdbId) btnSetTmdbId.style.display = tmdbSource?.external_id ? "none" : "";
+    if (btnSetTvdbId) btnSetTvdbId.style.display = tvdbSource?.external_id ? "none" : "";
+
     // Knappene for å bytte data fra TMDB/TVDB er bare aktive når kilden
     // finnes fra før (content_external_source-raden må allerede finnes -
     // se update_content_external_source() i backend). Knappene finnes
@@ -1283,6 +1292,93 @@ $sectionAccess = [
   // $isLoggedIn i HTML-delen over) - derfor null-sjekk før addEventListener.
   document.getElementById("btnRefreshTmdb")?.addEventListener("click", (e) => refreshSource("tmdb", e.currentTarget));
   document.getElementById("btnRefreshTvdb")?.addEventListener("click", (e) => refreshSource("tvdb", e.currentTarget));
+
+  // "+"-knappene (vises kun når TMDB/TVDB-id mangler fra før): spør om
+  // IDen med prompt(), sender den til backend (set_external_id), og
+  // fletter deretter inn dataene med samme merge_external_source-kall
+  // som "Bytt data fra kilde"-knappene bruker. Hvis backend svarer 409
+  // (IDen tilhører allerede en annen film), spørres brukeren med
+  // confirm() om å slå filmene sammen - samme mønster som brukes for
+  // "fjern fra filmgruppe" lenger ned i filen.
+  async function setExternalId(source){
+    const statusEl = document.getElementById("refreshStatus");
+    const externalId = prompt(wteFormat(WTE_I18N.detail.set_id_prompt, source.toUpperCase()));
+    if (!externalId || !externalId.trim()) return;
+
+    async function callSet(confirmMerge){
+      const res = await fetch(
+        "api.php?action=set_external_id&content_id=" + encodeURIComponent(contentId) +
+          "&source=" + encodeURIComponent(source) +
+          "&external_id=" + encodeURIComponent(externalId.trim()) +
+          (confirmMerge ? "&confirm_merge=1" : ""),
+        { method: "POST", headers: csrfHeader() }
+      );
+      const json = await res.json();
+      return { ok: res.ok, status: res.status, json };
+    }
+
+    statusEl.className = "refreshStatus";
+    statusEl.textContent = wteFormat(WTE_I18N.detail.setting_id, source.toUpperCase());
+
+    try {
+      let { ok, status, json } = await callSet(false);
+
+      if (!ok && status === 409) {
+        const conflict = json.detail || json;
+        const ownership = conflict.physically_owned
+          ? WTE_I18N.detail.conflict_physically_owned
+          : (conflict.digitally_owned ? WTE_I18N.detail.conflict_digitally_owned : WTE_I18N.detail.conflict_not_owned);
+        const confirmed = confirm(
+          wteFormat(WTE_I18N.detail.conflict_merge_confirm, conflict.conflict_title || "?", ownership)
+        );
+        if (!confirmed) {
+          statusEl.className = "refreshStatus";
+          statusEl.textContent = "";
+          return;
+        }
+        ({ ok, status, json } = await callSet(true));
+      }
+
+      if (!ok) {
+        throw new Error((json.detail && json.detail.message) || json.error || json.detail || ("HTTP " + status));
+      }
+
+      if (json.merged) {
+        // Filmen som manglet ID var faktisk et duplikat av en annen
+        // film - all data ble flyttet dit, og denne raden ble slettet.
+        // Går derfor til den filmen i stedet for å laste denne siden
+        // på nytt (denne content_id-en finnes ikke lenger).
+        statusEl.className = "refreshStatus success";
+        statusEl.textContent = wteFormat(WTE_I18N.detail.merge_done, json.into_title);
+        window.location.href = "detail.php?id=" + encodeURIComponent(json.into_content_id);
+        return;
+      }
+
+      // Ingen konflikt - koblingen er opprettet, men feltene (title/
+      // overview/runtime osv.) er ikke flettet inn i content-tabellen
+      // ennå. Gjør det samme andre steget som refreshSource() gjør.
+      statusEl.textContent = wteFormat(WTE_I18N.detail.merging_from, source.toUpperCase());
+      const mergeRes = await fetch(
+        "api.php?action=merge_external_source&source=" + encodeURIComponent(source) +
+          "&external_id=" + encodeURIComponent(externalId.trim()),
+        { method: "POST", headers: csrfHeader() }
+      );
+      const mergeJson = await mergeRes.json();
+      if (!mergeRes.ok || mergeJson.error) {
+        throw new Error(mergeJson.error || mergeJson.detail || ("HTTP " + mergeRes.status));
+      }
+
+      statusEl.className = "refreshStatus success";
+      statusEl.textContent = wteFormat(WTE_I18N.detail.source_updated, source.toUpperCase(), json.fetched_at || WTE_I18N.detail.now);
+      await loadDetail();
+    } catch (err) {
+      statusEl.className = "refreshStatus error";
+      statusEl.textContent = wteFormat(WTE_I18N.detail.refresh_error_prefix, source.toUpperCase(), err.message);
+    }
+  }
+
+  document.getElementById("btnSetTmdbId")?.addEventListener("click", () => setExternalId("tmdb"));
+  document.getElementById("btnSetTvdbId")?.addEventListener("click", () => setExternalId("tvdb"));
 
   // "Bytt cover"-modal: henter alle tilgjengelige TMDB-postere for
   // filmen (fra sist lagrede data_json - ingen nye TMDB-kall) og lar

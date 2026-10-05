@@ -140,13 +140,23 @@ backlog to pick from.
       to reuse a single login token per batch (it currently logs in
       to TVDB on every call) and picking a conservative rate limit
       since TVDB's isn't clearly documented.
-- [ ] Duplicate detection (same TMDB/TVDB ID registered more than
-      once, e.g. from a bad import).
-- [ ] Ability to manually set a TMDB/TVDB ID on a content row that
+- [x] Duplicate detection (same TMDB/TVDB ID registered more than
+      once, e.g. from a bad import) - done as part of manual-ID
+      assignment below (set_content_external_id() in
+      media_catalog.py detects a conflicting content_external_source
+      row and offers a merge instead of creating a duplicate).
+- [x] Ability to manually set a TMDB/TVDB ID on a content row that
       doesn't have one yet (e.g. a movie TMDB/TVDB couldn't be
       auto-matched for during import/creation) - today an ID can only
       be viewed/refreshed if one is already registered, not assigned
-      from scratch.
+      from scratch. Implemented via
+      POST /media/content/{content_id}/external-source/{source}.
+- [ ] Proper handling when a manual TMDB/TVDB ID merge hits a
+      content_type mismatch (e.g. trying to merge a "movie" row into
+      a "tv" row, or vice versa) - set_content_external_id() currently
+      just blocks this case with an error instead of offering a real
+      resolution (e.g. letting the user pick which content_type is
+      correct, or converting one row).
 - [ ] Background job queue (Celery, RQ, or FastAPI `BackgroundTasks`)
       for TMDB/TVDB imports, so large imports don't depend on
       ever-increasing proxy/timeout settings.

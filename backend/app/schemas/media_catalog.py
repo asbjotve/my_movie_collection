@@ -59,6 +59,20 @@ class ContentFieldLockRequest(BaseModel):
     locked: bool
 
 
+class SetContentExternalIdRequest(BaseModel):
+    """Body for POST /media/content/{content_id}/external-source/{source}.
+
+    Setter en TMDB/TVDB-id på en content-rad som mangler en (eller
+    erstatter en feil id) - se set_content_external_id() i
+    media_catalog.py. confirm_merge brukes kun i et andre kall, etter
+    at frontend har vist brukeren at IDen allerede tilhører en annen
+    film og fått et eksplisitt "ja, slå sammen".
+    """
+
+    external_id: str
+    confirm_merge: bool = False
+
+
 class BulkGroupAssignRequest(BaseModel):
     """Body for POST /media/content/bulk-group.
 

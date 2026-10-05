@@ -155,6 +155,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_
     exit;
 }
 
+// POST ?action=set_external_id&content_id=...&source=tmdb|tvdb&external_id=...[&confirm_merge=1]
+// Brukes for å SETTE en TMDB/TVDB-id på en film som ikke har en kobling
+// fra før (i motsetning til refresh_external_source over, som krever at
+// koblingen finnes). Hvis IDen allerede tilhører en annen content-rad,
+// svarer backend med 409 og konflikt-info - frontend spør da brukeren
+// om å slå sammen, og kaller denne på nytt med confirm_merge=1 - se
+// POST /media/content/{content_id}/external-source/{source} i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_external_id') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $contentId = (string)($_GET['content_id'] ?? '');
+    $source = (string)($_GET['source'] ?? '');
+    $externalId = (string)($_GET['external_id'] ?? '');
+    $confirmMerge = ($_GET['confirm_merge'] ?? '') === '1';
+
+    if ($contentId === '' || !in_array($source, ['tmdb', 'tvdb'], true) || $externalId === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler eller ugyldig content_id/source/external_id-parameter']);
+        exit;
+    }
+
+    $setUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/external-source/' . rawurlencode($source);
+
+    $ch = curl_init($setUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => array_merge([auth_bearer_header()], ['Content-Type: application/json']),
+        CURLOPT_POSTFIELDS => json_encode([
+            'external_id' => $externalId,
+            'confirm_merge' => $confirmMerge,
+        ]),
+        CURLOPT_TIMEOUT => 20, // henting fra TMDB/TVDB for validering kan ta noen sekunder
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=list_groups
 // Brukes til autofullføring i redigerings-popupen for "group"-feltet på
 // detail.php: lister alle eksisterende filmgrupper (movie_group), slik
