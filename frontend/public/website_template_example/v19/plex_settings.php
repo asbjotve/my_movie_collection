@@ -313,6 +313,12 @@ if (!empty($currentPlexSettings['base_url']) && !empty($currentPlexSettings['tok
             t('wte.plex_settings.import_pruned'),
             (string)$importSummary['movies_pruned']
           )) ?></div>
+          <?php if (!empty($importSummary['content_deleted'])): ?>
+            <div><?= htmlspecialchars(wteFormatServer(
+              t('wte.plex_settings.import_content_deleted'),
+              (string)$importSummary['content_deleted']
+            )) ?></div>
+          <?php endif; ?>
         <?php endif; ?>
         <?php if (!empty($importSummary['skipped_non_movie_libraries'])): ?>
           <div><?= htmlspecialchars(t('wte.plex_settings.import_skipped_libraries')) ?> <?= htmlspecialchars(implode(', ', $importSummary['skipped_non_movie_libraries'])) ?></div>

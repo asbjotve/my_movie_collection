@@ -25,8 +25,11 @@ modulen skriver ALDRI noe tilbake til Plex over API-et.
 Pruning: etter at et biblioteks elementer er synkronisert, fjernes
 content_in_digital_library-rader for ratingKey-er som IKKE dukket opp
 i denne runden (= fjernet fra Plex siden forrige import) - se
-_prune_removed_items(). Selve content-raden (filmen i katalogen)
-slettes ALDRI av dette - kun koblingen til det digitale biblioteket.
+_prune_removed_items(). Hvis content-raden etter dette er helt
+foreldreløs (ikke fysisk eid, ingen andre digitale kilder, ikke del av
+en sesong/boxset/disc-ekstra/ønskeliste - bekreftet med brukeren)
+slettes også selve content-raden, se
+_delete_orphan_content_if_unreferenced().
 """
 
 import json
@@ -348,34 +351,77 @@ def _store_plex_raw_source(db: Session, content_id: bytes, rating_key: str, deta
         )
 
 
-def _prune_removed_items(db: Session, digital_library_id: bytes, seen_rating_keys: set[str]) -> int:
+def _prune_removed_items(
+    db: Session, digital_library_id: bytes, seen_rating_keys: set[str]
+) -> tuple[int, int]:
     """Sletter content_in_digital_library-rader for dette biblioteket
     som IKKE var med i denne synk-runden - altså filmer som er fjernet
     fra Plex siden forrige import. digital_media_version/part rydder
     seg selv via ON DELETE CASCADE.
 
-    Sletter bevisst KUN kobling til det digitale biblioteket, ikke selv
-    content-raden - filmen kan fortsatt være eid fysisk eller koblet
-    til andre bibliotek, og content_in_digital_library har ingen
-    ON DELETE CASCADE tilbake til content (se migrasjonen), så dette
-    påvirker aldri andre deler av samlingen."""
+    Etter at koblingen er fjernet, slettes også selve content-raden hvis
+    den er blitt helt foreldreløs (bekreftet med brukeren) - se
+    _delete_orphan_content_if_unreferenced(). Returnerer
+    (antall_koblinger_fjernet, antall_content_rader_slettet)."""
 
     rows = db.execute(
-        text("SELECT id, plex_rating_key FROM content_in_digital_library WHERE digital_library_id = :lib"),
+        text("SELECT id, content_id, plex_rating_key FROM content_in_digital_library WHERE digital_library_id = :lib"),
         {"lib": digital_library_id},
     ).fetchall()
 
-    stale_ids = [row[0] for row in rows if row[1] not in seen_rating_keys]
-    if not stale_ids:
-        return 0
+    stale = [(row[0], row[1]) for row in rows if row[2] not in seen_rating_keys]
+    if not stale:
+        return 0, 0
 
-    for stale_id in stale_ids:
+    content_deleted = 0
+    for stale_id, content_id in stale:
         db.execute(
             text("DELETE FROM content_in_digital_library WHERE id = :id"),
             {"id": stale_id},
         )
+        db.commit()
+        if _delete_orphan_content_if_unreferenced(db, content_id):
+            content_deleted += 1
+
+    return len(stale), content_deleted
+
+
+# Tabeller (utenom content_in_digital_library, som allerede er fjernet før
+# dette sjekkes) som fortsatt kan peke på en content-rad - finnes NOEN av
+# disse, regnes filmen IKKE som foreldreløs og content-raden beholdes.
+# Alle disse FK-ene har ON DELETE CASCADE (season/disc_related_content/
+# content_group_membership/content_in_physical_collection) eller mangler
+# FK helt (wishlist, der content_id er primærnøkkel) - vi stoler altså
+# bevisst IKKE på databasen til å "feile trygt", men sjekker eksplisitt
+# her, for å unngå å dra med oss f.eks. en boxset-kobling, en TV-sesong
+# eller en disc-ekstrafilm på kjøpet.
+_ORPHAN_CHECK_TABLES = (
+    "content_in_physical_collection",
+    "content_in_digital_library",
+    "disc_related_content",
+    "season",
+    "content_group_membership",
+    "wishlist",
+)
+
+
+def _delete_orphan_content_if_unreferenced(db: Session, content_id: bytes) -> bool:
+    """Sletter content-raden HVIS den (bekreftet med brukeren) verken er
+    fysisk eid eller har andre digitale kilder - og, som en ekstra
+    sikkerhet, heller ikke er referert fra noen av _ORPHAN_CHECK_TABLES.
+    Returnerer True hvis raden faktisk ble slettet."""
+
+    for table in _ORPHAN_CHECK_TABLES:
+        still_referenced = db.execute(
+            text(f"SELECT 1 FROM {table} WHERE content_id = :content_id LIMIT 1"),
+            {"content_id": content_id},
+        ).fetchone()
+        if still_referenced:
+            return False
+
+    db.execute(text("DELETE FROM content WHERE content_id = :content_id"), {"content_id": content_id})
     db.commit()
-    return len(stale_ids)
+    return True
 
 
 def run_plex_import(
@@ -403,6 +449,7 @@ def run_plex_import(
         "movies_matched": 0,
         "skipped_non_movie_libraries": [],
         "movies_pruned": 0,
+        "content_deleted": 0,
         "errors": [],
     }
 
@@ -475,12 +522,14 @@ def run_plex_import(
                 progress_callback(section.get("title"), processed, total_items)
 
         try:
-            pruned_count = _prune_removed_items(db, digital_library_id, seen_rating_keys)
+            pruned_count, content_deleted_count = _prune_removed_items(db, digital_library_id, seen_rating_keys)
         except Exception as exc:  # noqa: BLE001 - pruning må aldri felle hele importen
             db.rollback()
             summary["errors"].append(f"{section.get('title')}: klarte ikke å fjerne slettede filmer: {exc}")
             pruned_count = 0
+            content_deleted_count = 0
         summary["movies_pruned"] += pruned_count
+        summary["content_deleted"] += content_deleted_count
 
         summary["movies_created"] += created_count
         summary["movies_matched"] += matched_count

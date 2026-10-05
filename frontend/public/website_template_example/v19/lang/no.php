@@ -331,6 +331,7 @@ return [
             'import_failed_prefix'    => '❌ Importen feilet:',
             'import_summary'          => 'Import fullført: %s nye filmer opprettet, %s filmer koblet til eksisterende innhold.',
             'import_pruned'           => '%s filmer ble fjernet fra biblioteket (ikke lenger funnet på Plex-serveren).',
+            'import_content_deleted'  => '%s av disse ble også slettet helt fra katalogen (ikke fysisk eid, ingen andre kilder).',
             'import_skipped_libraries'=> 'Hoppet over (kun film støttes foreløpig):',
             'import_errors_heading'   => 'Feil under import (resten av importen fortsatte likevel):',
         ],
