@@ -236,6 +236,18 @@ $sectionAccess = [
     }
     body.editModeActive .editPencilBtn{ display:inline-block; }
     .editPencilBtn:hover{ color: var(--accent, #5b8def); }
+    /* ---- "+"-knapp for å SETTE en manglende TMDB/TVDB-id (vises
+       uavhengig av redigeringsmodus - styres i stedet av JS ut fra om
+       kilden mangler, se renderDetail()). Egen klasse (ikke
+       .editPencilBtn) slik at den unngår den delegerte klikk-
+       handleren for .editPencilBtn (som åpner "Rediger felt"-modalen
+       basert på data-field, noe disse knappene ikke har). ---- */
+    .setIdBtn{
+      appearance:none; cursor:pointer; background:none; border:none;
+      color: var(--muted); font-size:13px; padding:0 0 0 6px; line-height:1;
+      vertical-align:middle;
+    }
+    .setIdBtn:hover{ color: var(--accent, #5b8def); }
     .titleEditRow{ display:flex; align-items:center; gap:6px; }
     .factCard .vRow{ display:flex; align-items:center; gap:6px; }
 
@@ -468,8 +480,8 @@ $sectionAccess = [
 
       <div class="factsGrid" id="idsGrid">
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="vRow"><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="imdb_id" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="vRow"><div class="v" id="fTmdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" id="btnSetTmdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="vRow"><div class="v" id="fTvdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" id="btnSetTvdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="vRow"><div class="v" id="fTmdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTmdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="vRow"><div class="v" id="fTvdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTvdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
       </div>
 
       <div class="factsGrid">
