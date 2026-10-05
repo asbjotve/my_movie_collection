@@ -661,6 +661,136 @@ function test_plex_connection_setting(): array
     return [$httpCode, json_decode($response, true)];
 }
 
+/**
+ * Lister Plex-bibliotekseksjoner via GET /settings/plex/libraries
+ * (f.eks. "Filmer", "Serier") - hvert element har ['selected'] satt
+ * basert på det som allerede er lagret som import-utvalg.
+ *
+ * Returnerer [httpCode, data].
+ */
+function fetch_plex_libraries(): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/plex/libraries');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, ['detail' => 'Fikk ikke kontakt med API-et']];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
+/**
+ * Lagrer hvilke Plex-bibliotek (nøkler fra fetch_plex_libraries())
+ * som skal tas med av run_plex_import() via PUT /settings/plex/libraries.
+ *
+ * Returnerer [httpCode, data].
+ */
+function update_plex_library_selection(array $libraryKeys): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/plex/libraries');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ],
+        CURLOPT_POSTFIELDS => json_encode(['library_keys' => $libraryKeys]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, null];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
+/**
+ * Starter selve Plex-importen via POST /plex/import - IKKE blokkerende:
+ * backend kjører importen i en egen bakgrunnstråd og svarer umiddelbart
+ * med {"status": "started"} (se plex_import_route.py for hvorfor - en
+ * synkron import blokkerte tidligere HELE nettstedet i flere minutter,
+ * siden backend kun kjører én uvicorn-worker). Bruk
+ * fetch_plex_import_status() for å følge med på fremdrift/resultat.
+ *
+ * Returnerer [httpCode, data]. 409 betyr at en import allerede kjører.
+ */
+function run_plex_import(): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/plex/import');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, ['detail' => 'Fikk ikke kontakt med API-et']];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
+/**
+ * Henter status for den pågående/sist kjørte Plex-importen via
+ * GET /plex/import/status - status er ett av "idle"/"running"/
+ * "completed"/"failed". "progress" (kun satt mens "running") har
+ * library/processed/total. "summary" (kun satt når "completed") har
+ * samme struktur som før (movies_created/movies_matched/osv.).
+ *
+ * Returnerer [httpCode, data].
+ */
+function fetch_plex_import_status(): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/plex/import/status');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, ['detail' => 'Fikk ikke kontakt med API-et']];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
 /** Logger ut - tømmer hele sesjonen. */
 function auth_logout(): void
 {

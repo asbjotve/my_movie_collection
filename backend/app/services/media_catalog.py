@@ -2272,8 +2272,9 @@ def _extract_tmdb_certification(data: dict) -> str | None:
 def _map_tmdb_to_content_fields(data: dict) -> dict:
     fields: dict = {}
 
-    if data.get("title"):
-        fields["title"] = data["title"]
+    title = _extract_tmdb_title(data)
+    if title:
+        fields["title"] = title
     if data.get("original_title"):
         fields["original_title"] = data["original_title"]
     if data.get("release_date"):
@@ -2295,6 +2296,35 @@ def _map_tmdb_to_content_fields(data: dict) -> dict:
         fields["age_restriction"] = certification
 
     return fields
+
+
+def _extract_tmdb_title(data: dict) -> str | None:
+    """TMDB sin "title" faller tilbake til "original_title" (ikke
+    engelsk) når forespurt språk (nb-NO - se fetch_tmdb_details())
+    mangler oversettelse - det gir f.eks. den persiske tittelen
+    'جدایی نادر از سیمین' i stedet for "A Separation" for filmer uten
+    norsk oversettelse registrert i TMDB (oppdaget via Plex-import).
+
+    Hvis "title" og "original_title" er identiske (= ingen reell
+    norsk oversettelse ble funnet), prøves en engelsk oversettelse fra
+    append_to_response=translations (samme mønster som
+    _extract_tmdb_overview()) før original_title til slutt beholdes
+    som siste utvei."""
+
+    title = data.get("title")
+    original_title = data.get("original_title")
+    if not title:
+        return original_title
+    if original_title and title != original_title:
+        return title
+
+    translations = (data.get("translations") or {}).get("translations") or []
+    for entry in translations:
+        if entry.get("iso_639_1") == "en":
+            english_title = (entry.get("data") or {}).get("title")
+            if english_title:
+                return english_title
+    return title
 
 
 def _extract_tmdb_overview(data: dict) -> str | None:
