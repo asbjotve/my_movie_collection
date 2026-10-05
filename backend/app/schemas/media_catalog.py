@@ -171,3 +171,68 @@ class PhysicalCopyFieldUpdateRequest(BaseModel):
         if not CURRENCY_CODE_PATTERN.match(value):
             raise ValueError("currency must be a 3-letter ISO 4217 code (e.g. NOK, EUR, USD)")
         return value
+
+
+class SeasonCreateRequest(BaseModel):
+    """Body for POST /media/content/{content_id}/seasons - oppretter en
+    ny sesong manuelt (sesong-fanen på detaljsiden, kun relevant for
+    content_type='series'). Episodene legges til separat etterpå (enten
+    manuelt, en og en, eller hentet samlet fra TMDB/TVDB - se
+    POST /media/seasons/{season_id}/refresh/{source})."""
+
+    season_number: int | None = None
+    title: str | None = None
+    air_date: date | None = None
+    overview: str | None = None
+
+
+class SeasonUpdateRequest(BaseModel):
+    """Body for PATCH /media/seasons/{season_id}. Samme felter som
+    SeasonCreateRequest - kun feltene som faktisk er med i payload
+    (exclude_unset) blir oppdatert."""
+
+    season_number: int | None = None
+    title: str | None = None
+    air_date: date | None = None
+    overview: str | None = None
+
+
+class SeasonWatchedRequest(BaseModel):
+    """Body for PATCH /media/seasons/{season_id}/watched - merker samtlige
+    episoder i sesongen som sett/usett under ett, se set_season_watched()."""
+
+    watched_flag: bool
+
+
+class EpisodeCreateRequest(BaseModel):
+    """Body for POST /media/seasons/{season_id}/episodes - legger til én
+    episode manuelt i en eksisterende sesong."""
+
+    episode_number: int | None = None
+    title: str | None = None
+    overview: str | None = None
+    runtime: int | None = None
+    original_air_date: date | None = None
+
+
+class EpisodeUpdateRequest(BaseModel):
+    """Body for PATCH /media/episodes/{episode_id}. Samme felter som
+    EpisodeCreateRequest, pluss watched_flag (avkrysningsboksen for
+    "sett") - kun feltene som faktisk er med i payload (exclude_unset)
+    blir oppdatert."""
+
+    episode_number: int | None = None
+    title: str | None = None
+    overview: str | None = None
+    runtime: int | None = None
+    original_air_date: date | None = None
+    watched_flag: bool | None = None
+
+
+class EpisodeDiscAssignRequest(BaseModel):
+    """Body for PUT /media/episodes/{episode_id}/disc. disc_id=None
+    fjerner en eventuell eksisterende disk-kobling for episoden (se
+    assign_episode_disc()) - disc_id må være en disk som fysisk
+    tilhører samme serie som episoden (validert server-side)."""
+
+    disc_id: str | None = None

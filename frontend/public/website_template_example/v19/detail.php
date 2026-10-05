@@ -512,6 +512,8 @@ $sectionAccess = [
       <button class="tabBtn active" data-tab="cast"><?= htmlspecialchars(t('wte.detail.tab_cast')) ?></button>
       <button class="tabBtn" data-tab="collection"><?= htmlspecialchars(t('wte.detail.tab_collection')) ?></button>
       <button class="tabBtn" data-tab="purchase"><?= htmlspecialchars(t('wte.detail.tab_purchase')) ?></button>
+      <!-- Vises kun for content_type='series' (se showSeasonsTabIfSeries() lenger ned) -->
+      <button class="tabBtn" data-tab="seasons" id="seasonsTabBtn" style="display:none;"><?= htmlspecialchars(t('wte.detail.tab_seasons')) ?></button>
     </div>
 
     <div class="tabPanel active" data-tab-panel="cast">
@@ -526,6 +528,10 @@ $sectionAccess = [
 
     <div class="tabPanel" data-tab-panel="purchase" id="purchasePanel">
       <!-- fylles av renderPurchaseTab() -->
+    </div>
+
+    <div class="tabPanel" data-tab-panel="seasons" id="seasonsPanel">
+      <!-- fylles av renderSeasonsTab() -->
     </div>
   </div>
 </main>
@@ -615,6 +621,60 @@ $sectionAccess = [
   </div>
 </div>
 
+<!--
+  "Legg til/rediger sesong"-modal - se openSeasonModal()/saveSeason()
+  lenger ned.
+-->
+<div id="seasonModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox" style="max-width:420px;">
+    <div class="modalHeader">
+      <h3 id="seasonModalTitle"></h3>
+      <button type="button" id="btnCloseSeasonModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <div id="seasonModalStatus" class="refreshStatus"></div>
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.season_field_number')) ?></label>
+    <input id="seasonInputNumber" type="number" min="0" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);">
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.season_field_title')) ?></label>
+    <input id="seasonInputTitle" type="text" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);">
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.season_field_air_date')) ?></label>
+    <input id="seasonInputAirDate" type="date" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);">
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.season_field_overview')) ?></label>
+    <textarea id="seasonInputOverview" rows="4" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);"></textarea>
+    <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" id="btnCancelSeasonModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.cancel_btn')) ?></button>
+      <button type="button" id="btnSaveSeasonModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.save_btn')) ?></button>
+    </div>
+  </div>
+</div>
+
+<!--
+  "Legg til/rediger episode"-modal - se openEpisodeModal()/saveEpisode()
+  lenger ned.
+-->
+<div id="episodeModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox" style="max-width:420px;">
+    <div class="modalHeader">
+      <h3 id="episodeModalTitle"></h3>
+      <button type="button" id="btnCloseEpisodeModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <div id="episodeModalStatus" class="refreshStatus"></div>
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.episode_field_number')) ?></label>
+    <input id="episodeInputNumber" type="number" min="0" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);">
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.episode_field_title')) ?></label>
+    <input id="episodeInputTitle" type="text" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);">
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.episode_field_air_date')) ?></label>
+    <input id="episodeInputAirDate" type="date" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);">
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.episode_field_runtime')) ?></label>
+    <input id="episodeInputRuntime" type="number" min="0" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);">
+    <label style="display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;"><?= htmlspecialchars(t('wte.detail.episode_field_overview')) ?></label>
+    <textarea id="episodeInputOverview" rows="4" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text);"></textarea>
+    <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" id="btnCancelEpisodeModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.cancel_btn')) ?></button>
+      <button type="button" id="btnSaveEpisodeModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.save_btn')) ?></button>
+    </div>
+  </div>
+</div>
+
 <style>
   .modalOverlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.6);
@@ -658,6 +718,36 @@ $sectionAccess = [
   .setIdResultItem .meta .title{ font-weight:700; font-size:14px; }
   .setIdResultItem .meta .year{ color: var(--muted); font-size:12px; }
   .setIdResultItem .meta .overview{ color: var(--muted); font-size:12px; margin-top:4px; }
+
+  /* ---- "Sesonger"-fane ---- */
+  .seasonBlock{ border:1px solid var(--line); border-radius:8px; margin-bottom:14px; overflow:hidden; }
+  .seasonHeader{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer;
+    background: rgba(255,255,255,.03);
+  }
+  .seasonHeader:hover{ background: rgba(255,255,255,.06); }
+  .seasonHeader .seasonTitle{ font-weight:700; flex:1; }
+  .seasonHeader .seasonMeta{ color: var(--muted); font-size:12px; }
+  .seasonHeader .caret{ transition: transform .15s; }
+  .seasonBlock.collapsed .caret{ transform: rotate(-90deg); }
+  .seasonActions{ display:flex; gap:4px; }
+  .seasonActions button, .episodeActions button{
+    appearance:none; cursor:pointer; background:none; border:none; color: var(--muted);
+    font-size:14px; padding:2px 4px;
+  }
+  .seasonActions button:hover, .episodeActions button:hover{ color: var(--text); }
+  .seasonActions .btnToggleSeasonWatched{
+    font-size:12px; border:1px solid var(--line); border-radius:6px; padding:3px 8px;
+  }
+  .seasonActions .btnToggleSeasonWatched:disabled{ opacity:.4; cursor:not-allowed; }
+  .seasonBody{ padding:10px 12px; }
+  .seasonBlock.collapsed .seasonBody{ display:none; }
+  .episodeTable{ width:100%; border-collapse:collapse; font-size:12px; }
+  .episodeTable th{ text-align:left; color: var(--muted); font-weight:600; padding:4px 6px; border-bottom:1px solid var(--line); }
+  .episodeTable td{ padding:6px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .episodeTable tr:last-child td{ border-bottom:none; }
+  .episodeTable .epOverview{ color: var(--muted); font-size:11px; margin-top:2px; }
+  .episodeTable select{ background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; font-size:11px; padding:2px 4px; }
 </style>
 
 <script>
@@ -889,6 +979,433 @@ $sectionAccess = [
 
     panel.innerHTML = `<div class="copyList">${cards}</div>`;
   }
+
+  // ---- "Sesonger"-fane: viser kun for content_type='series' (se
+  // currentItemContentId/showSeasonsTabIfSeries() under). Henter
+  // nøstet sesong/episode-data via GET api.php?action=list_seasons og
+  // disk-liste via action=list_discs (for disk-velgeren pr. episode) -
+  // se list_seasons()/list_discs_for_content() i backend. ----
+  let seasonsDiscsCache = [];
+  // Husker hvilke sesonger som er kollapset mellom reloads (f.eks.
+  // etter lagring av en episode), nøkkel = season_id.
+  const collapsedSeasons = new Set();
+
+  async function showSeasonsTabIfSeries(item){
+    const btn = document.getElementById("seasonsTabBtn");
+    if (!btn) return;
+    if (item.content_type === "series") {
+      btn.style.display = "";
+      await loadSeasonsTab(item.content_id);
+    } else {
+      btn.style.display = "none";
+    }
+  }
+
+  async function loadSeasonsTab(contentId){
+    const panel = document.getElementById("seasonsPanel");
+    panel.innerHTML = `<div class="emptyNote">${WTE_I18N.detail.set_id_searching}</div>`;
+    try {
+      const [seasonsRes, discsRes] = await Promise.all([
+        fetch("api.php?action=list_seasons&id=" + encodeURIComponent(contentId)),
+        fetch("api.php?action=list_discs&id=" + encodeURIComponent(contentId)),
+      ]);
+      const seasons = await seasonsRes.json();
+      const discs = await discsRes.json();
+      if (!seasonsRes.ok) throw new Error(seasons.error || seasons.detail || ("HTTP " + seasonsRes.status));
+      seasonsDiscsCache = discsRes.ok ? discs : [];
+      renderSeasonsTab(contentId, seasons);
+    } catch (err) {
+      panel.innerHTML = `<div class="emptyNote">${escapeHtml(WTE_I18N.detail.seasons_load_error)} (${escapeHtml(err.message)})</div>`;
+    }
+  }
+
+  function renderSeasonsTab(contentId, seasons){
+    const panel = document.getElementById("seasonsPanel");
+
+    const addSeasonBtn = IS_LOGGED_IN
+      ? `<button type="button" class="refreshBtn" id="btnAddSeason">${escapeHtml(WTE_I18N.detail.add_season_btn)}</button>`
+      : "";
+
+    if (!seasons.length){
+      panel.innerHTML = `
+        <div class="emptyNote">${WTE_I18N.detail.seasons_empty_note}</div>
+        <div style="margin-top:10px;">${addSeasonBtn}</div>
+      `;
+      if (IS_LOGGED_IN) document.getElementById("btnAddSeason").addEventListener("click", () => openSeasonModal(contentId, null));
+      return;
+    }
+
+    const discOptions = (season_disc_id) => {
+      const none = `<option value="" ${!season_disc_id ? "selected" : ""}>${escapeHtml(WTE_I18N.detail.episode_disc_none)}</option>`;
+      const opts = seasonsDiscsCache.map(d =>
+        `<option value="${escapeHtml(d.disc_id)}" ${d.disc_id === season_disc_id ? "selected" : ""}>${escapeHtml(d.label || d.disc_id)}</option>`
+      ).join("");
+      return none + opts;
+    };
+
+    const blocks = seasons.map(season => {
+      const isCollapsed = collapsedSeasons.has(season.season_id);
+      const episodeCount = (season.episodes || []).length;
+      const allWatched = episodeCount > 0 && (season.episodes || []).every(ep => ep.watched_flag);
+      const episodeRows = (season.episodes || []).map(ep => `
+        <tr data-episode-id="${escapeHtml(ep.episode_id)}">
+          <td>${ep.episode_number ?? "-"}</td>
+          <td>
+            ${escapeHtml(ep.title || WTE_I18N.detail.untitled)}
+            ${ep.overview ? `<div class="epOverview">${escapeHtml(ep.overview)}</div>` : ""}
+          </td>
+          <td>${escapeHtml(ep.original_air_date || "-")}</td>
+          <td>${ep.runtime ? ep.runtime + WTE_I18N.detail.runtime_suffix : "-"}</td>
+          <td><input type="checkbox" class="episodeWatchedCheckbox" ${ep.watched_flag ? "checked" : ""} ${IS_LOGGED_IN ? "" : "disabled"}></td>
+          <td>
+            <select class="episodeDiscSelect" ${IS_LOGGED_IN ? "" : "disabled"}>${discOptions(ep.disc?.disc_id || null)}</select>
+          </td>
+          ${IS_LOGGED_IN ? `
+          <td class="episodeActions">
+            <button type="button" class="btnEditEpisode" title="${escapeHtml(WTE_I18N.detail.edit_btn)}">✏️</button>
+            <button type="button" class="btnDeleteEpisode" title="${escapeHtml(WTE_I18N.detail.delete_btn)}">🗑️</button>
+          </td>` : ""}
+        </tr>
+      `).join("");
+
+      return `
+        <div class="seasonBlock${isCollapsed ? " collapsed" : ""}" data-season-id="${escapeHtml(season.season_id)}">
+          <div class="seasonHeader">
+            <span class="caret">▾</span>
+            <span class="seasonTitle">${escapeHtml(season.title || wteFormat(WTE_I18N.detail.season_label, season.season_number))}</span>
+            <span class="seasonMeta">${wteFormat(WTE_I18N.detail.season_episode_count, (season.episodes || []).length)}</span>
+            ${IS_LOGGED_IN ? `
+            <div class="seasonActions">
+              <button type="button" class="btnToggleSeasonWatched" data-watched="${allWatched ? "1" : "0"}" ${episodeCount ? "" : "disabled"}>${escapeHtml(allWatched ? WTE_I18N.detail.season_mark_unwatched_btn : WTE_I18N.detail.season_mark_watched_btn)}</button>
+              <button type="button" class="btnRefreshSeason" data-source="tmdb" title="${escapeHtml(WTE_I18N.detail.refresh_tmdb_btn)}">TMDB⟳</button>
+              <button type="button" class="btnRefreshSeason" data-source="tvdb" title="${escapeHtml(WTE_I18N.detail.refresh_tvdb_btn)}">TVDB⟳</button>
+              <button type="button" class="btnEditSeason" title="${escapeHtml(WTE_I18N.detail.edit_btn)}">✏️</button>
+              <button type="button" class="btnDeleteSeason" title="${escapeHtml(WTE_I18N.detail.delete_btn)}">🗑️</button>
+            </div>` : ""}
+          </div>
+          <div class="seasonBody">
+            <div class="refreshStatus seasonRefreshStatus"></div>
+            <table class="episodeTable">
+              <thead>
+                <tr>
+                  <th>#</th><th>${WTE_I18N.detail.episode_field_title}</th><th>${WTE_I18N.detail.episode_field_air_date}</th>
+                  <th>${WTE_I18N.detail.episode_field_runtime}</th><th>${WTE_I18N.detail.episode_watched_label}</th><th>${WTE_I18N.detail.episode_field_disc}</th>
+                  ${IS_LOGGED_IN ? "<th></th>" : ""}
+                </tr>
+              </thead>
+              <tbody>${episodeRows}</tbody>
+            </table>
+            ${IS_LOGGED_IN ? `<button type="button" class="refreshBtn btnAddEpisode" style="margin-top:10px;">${escapeHtml(WTE_I18N.detail.add_episode_btn)}</button>` : ""}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    panel.innerHTML = blocks + `<div style="margin-top:10px;">${addSeasonBtn}</div>`;
+
+    // ---- Event-bindinger (delegert pr. sesong-blokk siden hele
+    // panelet re-renders ved hver reload) ----
+    panel.querySelectorAll(".seasonBlock").forEach(block => {
+      const seasonId = block.dataset.seasonId;
+      const season = seasons.find(s => s.season_id === seasonId);
+
+      block.querySelector(".seasonHeader").addEventListener("click", (e) => {
+        if (e.target.closest("button")) return; // ikke kollaps ved klikk på knapper i headeren
+        block.classList.toggle("collapsed");
+        if (block.classList.contains("collapsed")) collapsedSeasons.add(seasonId);
+        else collapsedSeasons.delete(seasonId);
+      });
+
+      const editBtn = block.querySelector(".btnEditSeason");
+      if (editBtn) editBtn.addEventListener("click", () => openSeasonModal(contentId, season));
+
+      const deleteBtn = block.querySelector(".btnDeleteSeason");
+      if (deleteBtn) deleteBtn.addEventListener("click", () => deleteSeason(contentId, season));
+
+      block.querySelectorAll(".btnRefreshSeason").forEach(btn => {
+        btn.addEventListener("click", () => refreshSeason(contentId, season, btn.dataset.source, block));
+      });
+
+      const toggleWatchedBtn = block.querySelector(".btnToggleSeasonWatched");
+      if (toggleWatchedBtn) toggleWatchedBtn.addEventListener("click", () => toggleSeasonWatched(contentId, season, toggleWatchedBtn.dataset.watched === "1"));
+
+      const addEpBtn = block.querySelector(".btnAddEpisode");
+      if (addEpBtn) addEpBtn.addEventListener("click", () => openEpisodeModal(contentId, seasonId, null));
+
+      block.querySelectorAll("tr[data-episode-id]").forEach(row => {
+        const episodeId = row.dataset.episodeId;
+        const episode = (season.episodes || []).find(e => e.episode_id === episodeId);
+
+        const editEpBtn = row.querySelector(".btnEditEpisode");
+        if (editEpBtn) editEpBtn.addEventListener("click", () => openEpisodeModal(contentId, seasonId, episode));
+
+        const deleteEpBtn = row.querySelector(".btnDeleteEpisode");
+        if (deleteEpBtn) deleteEpBtn.addEventListener("click", () => deleteEpisode(contentId, episode));
+
+        const watchedCb = row.querySelector(".episodeWatchedCheckbox");
+        if (watchedCb) watchedCb.addEventListener("change", () => toggleEpisodeWatched(contentId, episode, watchedCb));
+
+        const discSelect = row.querySelector(".episodeDiscSelect");
+        if (discSelect) discSelect.addEventListener("change", () => assignEpisodeDisc(contentId, episode, discSelect));
+      });
+    });
+  }
+
+  async function refreshSeason(contentId, season, source, block){
+    const statusEl = block.querySelector(".seasonRefreshStatus");
+    statusEl.className = "refreshStatus seasonRefreshStatus";
+    statusEl.textContent = WTE_I18N.detail.refreshing_season;
+    try {
+      const res = await fetch("api.php?action=refresh_season&season_id=" + encodeURIComponent(season.season_id) + "&source=" + encodeURIComponent(source), {
+        method: "POST",
+        headers: csrfHeader(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || json.error || ("HTTP " + res.status));
+      await loadSeasonsTab(contentId);
+    } catch (err) {
+      statusEl.className = "refreshStatus seasonRefreshStatus error";
+      statusEl.textContent = WTE_I18N.detail.season_refresh_error_prefix + err.message;
+    }
+  }
+
+  async function toggleEpisodeWatched(contentId, episode, checkboxEl){
+    try {
+      const res = await fetch("api.php?action=update_episode&episode_id=" + encodeURIComponent(episode.episode_id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ watched_flag: checkboxEl.checked }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+    } catch (err) {
+      checkboxEl.checked = !checkboxEl.checked; // rull tilbake ved feil
+      alert(WTE_I18N.detail.save_error_prefix + err.message);
+    }
+  }
+
+  async function toggleSeasonWatched(contentId, season, currentlyAllWatched){
+    const newWatchedFlag = !currentlyAllWatched;
+    try {
+      const res = await fetch("api.php?action=update_season_watched&season_id=" + encodeURIComponent(season.season_id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ watched_flag: newWatchedFlag }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.detail || j.error || ("HTTP " + res.status)); }
+      await loadSeasonsTab(contentId);
+    } catch (err) {
+      alert(WTE_I18N.detail.save_error_prefix + err.message);
+    }
+  }
+
+  async function assignEpisodeDisc(contentId, episode, selectEl){
+    const discId = selectEl.value || null;
+    try {
+      const res = await fetch("api.php?action=assign_episode_disc&episode_id=" + encodeURIComponent(episode.episode_id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ disc_id: discId }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+    } catch (err) {
+      alert(WTE_I18N.detail.save_error_prefix + err.message);
+      await loadSeasonsTab(contentId);
+    }
+  }
+
+  async function deleteSeason(contentId, season){
+    const ok = await showConfirmModal({
+      title: WTE_I18N.detail.confirm_title,
+      message: wteFormat(WTE_I18N.detail.confirm_delete_season, season.season_number),
+      confirmLabel: WTE_I18N.detail.delete_btn,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch("api.php?action=delete_season&season_id=" + encodeURIComponent(season.season_id), {
+        method: "POST",
+        headers: csrfHeader(),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.detail || j.error || ("HTTP " + res.status)); }
+      await loadSeasonsTab(contentId);
+    } catch (err) {
+      alert(WTE_I18N.detail.save_error_prefix + err.message);
+    }
+  }
+
+  async function deleteEpisode(contentId, episode){
+    const ok = await showConfirmModal({
+      title: WTE_I18N.detail.confirm_title,
+      message: wteFormat(WTE_I18N.detail.confirm_delete_episode, episode.episode_number, episode.title || WTE_I18N.detail.untitled),
+      confirmLabel: WTE_I18N.detail.delete_btn,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch("api.php?action=delete_episode&episode_id=" + encodeURIComponent(episode.episode_id), {
+        method: "POST",
+        headers: csrfHeader(),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.detail || j.error || ("HTTP " + res.status)); }
+      await loadSeasonsTab(contentId);
+    } catch (err) {
+      alert(WTE_I18N.detail.save_error_prefix + err.message);
+    }
+  }
+
+  // ---- "Legg til/rediger sesong"-modal ----
+  const seasonModalOverlay = document.getElementById("seasonModalOverlay");
+  const seasonModalTitle = document.getElementById("seasonModalTitle");
+  const seasonModalStatus = document.getElementById("seasonModalStatus");
+  let seasonModalContentId = null;
+  let seasonModalEditingId = null;
+
+  function openSeasonModal(contentId, season){
+    seasonModalContentId = contentId;
+    seasonModalEditingId = season?.season_id || null;
+    seasonModalTitle.textContent = season ? WTE_I18N.detail.season_modal_title_edit : WTE_I18N.detail.season_modal_title_add;
+    seasonModalStatus.className = "refreshStatus";
+    seasonModalStatus.textContent = "";
+    document.getElementById("seasonInputNumber").value = season?.season_number ?? "";
+    document.getElementById("seasonInputTitle").value = season?.title ?? "";
+    document.getElementById("seasonInputAirDate").value = season?.air_date ?? "";
+    document.getElementById("seasonInputOverview").value = season?.overview ?? "";
+    seasonModalOverlay.style.display = "flex";
+  }
+
+  function closeSeasonModal(){
+    seasonModalOverlay.style.display = "none";
+  }
+
+  document.getElementById("btnCloseSeasonModal").addEventListener("click", closeSeasonModal);
+  document.getElementById("btnCancelSeasonModal").addEventListener("click", closeSeasonModal);
+  seasonModalOverlay.addEventListener("click", (e) => { if (e.target === seasonModalOverlay) closeSeasonModal(); });
+
+  document.getElementById("btnSaveSeasonModal").addEventListener("click", async () => {
+    const numberVal = document.getElementById("seasonInputNumber").value;
+    const titleVal = document.getElementById("seasonInputTitle").value;
+    const airDateVal = document.getElementById("seasonInputAirDate").value;
+    const overviewVal = document.getElementById("seasonInputOverview").value;
+
+    if (numberVal === ""){
+      seasonModalStatus.className = "refreshStatus error";
+      seasonModalStatus.textContent = WTE_I18N.detail.season_field_number;
+      return;
+    }
+
+    const body = {
+      season_number: parseInt(numberVal, 10),
+      title: titleVal === "" ? null : titleVal,
+      air_date: airDateVal === "" ? null : airDateVal,
+      overview: overviewVal === "" ? null : overviewVal,
+    };
+
+    seasonModalStatus.className = "refreshStatus";
+    seasonModalStatus.textContent = WTE_I18N.detail.saving_season;
+
+    try {
+      const url = seasonModalEditingId
+        ? "api.php?action=update_season&season_id=" + encodeURIComponent(seasonModalEditingId)
+        : "api.php?action=create_season&id=" + encodeURIComponent(seasonModalContentId);
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(", ") : (json.detail || json.error);
+        throw new Error(detail || ("HTTP " + res.status));
+      }
+      closeSeasonModal();
+      await loadSeasonsTab(seasonModalContentId);
+    } catch (err) {
+      seasonModalStatus.className = "refreshStatus error";
+      seasonModalStatus.textContent = WTE_I18N.detail.save_error_prefix + err.message;
+    }
+  });
+
+  // ---- "Legg til/rediger episode"-modal ----
+  const episodeModalOverlay = document.getElementById("episodeModalOverlay");
+  const episodeModalTitle = document.getElementById("episodeModalTitle");
+  const episodeModalStatus = document.getElementById("episodeModalStatus");
+  let episodeModalContentId = null;
+  let episodeModalSeasonId = null;
+  let episodeModalEditingId = null;
+
+  function openEpisodeModal(contentId, seasonId, episode){
+    episodeModalContentId = contentId;
+    episodeModalSeasonId = seasonId;
+    episodeModalEditingId = episode?.episode_id || null;
+    episodeModalTitle.textContent = episode ? WTE_I18N.detail.episode_modal_title_edit : WTE_I18N.detail.episode_modal_title_add;
+    episodeModalStatus.className = "refreshStatus";
+    episodeModalStatus.textContent = "";
+    document.getElementById("episodeInputNumber").value = episode?.episode_number ?? "";
+    document.getElementById("episodeInputTitle").value = episode?.title ?? "";
+    document.getElementById("episodeInputAirDate").value = episode?.original_air_date ?? "";
+    document.getElementById("episodeInputRuntime").value = episode?.runtime ?? "";
+    document.getElementById("episodeInputOverview").value = episode?.overview ?? "";
+    episodeModalOverlay.style.display = "flex";
+  }
+
+  function closeEpisodeModal(){
+    episodeModalOverlay.style.display = "none";
+  }
+
+  document.getElementById("btnCloseEpisodeModal").addEventListener("click", closeEpisodeModal);
+  document.getElementById("btnCancelEpisodeModal").addEventListener("click", closeEpisodeModal);
+  episodeModalOverlay.addEventListener("click", (e) => { if (e.target === episodeModalOverlay) closeEpisodeModal(); });
+
+  document.getElementById("btnSaveEpisodeModal").addEventListener("click", async () => {
+    const numberVal = document.getElementById("episodeInputNumber").value;
+    const titleVal = document.getElementById("episodeInputTitle").value;
+    const airDateVal = document.getElementById("episodeInputAirDate").value;
+    const runtimeVal = document.getElementById("episodeInputRuntime").value;
+    const overviewVal = document.getElementById("episodeInputOverview").value;
+
+    if (numberVal === ""){
+      episodeModalStatus.className = "refreshStatus error";
+      episodeModalStatus.textContent = WTE_I18N.detail.episode_field_number;
+      return;
+    }
+
+    const body = episodeModalEditingId ? {
+      title: titleVal === "" ? null : titleVal,
+      original_air_date: airDateVal === "" ? null : airDateVal,
+      runtime: runtimeVal === "" ? null : parseInt(runtimeVal, 10),
+      overview: overviewVal === "" ? null : overviewVal,
+    } : {
+      episode_number: parseInt(numberVal, 10),
+      title: titleVal === "" ? null : titleVal,
+      original_air_date: airDateVal === "" ? null : airDateVal,
+      runtime: runtimeVal === "" ? null : parseInt(runtimeVal, 10),
+      overview: overviewVal === "" ? null : overviewVal,
+    };
+
+    episodeModalStatus.className = "refreshStatus";
+    episodeModalStatus.textContent = WTE_I18N.detail.saving_episode;
+
+    try {
+      const url = episodeModalEditingId
+        ? "api.php?action=update_episode&episode_id=" + encodeURIComponent(episodeModalEditingId)
+        : "api.php?action=create_episode&season_id=" + encodeURIComponent(episodeModalSeasonId);
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(", ") : (json.detail || json.error);
+        throw new Error(detail || ("HTTP " + res.status));
+      }
+      closeEpisodeModal();
+      await loadSeasonsTab(episodeModalContentId);
+    } catch (err) {
+      episodeModalStatus.className = "refreshStatus error";
+      episodeModalStatus.textContent = WTE_I18N.detail.save_error_prefix + err.message;
+    }
+  });
 
   // ---- Format-/kilde-badges: BD/DVD/4K UHD + Plex, kan vises samtidig ----
   function formatBadge(format){
@@ -1312,6 +1829,7 @@ $sectionAccess = [
     renderLockIcons(item);
     renderGroupMovies(item);
     loadSimilarMovies(item.content_id);
+    showSeasonsTabIfSeries(item);
 
     // "Bytt cover"-knappen krever bare at content finnes (contentId er
     // allerede kjent fra URL-en) - ingen ekstra betingelse. Finnes ikke
@@ -1427,7 +1945,7 @@ $sectionAccess = [
     // Foreslår samme type som filmen allerede er registrert som, men
     // brukeren kan overstyre - f.eks. hvis en Plex-import feilaktig
     // har satt content_type=movie for noe som egentlig er en tv-serie.
-    setIdContentType.value = currentItem?.content_type === "tv" ? "tv" : "movie";
+    setIdContentType.value = currentItem?.content_type === "series" ? "tv" : "movie";
     setIdSearchInput.value = currentItem?.title || "";
     setIdResultsList.innerHTML = "";
     setIdModalStatus.className = "refreshStatus";
@@ -1867,7 +2385,7 @@ $sectionAccess = [
     } else if (ctx.type === "textarea") {
       inputHtml = `<textarea id="editFieldInput" rows="6" style="${inputStyle}">${escapeHtml(ctx.value ?? "")}</textarea>`;
     } else if (ctx.type === "select" && ctx.field === "content_type") {
-      const options = ["movie", "tv"].map(v =>
+      const options = ["movie", "series"].map(v =>
         `<option value="${v}" ${ctx.value === v ? "selected" : ""}>${escapeHtml(WTE_I18N.detail["edit_field_type_" + v])}</option>`
       ).join("");
       inputHtml = `<select id="editFieldInput" style="${inputStyle}">${options}</select>`;
