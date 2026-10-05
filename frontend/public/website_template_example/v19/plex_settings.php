@@ -308,6 +308,12 @@ if (!empty($currentPlexSettings['base_url']) && !empty($currentPlexSettings['tok
           (string)$importSummary['movies_created'],
           (string)$importSummary['movies_matched']
         )) ?></div>
+        <?php if (!empty($importSummary['movies_pruned'])): ?>
+          <div><?= htmlspecialchars(wteFormatServer(
+            t('wte.plex_settings.import_pruned'),
+            (string)$importSummary['movies_pruned']
+          )) ?></div>
+        <?php endif; ?>
         <?php if (!empty($importSummary['skipped_non_movie_libraries'])): ?>
           <div><?= htmlspecialchars(t('wte.plex_settings.import_skipped_libraries')) ?> <?= htmlspecialchars(implode(', ', $importSummary['skipped_non_movie_libraries'])) ?></div>
         <?php endif; ?>

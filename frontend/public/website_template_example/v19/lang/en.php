@@ -327,6 +327,7 @@ return [
             'import_progress'         => '%s: %s of %s processed.',
             'import_failed_prefix'    => '❌ The import failed:',
             'import_summary'          => 'Import complete: %s new movies created, %s movies linked to existing content.',
+            'import_pruned'           => '%s movies were removed from the library (no longer found on the Plex server).',
             'import_skipped_libraries'=> 'Skipped (only movies are supported for now):',
             'import_errors_heading'   => 'Errors during import (the rest of the import continued regardless):',
         ],
