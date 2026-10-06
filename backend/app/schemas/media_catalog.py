@@ -67,10 +67,22 @@ class SetContentExternalIdRequest(BaseModel):
     media_catalog.py. confirm_merge brukes kun i et andre kall, etter
     at frontend har vist brukeren at IDen allerede tilhører en annen
     film og fått et eksplisitt "ja, slå sammen".
-    """
+
+    content_type ("movie"/"tv") er typen brukeren faktisk søkte med i
+    "Sett ID"-modalen - brukes til å velge riktig TMDB/TVDB-endepunkt
+    (/movie/ vs. /tv/ eller /series/) FREMFOR content-radens egen,
+    lagrede content_type. Uten dette ville en feilimportert rad (f.eks.
+    en serie som feilaktig endte opp som content_type='movie') alltid
+    bli slått opp som film, og dermed matche en helt annen, urelatert
+    tittel på samme numeriske TMDB/TVDB-id (filmer og serier har
+    separate id-rom). Hvis oppgitt og den avviker fra radens nåværende
+    content_type, oppdateres content.content_type til det brukeren
+    faktisk bekreftet. Valgfri (None) for bakoverkompatibilitet - da
+    brukes radens eksisterende content_type som før."""
 
     external_id: str
     confirm_merge: bool = False
+    content_type: Literal["movie", "tv"] | None = None
 
 
 class BulkGroupAssignRequest(BaseModel):

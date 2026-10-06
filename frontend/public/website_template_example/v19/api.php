@@ -155,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_
     exit;
 }
 
-// POST ?action=set_external_id&content_id=...&source=tmdb|tvdb&external_id=...[&confirm_merge=1]
+// POST ?action=set_external_id&content_id=...&source=tmdb|tvdb&external_id=...[&confirm_merge=1][&content_type=movie|tv]
 // Brukes for å SETTE en TMDB/TVDB-id på en film som ikke har en kobling
 // fra før (i motsetning til refresh_external_source over, som krever at
 // koblingen finnes). Hvis IDen allerede tilhører en annen content-rad,
@@ -163,6 +163,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_
 // om å slå sammen, og kaller denne på nytt med confirm_merge=1 - se
 // POST /media/content/{content_id}/external-source/{source} i
 // backend/app/routes/media_catalog_route.py.
+// content_type er valgfri og er typen brukeren faktisk søkte med i
+// modalen (movie/tv) - brukes av backend til å slå opp riktig
+// TMDB/TVDB-endepunkt FREMFOR content-radens egen (muligens feilimporterte,
+// f.eks. fra Plex) content_type, og til å rette opp den lagrede typen hvis
+// de avviker.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_external_id') {
     if (!is_logged_in()) {
         require_login_or_json_401();
@@ -174,6 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_ex
     $source = (string)($_GET['source'] ?? '');
     $externalId = (string)($_GET['external_id'] ?? '');
     $confirmMerge = ($_GET['confirm_merge'] ?? '') === '1';
+    $contentType = (string)($_GET['content_type'] ?? '');
+    if (!in_array($contentType, ['movie', 'tv'], true)) {
+        $contentType = null;
+    }
 
     if ($contentId === '' || !in_array($source, ['tmdb', 'tvdb'], true) || $externalId === '') {
         http_response_code(400);
@@ -191,6 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_ex
         CURLOPT_POSTFIELDS => json_encode([
             'external_id' => $externalId,
             'confirm_merge' => $confirmMerge,
+            'content_type' => $contentType,
         ]),
         CURLOPT_TIMEOUT => 20, // henting fra TMDB/TVDB for validering kan ta noen sekunder
     ]);

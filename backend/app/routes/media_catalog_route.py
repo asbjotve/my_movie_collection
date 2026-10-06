@@ -334,6 +334,7 @@ def assign_content_external_id(
             source=source,
             external_id=payload.external_id,
             confirm_merge=payload.confirm_merge,
+            content_type=payload.content_type,
         )
     except ContentExternalSourceConflict as e:
         raise HTTPException(

@@ -2072,10 +2072,16 @@ $sectionAccess = [
     const statusEl = document.getElementById("refreshStatus");
 
     async function callSet(confirmMerge){
+      // content_type sendes med slik backend vet om brukeren faktisk
+      // søkte som "Film" eller "Serie" i modalen - overstyrer radens
+      // egen (muligens feilimporterte, f.eks. fra Plex) content_type,
+      // se set_content_external_id() i media_catalog.py.
+      const contentType = setIdContentType.value === "tv" ? "tv" : "movie";
       const res = await fetch(
         "api.php?action=set_external_id&content_id=" + encodeURIComponent(contentId) +
           "&source=" + encodeURIComponent(source) +
           "&external_id=" + encodeURIComponent(externalId) +
+          "&content_type=" + encodeURIComponent(contentType) +
           (confirmMerge ? "&confirm_merge=1" : ""),
         { method: "POST", headers: csrfHeader() }
       );

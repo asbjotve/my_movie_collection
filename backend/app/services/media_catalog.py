@@ -2305,6 +2305,7 @@ def set_content_external_id(
     source: str,
     external_id: str,
     confirm_merge: bool = False,
+    content_type: str | None = None,
 ) -> dict:
     """Setter en TMDB/TVDB-id på en content-rad som i dag mangler en (i
     motsetning til update_content_external_source(), som krever at
@@ -2313,6 +2314,17 @@ def set_content_external_id(
     Validerer external_id-en ved å faktisk hente detaljer fra TMDB/TVDB
     med den FØR noe lagres, slik at en ugyldig/feilstavet id feiler
     tydelig i stedet for å lagre en død kobling.
+
+    content_type ("movie"/"tv", valgfri) er typen brukeren faktisk
+    søkte med i "Sett ID"-modalen - brukes FREMFOR content-radens egen,
+    lagrede content_type til å velge riktig TMDB/TVDB-endepunkt. Dette
+    er nødvendig fordi f.eks. Plex-import kan ha satt feil content_type
+    (en serie importert som "movie") - uten denne overstyringen ville
+    oppslaget skjedd mot feil endepunkt, og dermed truffet en helt
+    annen, urelatert tittel på samme numeriske id (TMDB/TVDB har
+    separate id-rom for filmer og serier). Hvis oppgitt og det avviker
+    fra radens nåværende content_type, rettes content.content_type opp
+    til det brukeren bekreftet samtidig som koblingen lagres.
 
     Hvis denne (source, external_id) allerede er registrert på en ANNEN
     content-rad (bekreftet med brukeren - duplikat-scenario, f.eks. en
@@ -2351,7 +2363,12 @@ def set_content_external_id(
     if content_row is None:
         raise ContentExternalSourceError(f"Fant ingen content-rad med id={content_id!r}.", status_code=404)
 
-    content_type = content_row.content_type or "movie"
+    # Hva brukeren faktisk søkte med (hvis oppgitt) overstyrer radens
+    # egen, lagrede content_type - se docstring.
+    requested_db_content_type = (
+        {"movie": "movie", "tv": "series"}.get(content_type) if content_type else None
+    )
+    content_type = requested_db_content_type or content_row.content_type or "movie"
 
     try:
         if source == "tmdb":
@@ -2413,6 +2430,15 @@ def set_content_external_id(
         facet_genres, facet_cast, facet_release_year = _compute_search_facets(data_json)
     else:
         facet_genres, facet_cast, facet_release_year = [], [], None
+
+    # Brukeren bekreftet nettopp et treff av denne typen (f.eks. en serie
+    # etter at raden feilaktig ble Plex-importert som "movie") - rett
+    # opp content_type på raden tilsvarende, i samme transaksjon.
+    if requested_db_content_type and requested_db_content_type != content_row.content_type:
+        db.execute(
+            text("UPDATE content SET content_type = :content_type WHERE content_id = :content_id"),
+            {"content_type": requested_db_content_type, "content_id": content_id_bytes},
+        )
 
     now = datetime.now(timezone.utc)
     db.execute(
