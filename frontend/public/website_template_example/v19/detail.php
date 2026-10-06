@@ -1999,7 +1999,17 @@ $sectionAccess = [
     setIdSearchTimeout = setTimeout(runSetIdSearch, 400);
   });
 
+  // Teller som økes for hvert nye søk, slik at et tregere/eldre svar
+  // ikke kan "vinne" kappløpet og overskrive resultatlisten etter at
+  // et nyere søk allerede har kommet tilbake (f.eks. modalen søker
+  // automatisk på filmens/seriens nåværende tittel med en gang den
+  // åpnes - hvis brukeren rekker å skrive inn et nytt søkeord og få
+  // svar før det første søket er ferdig, skal ikke det første søkets
+  // (nå utdaterte) treff vises).
+  let setIdSearchSeq = 0;
+
   async function runSetIdSearch(){
+    const mySeq = ++setIdSearchSeq;
     const query = setIdSearchInput.value.trim();
     setIdResultsList.innerHTML = "";
     if (query.length < 2){
@@ -2019,6 +2029,7 @@ $sectionAccess = [
           "&content_type=" + encodeURIComponent(contentType)
       );
       const json = await res.json();
+      if (mySeq !== setIdSearchSeq) return; // et nyere søk er allerede startet/vist
       if (!res.ok || json.error) throw new Error(json.error || json.detail || ("HTTP " + res.status));
 
       const results = json.results || [];
@@ -2029,6 +2040,7 @@ $sectionAccess = [
       setIdModalStatus.textContent = "";
       renderSetIdResults(results);
     } catch (err) {
+      if (mySeq !== setIdSearchSeq) return;
       setIdModalStatus.className = "refreshStatus error";
       setIdModalStatus.textContent = wteFormat(WTE_I18N.detail.refresh_error_prefix, setIdActiveSource.toUpperCase(), err.message);
     }
