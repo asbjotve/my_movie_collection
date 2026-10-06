@@ -59,6 +59,43 @@ function with_api_key_header(array $curlHttpHeaders): array
     return $curlHttpHeaders;
 }
 
+/**
+ * Utfører et curl-kall mot backend med brukerens access_token i
+ * Authorization-headeren, og prøver automatisk å fornye tokenet stille
+ * (uten å be om passord på nytt) og kjøre kallet på nytt ÉN gang hvis
+ * det første forsøket feiler med 401 - se auth_call_with_retry()/
+ * auth_refresh_access_token() i _shared/auth.php og TODO.md "Roll out
+ * the automatic re-login". Fjerner behovet for at brukeren merker at
+ * access_token (30 min levetid) har utløpt og må logge inn på nytt
+ * manuelt midt i en handling.
+ *
+ * $curlOptions skal IKKE sette CURLOPT_RETURNTRANSFER eller
+ * CURLOPT_HTTPHEADER selv - de settes her. Ev. ekstra headere (f.eks.
+ * 'Content-Type: application/json') sendes via $extraHeaders.
+ *
+ * @return array{0: string|false, 1: int, 2: string} [response, httpCode, curlError]
+ */
+function backend_curl_with_retry(string $url, array $curlOptions, array $extraHeaders = []): array
+{
+    $curlError = '';
+    [$httpCode, $response] = auth_call_with_retry(
+        function (string $accessToken) use ($url, $curlOptions, $extraHeaders, &$curlError): array {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, $curlOptions + [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => array_merge(['Authorization: Bearer ' . $accessToken], $extraHeaders),
+            ]);
+            $raw = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            return [$code, $raw === false ? null : $raw];
+        }
+    );
+
+    return [$response === null ? false : $response, $httpCode, $curlError];
+}
+
 // POST ?action=refresh_external_source&source=tmdb|tvdb&external_id=...
 // Brukes av "Bytt data fra kilde"-knappene på detail.php. Gjør en
 // server-side PATCH mot backend, som selv henter fulle detaljer fra
@@ -85,16 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
 
     $patchUrl = MEDIA_API_BASE_URL . '/media/external-source/' . rawurlencode($source) . '/' . rawurlencode($externalId);
 
-    $ch = curl_init($patchUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($patchUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 20, // henting fra TMDB/TVDB kan ta noen sekunder
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -133,16 +164,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_
 
     $mergeUrl = MEDIA_API_BASE_URL . '/media/external-source/' . rawurlencode($source) . '/' . rawurlencode($externalId) . '/merge';
 
-    $ch = curl_init($mergeUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($mergeUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 10,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -192,21 +217,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_ex
 
     $setUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/external-source/' . rawurlencode($source);
 
-    $ch = curl_init($setUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($setUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => array_merge([auth_bearer_header()], ['Content-Type: application/json']),
         CURLOPT_POSTFIELDS => json_encode([
             'external_id' => $externalId,
             'confirm_merge' => $confirmMerge,
             'content_type' => $contentType,
         ]),
         CURLOPT_TIMEOUT => 20, // henting fra TMDB/TVDB for validering kan ta noen sekunder
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -244,15 +263,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'search_
         'content_type' => $contentType,
     ]);
 
-    $ch = curl_init($searchUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($searchUrl, [
         CURLOPT_TIMEOUT => 15,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -410,16 +423,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_r
 
     $bulkUrl = MEDIA_API_BASE_URL . '/media/health-check/bulk-refresh-tmdb';
 
-    $ch = curl_init($bulkUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($bulkUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 15,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -444,15 +451,9 @@ if (($_GET['action'] ?? '') === 'bulk_refresh_tmdb_status') {
 
     $statusUrl = MEDIA_API_BASE_URL . '/media/health-check/bulk-refresh-tmdb/status';
 
-    $ch = curl_init($statusUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($statusUrl, [
         CURLOPT_TIMEOUT => 10,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -532,17 +533,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
 
     $setCoverUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/cover';
 
-    $ch = curl_init($setCoverUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($setCoverUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => json_encode(['file_path' => $filePath]),
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -576,17 +571,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'bulk_a
 
     $bulkGroupUrl = MEDIA_API_BASE_URL . '/media/content/bulk-group';
 
-    $ch = curl_init($bulkGroupUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($bulkGroupUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -624,17 +613,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'PATCH' && ($_GET['action'] ?? '') === 'reord
 
     $reorderUrl = MEDIA_API_BASE_URL . '/media/groups/' . $groupId . '/reorder';
 
-    $ch = curl_init($reorderUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($reorderUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -672,17 +655,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'add_co
 
     $addGroupUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/groups';
 
-    $ch = curl_init($addGroupUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($addGroupUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -721,16 +698,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'remove
 
     $removeGroupUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/groups/' . $groupId;
 
-    $ch = curl_init($removeGroupUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($removeGroupUrl, [
         CURLOPT_CUSTOMREQUEST => 'DELETE',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 10,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -770,17 +741,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
 
     $updateUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId;
 
-    $ch = curl_init($updateUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($updateUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -819,17 +784,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
 
     $lockUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/lock';
 
-    $ch = curl_init($lockUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($lockUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -869,17 +828,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
 
     $updateUrl = MEDIA_API_BASE_URL . '/media/physical-copy/' . $collectionId . '/' . $copyId;
 
-    $ch = curl_init($updateUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($updateUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -985,17 +938,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'create
 
     $createUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/seasons';
 
-    $ch = curl_init($createUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($createUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -1032,17 +979,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
 
     $updateUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId;
 
-    $ch = curl_init($updateUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($updateUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -1080,17 +1021,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
 
     $updateUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/watched';
 
-    $ch = curl_init($updateUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($updateUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -1125,16 +1060,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'delete
 
     $deleteUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId;
 
-    $ch = curl_init($deleteUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($deleteUrl, [
         CURLOPT_CUSTOMREQUEST => 'DELETE',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 10,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -1169,16 +1098,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
 
     $refreshUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/refresh/' . $source;
 
-    $ch = curl_init($refreshUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($refreshUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 20, // henting av hele episodelisten fra TMDB/TVDB kan ta noen sekunder
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -1214,17 +1137,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'create
 
     $createUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/episodes';
 
-    $ch = curl_init($createUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($createUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -1260,17 +1177,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update
 
     $updateUrl = MEDIA_API_BASE_URL . '/media/episodes/' . $episodeId;
 
-    $ch = curl_init($updateUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($updateUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
@@ -1304,16 +1215,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'delete
 
     $deleteUrl = MEDIA_API_BASE_URL . '/media/episodes/' . $episodeId;
 
-    $ch = curl_init($deleteUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($deleteUrl, [
         CURLOPT_CUSTOMREQUEST => 'DELETE',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 10,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -1349,17 +1254,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'assign
 
     $assignUrl = MEDIA_API_BASE_URL . '/media/episodes/' . $episodeId . '/disc';
 
-    $ch = curl_init($assignUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($assignUrl, [
         CURLOPT_CUSTOMREQUEST => 'PUT',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);
