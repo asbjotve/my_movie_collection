@@ -465,28 +465,26 @@ backlog to pick from.
       access token is replaced; expired access + no refresh token
       still correctly surfaces a 401). Not yet adopted by the other
       tools sharing `auth.php` - see the separate rollout item below.
-- [ ] Roll out the automatic re-login (`auth_call_with_retry()`, see
+- [x] Roll out the automatic re-login (`auth_call_with_retry()`, see
       the "Refresh tokens" item above) to the other tools that share
-      `auth.php` but still only use `auth_bearer_header()` /
-      `auth_api_authenticated()` directly and so still show a raw 401
-      ("Kunne ikke validere token") once their access token expires.
-      Each one just needs its curl call wrapped the same way
-      `tv_series_add_form/v1/api.php`'s submit action was:
+      `auth.php` but still only used `auth_bearer_header()` /
+      `auth_api_authenticated()` directly and so still showed a raw 401
+      ("Kunne ikke validere token") once their access token expired.
+      Done for all remaining tools:
       - `frontend/public/bulk_add_movies_form/v14/api.php`
       - `frontend/public/temp_add_movie_barcode/v1/submit.php`
-      - `frontend/public/website_template_example/v18/api.php`
-      - [x] `frontend/public/website_template_example/v19/api.php` -
-        done: added a local `backend_curl_with_retry()` helper and
+      - `frontend/public/website_template_example/v18/api.php` - added
+        a local `backend_curl_with_retry()` helper (same as v19).
+      - `frontend/public/website_template_example/v19/api.php` -
+        added a local `backend_curl_with_retry()` helper and
         rewired all 22 authenticated curl calls (the 9 read-only
         calls using the static `X-API-Key` were left untouched, since
         they carry no per-user token to refresh).
       - `frontend/public/custom_list_manager/v3/index.php` and
         `v4/index.php`
-      - `frontend/public/add_to_wishlist/v4/bildopp.php`
-      Worth doing incrementally (one tool at a time, verified live like
-      the first rollout) rather than all at once, since each file's
-      curl setup differs slightly (some use multipart uploads, not
-      plain JSON POSTs).
+      - `frontend/public/add_to_wishlist/v4/bildopp.php` (multipart
+        cover-image upload - safe to retry since the temp upload file
+        persists for the request's lifetime).
 - [x] `list_content()` (hit on every "Mine filmer" page load, no
       caching) was fetching the FULL `content_external_source.data_json`
       column for all ~776 TMDB rows (avg 108KB, max 420KB, ~80MB total)
