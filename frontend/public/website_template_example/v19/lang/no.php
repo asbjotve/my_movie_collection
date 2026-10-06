@@ -147,6 +147,7 @@ return [
             'locked_fields_skipped' => ' Låst (hoppet over): %s.',
             'refresh_error_prefix' => 'Klarte ikke å oppdatere fra %s: %s',
             'set_id_btn'          => 'Sett ID',
+            'change_id_btn'       => 'Endre ID',
             'set_id_prompt'       => 'Skriv inn %s-ID for denne filmen:',
             'setting_id'          => 'Setter %s-ID…',
             'set_id_modal_title'  => 'Finn riktig treff for «%s»',

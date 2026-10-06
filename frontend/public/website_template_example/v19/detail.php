@@ -480,8 +480,8 @@ $sectionAccess = [
 
       <div class="factsGrid" id="idsGrid">
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_imdb')) ?></div><div class="vRow"><div class="v" id="fImdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="imdb_id" data-type="text" data-target="fImdb" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="imdb_id" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="vRow"><div class="v" id="fTmdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTmdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
-        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="vRow"><div class="v" id="fTvdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTvdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>" style="display:none;">➕</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tmdb')) ?></div><div class="vRow"><div class="v" id="fTmdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTmdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>">➕</button><?php endif; ?></div></div>
+        <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_tvdb')) ?></div><div class="vRow"><div class="v" id="fTvdb">-</div><?php if ($isLoggedIn): ?><button type="button" class="setIdBtn" id="btnSetTvdbId" title="<?= htmlspecialchars(t('wte.detail.set_id_btn')) ?>">➕</button><?php endif; ?></div></div>
       </div>
 
       <div class="factsGrid">
@@ -852,10 +852,15 @@ $sectionAccess = [
       const discTxt = c.disc_count > 1
         ? wteFormat(WTE_I18N.detail.disc_count_plural, c.disc_count)
         : c.disc_count === 1 ? WTE_I18N.detail.disc_count_single : WTE_I18N.detail.disc_count_unknown;
-      const hasBoxItems = c.is_box_set && (c.box_set_items || []).length;
-      // Vis platetabellen for alle ikke-box-sett-eksemplarer med minst
-      // én registrert plate - også når det bare er én plate.
-      const hasDiscs = !c.is_box_set && (c.discs || []).length > 0;
+      // Et TV-boks-eksemplar (season_number satt) er alltid mer
+      // nyttig å vise som plate/episode-tabell enn som "innhold i
+      // boksen" (som for en sesongs innerkasse bare ville vist selve
+      // serietittelen, ikke noe nyttig) - derfor prioriteres
+      // plate-tabellen for disse selv om is_box_set er satt (siden de
+      // deler strekkode med ytterboksen). Rene fler-titler-bokser
+      // (season_number=null) viser fortsatt "innhold i boksen" som før.
+      const hasDiscs = (c.discs || []).length > 0 && (!c.is_box_set || c.season_number != null);
+      const hasBoxItems = !hasDiscs && c.is_box_set && (c.box_set_items || []).length;
       const clickable = hasBoxItems || hasDiscs;
 
       return `
@@ -929,10 +934,11 @@ $sectionAccess = [
     panel.querySelectorAll(".copyRow[data-copy-index]").forEach(row => {
       row.addEventListener("click", () => {
         const copy = copies[Number(row.dataset.copyIndex)];
-        if (copy.is_box_set) {
-          renderBoxSetTable(copy);
-        } else {
+        const showDiscs = (copy.discs || []).length > 0 && (!copy.is_box_set || copy.season_number != null);
+        if (showDiscs) {
           renderDiscsTable(copy);
+        } else {
+          renderBoxSetTable(copy);
         }
       });
     });
@@ -1774,14 +1780,24 @@ $sectionAccess = [
     document.getElementById("fTmdb").textContent = tmdbSource?.external_id || "-";
     document.getElementById("fTvdb").textContent = tvdbSource?.external_id || "-";
 
-    // "+"-knappene for å SETTE en TMDB/TVDB-id vises bare når kilden
-    // mangler fra før (motsatt av "Bytt data fra kilde"-knappene under,
-    // som bare er aktive når kilden finnes) - se
+    // "+"-knappene lot deg tidligere bare SETTE en TMDB/TVDB-id når
+    // kilden manglet fra før - nå er de alltid synlige og tillater
+    // også å ENDRE en allerede satt id (f.eks. hvis man ved en feil
+    // har koblet til feil film/serie) - samme applyExternalId()-flyt
+    // håndterer begge tilfeller (ren INSERT vs. upsert), se
     // set_content_external_id() i backend.
     const btnSetTmdbId = document.getElementById("btnSetTmdbId");
     const btnSetTvdbId = document.getElementById("btnSetTvdbId");
-    if (btnSetTmdbId) btnSetTmdbId.style.display = tmdbSource?.external_id ? "none" : "";
-    if (btnSetTvdbId) btnSetTvdbId.style.display = tvdbSource?.external_id ? "none" : "";
+    if (btnSetTmdbId) {
+      const has = !!tmdbSource?.external_id;
+      btnSetTmdbId.textContent = has ? "✏️" : "➕";
+      btnSetTmdbId.title = has ? WTE_I18N.detail.change_id_btn : WTE_I18N.detail.set_id_btn;
+    }
+    if (btnSetTvdbId) {
+      const has = !!tvdbSource?.external_id;
+      btnSetTvdbId.textContent = has ? "✏️" : "➕";
+      btnSetTvdbId.title = has ? WTE_I18N.detail.change_id_btn : WTE_I18N.detail.set_id_btn;
+    }
 
     // Knappene for å bytte data fra TMDB/TVDB er bare aktive når kilden
     // finnes fra før (content_external_source-raden må allerede finnes -

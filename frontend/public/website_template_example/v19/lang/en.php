@@ -144,6 +144,7 @@ return [
             'locked_fields_skipped' => ' Locked (skipped): %s.',
             'refresh_error_prefix' => 'Failed to update from %s: %s',
             'set_id_btn'          => 'Set ID',
+            'change_id_btn'       => 'Change ID',
             'set_id_prompt'       => 'Enter the %s ID for this movie:',
             'setting_id'          => 'Setting %s ID…',
             'set_id_modal_title'  => 'Find the right match for "%s"',
