@@ -642,7 +642,10 @@ def _compute_search_facets(data: dict) -> tuple[list[str], list[str], int | None
     hele (ofte >100KB) data_json-blobben på nytt ved hvert kall.
     """
     genres, cast = _extract_genres_and_cast(data)
-    release_date = data.get("release_date")
+    # Filmer har "release_date", serier har "first_air_date" - se
+    # _extract_tmdb_title()/_map_tmdb_to_content_fields() for samme
+    # film/serie-distinksjon.
+    release_date = data.get("release_date") or data.get("first_air_date")
     release_year = (
         int(release_date[:4]) if release_date and release_date[:4].isdigit() else None
     )
@@ -1855,7 +1858,7 @@ def get_collection_stats(db: Session) -> dict:
         if first_release is not None:
             year = first_release.year
         else:
-            release_date = data.get("release_date")
+            release_date = data.get("release_date") or data.get("first_air_date")
             if release_date and release_date[:4].isdigit():
                 year = int(release_date[:4])
         if year:
@@ -2652,15 +2655,27 @@ def _map_tmdb_to_content_fields(data: dict) -> dict:
     title = _extract_tmdb_title(data)
     if title:
         fields["title"] = title
-    if data.get("original_title"):
-        fields["original_title"] = data["original_title"]
-    if data.get("release_date"):
-        fields["first_release"] = data["release_date"]
+    original_title = data.get("original_title") or data.get("original_name")
+    if original_title:
+        fields["original_title"] = original_title
+    # Filmer har "release_date", serier har "first_air_date" - se
+    # _extract_tmdb_title() for samme film/serie-distinksjon.
+    release_date = data.get("release_date") or data.get("first_air_date")
+    if release_date:
+        fields["first_release"] = release_date
     overview = _extract_tmdb_overview(data)
     if overview:
         fields["overview"] = overview
     if data.get("runtime"):
         fields["runtime"] = data["runtime"]
+    elif data.get("episode_run_time"):
+        # Serier har ingen samlet "runtime" - "episode_run_time" er en
+        # liste med episodelengder (vanligvis bare én verdi registrert
+        # for hele serien på TMDB) - bruker første som representativ
+        # episodelengde.
+        episode_run_times = data["episode_run_time"]
+        if episode_run_times:
+            fields["runtime"] = episode_run_times[0]
     if data.get("poster_path"):
         fields["cover_image"] = f"{TMDB_IMAGE_BASE_URL}{data['poster_path']}"
 
@@ -2676,20 +2691,21 @@ def _map_tmdb_to_content_fields(data: dict) -> dict:
 
 
 def _extract_tmdb_title(data: dict) -> str | None:
-    """TMDB sin "title" faller tilbake til "original_title" (ikke
-    engelsk) når forespurt språk (nb-NO - se fetch_tmdb_details())
-    mangler oversettelse - det gir f.eks. den persiske tittelen
-    'جدایی نادر از سیمین' i stedet for "A Separation" for filmer uten
-    norsk oversettelse registrert i TMDB (oppdaget via Plex-import).
+    """TMDB sin "title" (filmer) / "name" (serier) faller tilbake til
+    "original_title"/"original_name" (ikke engelsk) når forespurt
+    språk (nb-NO - se fetch_tmdb_details()) mangler oversettelse - det
+    gir f.eks. den persiske tittelen 'جدایی نادر از سیمین' i stedet for
+    "A Separation" for filmer uten norsk oversettelse registrert i
+    TMDB (oppdaget via Plex-import).
 
-    Hvis "title" og "original_title" er identiske (= ingen reell
-    norsk oversettelse ble funnet), prøves en engelsk oversettelse fra
-    append_to_response=translations (samme mønster som
-    _extract_tmdb_overview()) før original_title til slutt beholdes
-    som siste utvei."""
+    Hvis "title"/"name" og "original_title"/"original_name" er
+    identiske (= ingen reell norsk oversettelse ble funnet), prøves en
+    engelsk oversettelse fra append_to_response=translations (samme
+    mønster som _extract_tmdb_overview()) før original-tittelen til
+    slutt beholdes som siste utvei."""
 
-    title = data.get("title")
-    original_title = data.get("original_title")
+    title = data.get("title") or data.get("name")
+    original_title = data.get("original_title") or data.get("original_name")
     if not title:
         return original_title
     if original_title and title != original_title:
@@ -2698,7 +2714,8 @@ def _extract_tmdb_title(data: dict) -> str | None:
     translations = (data.get("translations") or {}).get("translations") or []
     for entry in translations:
         if entry.get("iso_639_1") == "en":
-            english_title = (entry.get("data") or {}).get("title")
+            entry_data = entry.get("data") or {}
+            english_title = entry_data.get("title") or entry_data.get("name")
             if english_title:
                 return english_title
     return title
