@@ -68,56 +68,108 @@ function uploadErrorMessage(int $errorCode): string
 
 function apiRequest(string $url, array $postFields): array
 {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $postFields,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
-        CURLOPT_TIMEOUT => 30,
-    ]);
+    // Automatisk, stille fornying av access_token (uten å be om passord
+    // på nytt) hvis det første forsøket feiler med 401 - se
+    // auth_call_with_retry()/auth_refresh_access_token() i auth.php og
+    // TODO.md "Roll out the automatic re-login".
+    $curlError = '';
+    [$httpCode, $rawResponse] = auth_call_with_retry(
+        function (string $accessToken) use ($url, $postFields, &$curlError): array {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $postFields,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+                CURLOPT_TIMEOUT => 30,
+            ]);
 
-    $rawResponse = curl_exec($ch);
-    $curlError = curl_error($ch);
-    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+            $raw = curl_exec($ch);
+            $curlError = curl_error($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
 
-    return [$rawResponse, $curlError, $httpCode];
+            return [$code, $raw === false ? null : $raw];
+        }
+    );
+
+    return [$rawResponse === null ? false : $rawResponse, $curlError, $httpCode];
 }
 
 /**
  * Generic curl helper for the v4 inline "edit list" AJAX endpoints below -
  * supports GET (with X-API-Key, for reads) and PATCH/DELETE (with JWT
  * bearer, for writes), unlike apiRequest() above which is POST-only.
+ *
+ * Bearer-kall (skriv) går via auth_call_with_retry() for automatisk,
+ * stille fornying av access_token ved 401 - se TODO.md "Roll out the
+ * automatic re-login". X-API-Key-kall (les) trenger ikke dette, siden
+ * de ikke bærer et per-bruker-token som kan utløpe.
  */
 function apiCall(string $method, string $url, array $postFields = [], bool $useApiKey = false, ?string $jsonBody = null): array
 {
-    $ch = curl_init($url);
-    $headers = $useApiKey ? ['X-API-Key: ' . internalApiKey()] : [auth_bearer_header()];
+    if ($useApiKey) {
+        $ch = curl_init($url);
+        $headers = ['X-API-Key: ' . internalApiKey()];
 
-    $options = [
-        CURLOPT_CUSTOMREQUEST => $method,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
-    ];
+        $options = [
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+        ];
 
-    if ($jsonBody !== null) {
-        $headers[] = 'Content-Type: application/json';
-        $options[CURLOPT_POSTFIELDS] = $jsonBody;
-    } elseif ($method !== 'GET' && $postFields !== []) {
-        $options[CURLOPT_POSTFIELDS] = $postFields;
+        if ($jsonBody !== null) {
+            $headers[] = 'Content-Type: application/json';
+            $options[CURLOPT_POSTFIELDS] = $jsonBody;
+        } elseif ($method !== 'GET' && $postFields !== []) {
+            $options[CURLOPT_POSTFIELDS] = $postFields;
+        }
+
+        $options[CURLOPT_HTTPHEADER] = $headers;
+
+        curl_setopt_array($ch, $options);
+
+        $rawResponse = curl_exec($ch);
+        $curlError = curl_error($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        return [$rawResponse, $curlError, $httpCode];
     }
 
-    $options[CURLOPT_HTTPHEADER] = $headers;
+    $curlError = '';
+    [$httpCode, $rawResponse] = auth_call_with_retry(
+        function (string $accessToken) use ($method, $url, $postFields, $jsonBody, &$curlError): array {
+            $ch = curl_init($url);
+            $headers = ['Authorization: Bearer ' . $accessToken];
 
-    curl_setopt_array($ch, $options);
+            $options = [
+                CURLOPT_CUSTOMREQUEST => $method,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 30,
+            ];
 
-    $rawResponse = curl_exec($ch);
-    $curlError = curl_error($ch);
-    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+            if ($jsonBody !== null) {
+                $headers[] = 'Content-Type: application/json';
+                $options[CURLOPT_POSTFIELDS] = $jsonBody;
+            } elseif ($method !== 'GET' && $postFields !== []) {
+                $options[CURLOPT_POSTFIELDS] = $postFields;
+            }
 
-    return [$rawResponse, $curlError, $httpCode];
+            $options[CURLOPT_HTTPHEADER] = $headers;
+
+            curl_setopt_array($ch, $options);
+
+            $raw = curl_exec($ch);
+            $curlError = curl_error($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            return [$code, $raw === false ? null : $raw];
+        }
+    );
+
+    return [$rawResponse === null ? false : $rawResponse, $curlError, $httpCode];
 }
 
 // ============================================================

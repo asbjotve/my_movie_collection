@@ -56,34 +56,43 @@ if (!function_exists('curl_init')) {
     exit;
 }
 
-$ch = curl_init($apiUrl);
+// Automatisk, stille fornying av access_token (uten å be om passord på
+// nytt) hvis det første forsøket feiler med 401 - se
+// auth_call_with_retry()/auth_refresh_access_token() i auth.php og
+// TODO.md "Roll out the automatic re-login".
+$errorMessage = '';
+$contentType = null;
+[$statusCode, $responseBody] = auth_call_with_retry(
+    function (string $accessToken) use ($apiUrl, $rawBody, &$errorMessage, &$contentType): array {
+        $ch = curl_init($apiUrl);
 
-curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'Accept: application/json',
-        auth_bearer_header(),
-    ],
-    CURLOPT_POSTFIELDS => $rawBody,
-    CURLOPT_TIMEOUT => 30,
-]);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'Authorization: Bearer ' . $accessToken,
+            ],
+            CURLOPT_POSTFIELDS => $rawBody,
+            CURLOPT_TIMEOUT => 30,
+        ]);
 
-$responseBody = curl_exec($ch);
+        $body = curl_exec($ch);
+        $errorMessage = curl_error($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
 
-if ($responseBody === false) {
-    $errorMessage = curl_error($ch);
-    curl_close($ch);
+        return [$code, $body === false ? null : $body];
+    }
+);
 
+if ($responseBody === null) {
     http_response_code(502);
     echo json_encode(['error' => $errorMessage !== '' ? $errorMessage : 'Upstream request failed']);
     exit;
 }
-
-$statusCode = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-$contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-curl_close($ch);
 
 if (is_string($contentType) && $contentType !== '') {
     header('Content-Type: ' . $contentType);

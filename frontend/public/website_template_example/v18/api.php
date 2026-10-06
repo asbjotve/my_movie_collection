@@ -59,6 +59,43 @@ function with_api_key_header(array $curlHttpHeaders): array
     return $curlHttpHeaders;
 }
 
+/**
+ * Utfører et curl-kall mot backend med brukerens access_token i
+ * Authorization-headeren, og prøver automatisk å fornye tokenet stille
+ * (uten å be om passord på nytt) og kjøre kallet på nytt ÉN gang hvis
+ * det første forsøket feiler med 401 - se auth_call_with_retry()/
+ * auth_refresh_access_token() i _shared/auth.php og TODO.md "Roll out
+ * the automatic re-login". Fjerner behovet for at brukeren merker at
+ * access_token (30 min levetid) har utløpt og må logge inn på nytt
+ * manuelt midt i en handling.
+ *
+ * $curlOptions skal IKKE sette CURLOPT_RETURNTRANSFER eller
+ * CURLOPT_HTTPHEADER selv - de settes her. Ev. ekstra headere (f.eks.
+ * 'Content-Type: application/json') sendes via $extraHeaders.
+ *
+ * @return array{0: string|false, 1: int, 2: string} [response, httpCode, curlError]
+ */
+function backend_curl_with_retry(string $url, array $curlOptions, array $extraHeaders = []): array
+{
+    $curlError = '';
+    [$httpCode, $response] = auth_call_with_retry(
+        function (string $accessToken) use ($url, $curlOptions, $extraHeaders, &$curlError): array {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, $curlOptions + [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => array_merge(['Authorization: Bearer ' . $accessToken], $extraHeaders),
+            ]);
+            $raw = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            return [$code, $raw === false ? null : $raw];
+        }
+    );
+
+    return [$response === null ? false : $response, $httpCode, $curlError];
+}
+
 // POST ?action=refresh_external_source&source=tmdb|tvdb&external_id=...
 // Brukes av "Bytt data fra kilde"-knappene på detail.php. Gjør en
 // server-side PATCH mot backend, som selv henter fulle detaljer fra
@@ -81,16 +118,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
 
     $patchUrl = MEDIA_API_BASE_URL . '/media/external-source/' . rawurlencode($source) . '/' . rawurlencode($externalId);
 
-    $ch = curl_init($patchUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($patchUrl, [
         CURLOPT_CUSTOMREQUEST => 'PATCH',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 20, // henting fra TMDB/TVDB kan ta noen sekunder
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -125,16 +156,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'merge_
 
     $mergeUrl = MEDIA_API_BASE_URL . '/media/external-source/' . rawurlencode($source) . '/' . rawurlencode($externalId) . '/merge';
 
-    $ch = curl_init($mergeUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($mergeUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
         CURLOPT_TIMEOUT => 10,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
 
     if ($response === false) {
         http_response_code(502);
@@ -211,17 +236,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
 
     $setCoverUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/cover';
 
-    $ch = curl_init($setCoverUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($setCoverUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', auth_bearer_header()],
         CURLOPT_POSTFIELDS => json_encode(['file_path' => $filePath]),
         CURLOPT_TIMEOUT => 10,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    ], ['Content-Type: application/json']);
 
     if ($response === false) {
         http_response_code(502);

@@ -74,21 +74,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $postFields['tvdb_id'] = $tvdbId;
         }
 
-        $ch = curl_init($apiEndpoint);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $postFields,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [auth_bearer_header()],
-            CURLOPT_TIMEOUT => 30,
-        ]);
+        // Automatisk, stille fornying av access_token (uten å be om
+        // passord på nytt) hvis det første forsøket feiler med 401 - se
+        // auth_call_with_retry()/auth_refresh_access_token() i auth.php
+        // og TODO.md "Roll out the automatic re-login".
+        $curlError = '';
+        [$httpCode, $rawResponse] = auth_call_with_retry(
+            function (string $accessToken) use ($apiEndpoint, $postFields, &$curlError): array {
+                $ch = curl_init($apiEndpoint);
+                curl_setopt_array($ch, [
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => $postFields,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+                    CURLOPT_TIMEOUT => 30,
+                ]);
 
-        $rawResponse = curl_exec($ch);
-        $curlError = curl_error($ch);
-        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+                $raw = curl_exec($ch);
+                $curlError = curl_error($ch);
+                $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
 
-        if ($rawResponse === false) {
+                return [$code, $raw === false ? null : $raw];
+            }
+        );
+
+        if ($rawResponse === null) {
             $message = 'Kunne ikke kontakte API-et: ' . $curlError;
             $messageType = 'error';
         } else {

@@ -76,11 +76,20 @@ try {
             exit;
         }
 
-        [$response, $httpCode] = makeRequest(
-            INTERNAL_API_BASE_URL . '/import/physical-collection',
-            'POST',
-            ['Content-Type: application/json', auth_bearer_header()],
-            json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        // Automatisk, stille fornying av access_token (uten å be om passord
+        // på nytt) hvis det første forsøket feiler med 401 - se
+        // auth_call_with_retry()/auth_refresh_access_token() i auth.php og
+        // TODO.md "Roll out the automatic re-login".
+        [$httpCode, $response] = auth_call_with_retry(
+            function (string $accessToken) use ($decoded): array {
+                [$resp, $code] = makeRequest(
+                    INTERNAL_API_BASE_URL . '/import/physical-collection',
+                    'POST',
+                    ['Content-Type: application/json', 'Authorization: Bearer ' . $accessToken],
+                    json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                );
+                return [$code, $resp];
+            }
         );
 
         http_response_code($httpCode);

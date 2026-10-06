@@ -43,21 +43,32 @@ function uploadErrorMessage(int $errorCode): string
 
 function apiRequest(string $url, array $postFields): array
 {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $postFields,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [auth_bearer_header()],
-        CURLOPT_TIMEOUT => 30,
-    ]);
+    // Automatisk, stille fornying av access_token (uten å be om passord
+    // på nytt) hvis det første forsøket feiler med 401 - se
+    // auth_call_with_retry()/auth_refresh_access_token() i auth.php og
+    // TODO.md "Roll out the automatic re-login".
+    $curlError = '';
+    [$httpCode, $rawResponse] = auth_call_with_retry(
+        function (string $accessToken) use ($url, $postFields, &$curlError): array {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $postFields,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+                CURLOPT_TIMEOUT => 30,
+            ]);
 
-    $rawResponse = curl_exec($ch);
-    $curlError = curl_error($ch);
-    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+            $raw = curl_exec($ch);
+            $curlError = curl_error($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
 
-    return [$rawResponse, $curlError, $httpCode];
+            return [$code, $raw === false ? null : $raw];
+        }
+    );
+
+    return [$rawResponse === null ? false : $rawResponse, $curlError, $httpCode];
 }
 
 // Handle "create list" form
