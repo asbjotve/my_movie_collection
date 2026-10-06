@@ -475,7 +475,11 @@ backlog to pick from.
       - `frontend/public/bulk_add_movies_form/v14/api.php`
       - `frontend/public/temp_add_movie_barcode/v1/submit.php`
       - `frontend/public/website_template_example/v18/api.php`
-      - `frontend/public/website_template_example/v19/api.php`
+      - [x] `frontend/public/website_template_example/v19/api.php` -
+        done: added a local `backend_curl_with_retry()` helper and
+        rewired all 22 authenticated curl calls (the 9 read-only
+        calls using the static `X-API-Key` were left untouched, since
+        they carry no per-user token to refresh).
       - `frontend/public/custom_list_manager/v3/index.php` and
         `v4/index.php`
       - `frontend/public/add_to_wishlist/v4/bildopp.php`
