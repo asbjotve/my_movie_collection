@@ -101,6 +101,7 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
 <meta charset="utf-8">
 <title><?= htmlspecialchars(t('wte.admin_tilganger.meta_title')) ?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<?= csrf_meta_tag() ?>
 <style>
   :root{
     --bg:#0f1115; --panel:#161922; --border:#262b38; --text:#e7e9ee;
@@ -150,6 +151,28 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
     background:rgba(62,207,142,.12); border:1px solid rgba(62,207,142,.4); color:var(--success);
     padding:10px 12px; border-radius:7px; font-size:13px; margin-top:14px;
   }
+  .dangerCard{ border-color:rgba(229,72,77,.4); }
+  .btnDanger{ background:var(--danger); color:#fff; width:100%; margin-top:20px; }
+  .btnDanger:disabled{ opacity:.5; cursor:not-allowed; }
+  .modalOverlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modalOverlay.open{ display:flex; }
+  .modalBox{
+    background:var(--panel); border:1px solid rgba(229,72,77,.5); border-radius:12px;
+    padding:26px; max-width:440px; width:100%;
+  }
+  .modalBox h2{ margin:0 0 10px; font-size:17px; color:var(--danger); }
+  .modalBox ul{ margin:10px 0; padding-left:20px; font-size:13px; color:var(--muted); }
+  .modalBox input[type=text]{
+    width:100%; padding:10px; border-radius:7px; background:var(--bg); color:var(--text);
+    border:1px solid var(--border); font-size:14px; margin-top:10px;
+  }
+  .modalActions{ display:flex; gap:10px; margin-top:18px; }
+  .modalActions button{ flex:1; }
+  .btnSecondary{ background:#2a2f3d; color:var(--text); }
+  .spinner{ font-size:13px; color:var(--muted); margin-top:10px; }
 </style>
 </head>
 <body>
@@ -232,6 +255,135 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
       <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.currency_save_btn')) ?></button>
     </form>
   </div>
+
+  <div class="card dangerCard">
+    <h1><?= htmlspecialchars(t('wte.admin_tilganger.reset_heading')) ?></h1>
+    <p class="subtitle"><?= htmlspecialchars(t('wte.admin_tilganger.reset_subtitle')) ?></p>
+    <button type="button" id="resetOpenBtn" class="btnDanger"><?= htmlspecialchars(t('wte.admin_tilganger.reset_btn')) ?></button>
+    <div id="resetFeedback"></div>
+  </div>
 </div>
+
+<div class="modalOverlay" id="resetModal">
+  <div class="modalBox">
+    <h2><?= htmlspecialchars(t('wte.admin_tilganger.reset_modal_heading')) ?></h2>
+    <p id="resetModalBody"><?= htmlspecialchars(t('wte.admin_tilganger.reset_loading')) ?></p>
+    <ul id="resetPreserved" style="display:none"></ul>
+    <label for="resetConfirmInput" style="font-size:13px; color:var(--muted); display:block; margin-top:14px;">
+      <?= sprintf(htmlspecialchars(t('wte.admin_tilganger.reset_confirm_label')), '<strong>NULLSTILL ALT</strong>') ?>
+    </label>
+    <input type="text" id="resetConfirmInput" autocomplete="off" disabled>
+    <div class="modalActions">
+      <button type="button" id="resetCancelBtn" class="btnSecondary"><?= htmlspecialchars(t('wte.admin_tilganger.reset_cancel_btn')) ?></button>
+      <button type="button" id="resetConfirmBtn" class="btnDanger" disabled><?= htmlspecialchars(t('wte.admin_tilganger.reset_confirm_btn')) ?></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var CONFIRM_PHRASE = 'NULLSTILL ALT';
+  var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+  var openBtn = document.getElementById('resetOpenBtn');
+  var cancelBtn = document.getElementById('resetCancelBtn');
+  var confirmBtn = document.getElementById('resetConfirmBtn');
+  var modal = document.getElementById('resetModal');
+  var modalBody = document.getElementById('resetModalBody');
+  var preservedList = document.getElementById('resetPreserved');
+  var confirmInput = document.getElementById('resetConfirmInput');
+  var feedback = document.getElementById('resetFeedback');
+
+  function closeModal() {
+    modal.classList.remove('open');
+    confirmInput.value = '';
+    confirmInput.disabled = true;
+    confirmBtn.disabled = true;
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  openBtn.addEventListener('click', function () {
+    feedback.innerHTML = '';
+    modalBody.textContent = <?= json_encode(t('wte.admin_tilganger.reset_loading')) ?>;
+    preservedList.style.display = 'none';
+    preservedList.innerHTML = '';
+    confirmInput.disabled = true;
+    confirmBtn.disabled = true;
+    modal.classList.add('open');
+
+    fetch('api.php?action=reset_data_preview', { credentials: 'same-origin' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.error || data.detail) {
+          modalBody.textContent = <?= json_encode(t('wte.admin_tilganger.reset_preview_failed')) ?>;
+          return;
+        }
+        modalBody.innerHTML = <?= json_encode(t('wte.admin_tilganger.reset_modal_body_template')) ?>
+          .replace('%d', data.total);
+        preservedList.innerHTML = (data.preserved_tables || [])
+          .map(function (name) { return '<li>' + escapeHtml(name) + '</li>'; })
+          .join('');
+        preservedList.style.display = '';
+        confirmInput.disabled = false;
+      })
+      .catch(function () {
+        modalBody.textContent = <?= json_encode(t('wte.admin_tilganger.reset_preview_failed')) ?>;
+      });
+  });
+
+  cancelBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', function (ev) {
+    if (ev.target === modal) {
+      closeModal();
+    }
+  });
+
+  confirmInput.addEventListener('input', function () {
+    confirmBtn.disabled = confirmInput.value !== CONFIRM_PHRASE;
+  });
+
+  confirmBtn.addEventListener('click', function () {
+    if (confirmInput.value !== CONFIRM_PHRASE) {
+      return;
+    }
+    confirmBtn.disabled = true;
+    confirmInput.disabled = true;
+    modalBody.textContent = <?= json_encode(t('wte.admin_tilganger.reset_in_progress')) ?>;
+
+    fetch('api.php?action=reset_data_confirm', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify({ confirm: confirmInput.value })
+    })
+      .then(function (res) { return res.json().then(function (data) { return [res.ok, data]; }); })
+      .then(function (result) {
+        var ok = result[0];
+        var data = result[1];
+        closeModal();
+        if (ok) {
+          feedback.innerHTML = '<div class="successBox">'
+            + escapeHtml(<?= json_encode(t('wte.admin_tilganger.reset_success')) ?>) + '</div>';
+        } else {
+          feedback.innerHTML = '<div class="errorBox">'
+            + escapeHtml(data.error || data.detail || <?= json_encode(t('wte.admin_tilganger.reset_failed')) ?>) + '</div>';
+        }
+      })
+      .catch(function () {
+        closeModal();
+        feedback.innerHTML = '<div class="errorBox">'
+          + escapeHtml(<?= json_encode(t('wte.admin_tilganger.reset_failed')) ?>) + '</div>';
+      });
+  });
+})();
+</script>
 </body>
 </html>

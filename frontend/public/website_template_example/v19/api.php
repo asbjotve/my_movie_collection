@@ -1271,6 +1271,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'assign
     exit;
 }
 
+// GET ?action=reset_data_preview
+// Brukes av "Nullstill alle data"-dialogen i admin_tilganger.php: viser
+// hvor mange rader som VILLE blitt slettet per tabell, uten å slette
+// noe, slik at brukeren ser nøyaktig konsekvensen FØR de bekrefter -
+// se GET /admin/reset-collection-data/preview i
+// backend/app/routes/admin_reset_route.py.
+if (($_GET['action'] ?? '') === 'reset_data_preview') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $previewUrl = MEDIA_API_BASE_URL . '/admin/reset-collection-data/preview';
+
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($previewUrl, [
+        CURLOPT_TIMEOUT => 15,
+    ]);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=reset_data_confirm  (body: {"confirm": "NULLSTILL ALT"})
+// Selve slettingen - se POST /admin/reset-collection-data i
+// backend/app/routes/admin_reset_route.py. Krever at body.confirm
+// matcher bekreftelsesfrasen EKSAKT (ekstra sperre mot feilklikk/
+// automatiserte kall, i tillegg til at frontend-dialogen selv krever
+// at brukeren skriver frasen inn på nytt rett før dette sendes).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'reset_data_confirm') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $body = file_get_contents('php://input');
+
+    $resetUrl = MEDIA_API_BASE_URL . '/admin/reset-collection-data';
+
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($resetUrl, [
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 30, // mange DELETE-setninger - gi det litt ekstra tid
+    ], ['Content-Type: application/json']);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Uten ?id=... hentes hele listen (GET /media/content), som før.
 // Med ?id=<hex content_id> hentes én enkelt rad for detaljsiden
 // (GET /media/content/{id}), brukt av detail.php.
