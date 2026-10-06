@@ -2444,16 +2444,23 @@ def set_content_external_id(
         )
 
     now = datetime.now(timezone.utc)
+    # media_type ("movie"/"tv") er TMDB/TVDB-endepunktet SOM FAKTISK BLE
+    # BRUKT over (utledet av content_type-verdien over, før en eventuell
+    # senere, uavhengig endring av content.content_type - se
+    # update_content_external_source() som leser denne kolonnen tilbake
+    # for å slå opp samme endepunkt neste gang, UANSETT hva
+    # content.content_type måtte bli endret til manuelt etterpå).
+    media_type = "movie" if content_type == "movie" else "tv"
     db.execute(
         text(
             """
             INSERT INTO content_external_source (
                 source, content_id, external_id, data_json, fetched_at,
-                facet_genres, facet_cast, facet_release_year
+                facet_genres, facet_cast, facet_release_year, media_type
             )
             VALUES (
                 :source, :content_id, :external_id, :data_json, :fetched_at,
-                :facet_genres, :facet_cast, :facet_release_year
+                :facet_genres, :facet_cast, :facet_release_year, :media_type
             )
             ON DUPLICATE KEY UPDATE
                 external_id = VALUES(external_id),
@@ -2461,7 +2468,8 @@ def set_content_external_id(
                 fetched_at = VALUES(fetched_at),
                 facet_genres = VALUES(facet_genres),
                 facet_cast = VALUES(facet_cast),
-                facet_release_year = VALUES(facet_release_year)
+                facet_release_year = VALUES(facet_release_year),
+                media_type = VALUES(media_type)
             """
         ),
         {
@@ -2473,6 +2481,7 @@ def set_content_external_id(
             "facet_genres": json.dumps(facet_genres),
             "facet_cast": json.dumps(facet_cast),
             "facet_release_year": facet_release_year,
+            "media_type": media_type,
         },
     )
     db.commit()
@@ -2520,7 +2529,7 @@ def update_content_external_source(
     existing = db.execute(
         text(
             """
-            SELECT ces.content_id, c.content_type
+            SELECT ces.content_id, ces.media_type, c.content_type
             FROM content_external_source ces
             JOIN content c ON c.content_id = ces.content_id
             WHERE ces.source = :source AND ces.external_id = :external_id
@@ -2537,7 +2546,16 @@ def update_content_external_source(
             status_code=404,
         )
 
-    content_type = existing.content_type or "movie"
+    # media_type ("movie"/"tv") er endepunktet som FAKTISK ble brukt for
+    # denne (source, external_id) sist (satt av set_content_external_id())
+    # - brukes her FREMFOR content.content_type, som kan ha blitt endret
+    # manuelt etterpå uavhengig av hvilken type kilde-IDen faktisk er for
+    # (f.eks. en TV-film brukeren bevisst har satt content_type='movie'
+    # på, selv om TMDB/TVDB katalogiserer den som en serie - se
+    # EDITABLE_CONTENT_FIELDS). Faller tilbake til content_type for
+    # gamle rader som ble satt før media_type-kolonnen fantes og ikke er
+    # hentet på nytt siden.
+    content_type = existing.media_type or existing.content_type or "movie"
 
     try:
         if source == "tmdb":
@@ -2561,7 +2579,7 @@ def update_content_external_source(
             UPDATE content_external_source
             SET data_json = :data_json, fetched_at = :fetched_at,
                 facet_genres = :facet_genres, facet_cast = :facet_cast,
-                facet_release_year = :facet_release_year
+                facet_release_year = :facet_release_year, media_type = :media_type
             WHERE source = :source AND external_id = :external_id
             """
         ),
@@ -2573,6 +2591,10 @@ def update_content_external_source(
             "facet_genres": json.dumps(facet_genres),
             "facet_cast": json.dumps(facet_cast),
             "facet_release_year": facet_release_year,
+            # Skriver tilbake samme media_type som faktisk ble brukt over
+            # - selvhelbredende for gamle rader som manglet denne
+            # kolonnen fra før migrasjonen (NULL -> fylt inn her).
+            "media_type": content_type,
         },
     )
     db.commit()
