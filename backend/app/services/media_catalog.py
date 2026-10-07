@@ -653,15 +653,16 @@ def _compute_search_facets(data: dict) -> tuple[list[str], list[str], int | None
 
 
 def _parse_facet_genres(raw_value) -> list[str]:
-    """facet_genres-kolonnen er MySQL JSON, men db.execute(text(...))
-    (brukt her og i list_content()) går forbi SQLAlchemys
-    type-decoding, så driveren returnerer verdien som en rå
-    JSON-streng (f.eks. '["Action", "Thriller"]'), ikke en ferdig
-    parset liste. list_content() sender denne strengen videre til
-    frontend som den er (ufarlig der siden frontend kun gjør
-    streng-basert søk/filter på den) - men get_similar_content()
-    trenger faktiske sjangernavn for å telle eksakt overlapp, så den
-    må parses her.
+    """facet_genres/facet_cast-kolonnene er MySQL JSON, men
+    db.execute(text(...)) (brukt i flere steder i denne filen) går
+    forbi SQLAlchemys type-decoding, så driveren returnerer verdien
+    som en rå JSON-streng (f.eks. '["Action", "Thriller"]'), ikke en
+    ferdig parset liste. Brukes både av list_content() (for å gi
+    frontend ferdige arrays til sjanger/skuespiller-facettene - se
+    renderMineFilmerGenreChips()/getFilteredMineFilmer() i index.php)
+    og get_similar_content() (som trenger faktiske sjangernavn for å
+    telle eksakt overlapp). Navnet er historisk (opprinnelig kun for
+    genres) - funksjonen er generisk og brukes nå for begge kolonnene.
     """
     if not raw_value:
         return []
@@ -797,8 +798,16 @@ def list_content(db: Session) -> list[dict]:
     for row in tmdb_json_rows:
         key = _hex_id(row.content_id)
         search_facets_by_content[key] = {
-            "genres": row.facet_genres or [],
-            "cast": row.facet_cast or [],
+            # facet_genres/facet_cast kommer her som rå JSON-strenger
+            # (se _parse_facet_genres()-docstringen) siden denne spørringen
+            # bruker db.execute(text(...)) og dermed går forbi SQLAlchemys
+            # type-decoding. Må parses FØR de sendes til frontend, ellers
+            # blir t.d. hele '["Action", "Thriller"]'-strengen én eneste
+            # "sjanger"-chip i stedet for to separate (Action/Thriller) -
+            # se index.php sin renderMineFilmerGenreChips()/
+            # getFilteredMineFilmer() som forventer ferdige arrays.
+            "genres": _parse_facet_genres(row.facet_genres),
+            "cast": _parse_facet_genres(row.facet_cast),
             "tmdb_year": row.facet_release_year,
         }
 
