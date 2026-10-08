@@ -416,12 +416,16 @@ function h(string $s): string
       <p class="muted">
         Har du allerede en ferdig <code>tv_series_boxset</code>- eller
         <code>mixed_boxset</code>-payload (f.eks. laget fra forhåndsvisningen over,
-        eller skrevet manuelt)? Lim den inn her og send inn direkte -
-        uten å måtte fylle ut skjemaet over på nytt.
+        eller skrevet manuelt)? Lim den inn her og enten
+        <strong>send inn direkte</strong> - uten å måtte fylle ut skjemaet over
+        på nytt - eller <strong>last den inn i skjemaet over</strong> for å
+        redigere den videre der (f.eks. rette opp et feltverdi) før du bygger
+        og sender inn på nytt.
       </p>
       <textarea id="pastePayloadInput" class="mono" rows="10" style="width:100%;"
         placeholder='{"kind": "tv_series_boxset" eller "mixed_boxset", ...}'></textarea>
       <div class="actionsRow">
+        <button type="button" class="btn" id="loadPasteBtn">Last inn payload i skjema</button>
         <button type="button" class="btn good" id="submitPasteBtn">Send inn limt payload</button>
       </div>
       <p id="pasteSubmitStatus" class="muted"></p>

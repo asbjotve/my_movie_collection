@@ -1021,6 +1021,173 @@
     submitToBackend(payload, document.getElementById("submitPasteBtn"), statusEl);
   });
 
+  // --- Load a pasted payload back into the guided form -------------------
+  // Lets a previously exported (or hand-written) payload be edited via
+  // the form again, instead of only being submittable as opaque raw
+  // JSON. Rebuilds the seasons/discs/mixedSeries/mixedMovies/mixedDiscs
+  // state arrays from the payload shape (the exact inverse of
+  // buildSinglePayload()/buildMixedPayload()) and re-renders.
+
+  function setInputValue(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value == null ? "" : value;
+  }
+
+  function loadSeasonsFromPayload(seasonsArr, payloadSeasons) {
+    seasonsArr.length = 0;
+    (payloadSeasons || []).forEach((ps) => {
+      seasonsArr.push({
+        season_number: ps.season_number != null ? ps.season_number : seasonsArr.length + 1,
+        title: ps.title || "",
+        air_date: ps.air_date || "",
+        inner_case_ean: ps.inner_case_ean || "",
+        episodes: (ps.episodes || []).map((pe) => ({
+          episode_number: pe.episode_number,
+          title: pe.title || "",
+          runtime: pe.runtime == null ? "" : pe.runtime,
+          original_air_date: pe.original_air_date || "",
+        })),
+      });
+    });
+  }
+
+  function loadPayloadIntoForm(payload) {
+    if (!payload || typeof payload !== "object") {
+      throw new Error("Payload må være et JSON-objekt.");
+    }
+    const kind = payload.kind === "mixed_boxset" ? "mixed_boxset" : "tv_series_boxset";
+    formModeEl.value = kind;
+    updateModeVisibility();
+
+    const box = payload.box || {};
+    setInputValue("boxFormat", box.format || "DVD");
+    setInputValue("boxBarcode", box.box_set_barcode || "");
+    setInputValue("storageId", box.storage_id || "");
+    setInputValue("copyCount", box.copy_count || 1);
+
+    if (kind === "tv_series_boxset") {
+      const series = payload.series || {};
+      setInputValue("seriesTitle", series.title || "");
+      setInputValue("seriesImdb", series.imdb_id || "");
+      setInputValue("seriesTvdb", series.tvdb_id || "");
+
+      loadSeasonsFromPayload(seasons, payload.seasons);
+
+      discs.length = 0;
+      discSeq = 0;
+      (payload.discs || []).forEach((pd) => {
+        discSeq += 1;
+        const season =
+          seasons.find((s) => s.season_number === pd.season_number) || (seasons.length ? seasons[0] : null);
+        discs.push({
+          id: discSeq,
+          order: pd.order != null ? pd.order : discs.length + 1,
+          format: pd.format || "DVD",
+          label: (pd.label || "").slice(0, 255),
+          season_id: season,
+          storage_slot_no: pd.storage_slot_no == null ? "" : pd.storage_slot_no,
+          add_to_storage: pd.add_to_storage !== false,
+          episode_refs: (pd.episode_refs || []).map((r) => ({
+            season_number: r.season_number,
+            episode_number: r.episode_number,
+          })),
+        });
+      });
+
+      renderSeasons();
+      renderDiscEpisodeOptions();
+    } else {
+      mixedSeries.length = 0;
+      mixedSeriesSeq = 0;
+      (payload.series || []).forEach((ps) => {
+        mixedSeriesSeq += 1;
+        const series = {
+          id: mixedSeriesSeq,
+          title: ps.title || "",
+          imdb_id: ps.imdb_id || "",
+          tvdb_id: ps.tvdb_id || "",
+          seasons: [],
+        };
+        loadSeasonsFromPayload(series.seasons, ps.seasons);
+        mixedSeries.push(series);
+      });
+
+      mixedMovies.length = 0;
+      mixedMovieSeq = 0;
+      (payload.movies || []).forEach((pm) => {
+        mixedMovieSeq += 1;
+        mixedMovies.push({
+          id: mixedMovieSeq,
+          title: pm.title || "",
+          imdb_id: pm.imdb_id || "",
+          tmdb_id: pm.tmdb_id || "",
+          tvdb_id: pm.tvdb_id || "",
+          inner_case_ean: pm.inner_case_ean || "",
+        });
+      });
+
+      mixedDiscs.length = 0;
+      mixedDiscSeq = 0;
+      (payload.discs || []).forEach((pd) => {
+        mixedDiscSeq += 1;
+        const contentRefs = (pd.content_refs || [])
+          .map((r) => {
+            if (r.kind === "series") {
+              const series = mixedSeries[r.series_index];
+              return series ? { kind: "series", id: series.id } : null;
+            }
+            const movie = mixedMovies[r.movie_index];
+            return movie ? { kind: "movie", id: movie.id } : null;
+          })
+          .filter(Boolean);
+        const episodeRefs = (pd.episode_refs || [])
+          .map((r) => {
+            const series = mixedSeries[r.series_index];
+            return series
+              ? { seriesId: series.id, season_number: r.season_number, episode_number: r.episode_number }
+              : null;
+          })
+          .filter(Boolean);
+        mixedDiscs.push({
+          id: mixedDiscSeq,
+          order: pd.order != null ? pd.order : mixedDiscs.length + 1,
+          format: pd.format || "DVD",
+          label: (pd.label || "").slice(0, 255),
+          storage_slot_no: pd.storage_slot_no == null ? "" : pd.storage_slot_no,
+          add_to_storage: pd.add_to_storage !== false,
+          content_refs: contentRefs,
+          episode_refs: episodeRefs,
+        });
+      });
+
+      renderMixedSeries();
+      renderMixedMovies();
+      renderMixedDiscs();
+    }
+  }
+
+  document.getElementById("loadPasteBtn").addEventListener("click", () => {
+    const statusEl = document.getElementById("pasteSubmitStatus");
+    const raw = document.getElementById("pastePayloadInput").value;
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (err) {
+      statusEl.textContent = "Ugyldig JSON: " + err.message;
+      statusEl.style.color = "var(--danger)";
+      return;
+    }
+    try {
+      loadPayloadIntoForm(payload);
+      statusEl.textContent =
+        "Payload lastet inn i skjemaet over - rediger videre der, bygg ny forhåndsvisning og send inn.";
+      statusEl.style.color = "var(--accent2)";
+    } catch (err) {
+      statusEl.textContent = "Klarte ikke å laste payload inn i skjemaet: " + err.message;
+      statusEl.style.color = "var(--danger)";
+    }
+  });
+
   // Start single mode with one season (with 1 episode) and one disc
   // pre-filled, to make the shape clearer.
   addSeason();
