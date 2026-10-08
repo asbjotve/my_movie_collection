@@ -337,7 +337,7 @@
             <option value="4K UHD"${disc.format === "4K UHD" ? " selected" : ""}>4K UHD</option>
           </select>
         </td>
-        <td><input type="text" class="discLabelInput" value="${h(disc.label)}" placeholder="f.eks. Disk 1" style="width:120px;"></td>
+        <td><input type="text" class="discLabelInput" value="${h(disc.label)}" placeholder="f.eks. Disk 1" maxlength="255" style="width:120px;"></td>
         <td><select class="discSeasonInput">${seasonOptionsHtml(disc.season_id)}</select></td>
         <td><input type="number" min="0" class="discSlotInput" value="${h(disc.storage_slot_no)}" style="width:80px;"></td>
         <td><input type="checkbox" class="discAddToStorageInput" ${disc.add_to_storage ? "checked" : ""}></td>
@@ -355,7 +355,12 @@
         disc.format = e.target.value;
       });
       tr.querySelector(".discLabelInput").addEventListener("input", (e) => {
-        disc.label = e.target.value;
+        // maxlength styrer vanlig tasting, men paste/skripting kan fortsatt
+        // overstyre det i enkelte nettlesere - klipp uansett til kolonnens
+        // faktiske grense (disc.label er varchar(255) i databasen) slik at
+        // en feilaktig dobbel-limt tekst ikke feiler stille ved lagring.
+        disc.label = e.target.value.slice(0, 255);
+        if (e.target.value.length > 255) e.target.value = disc.label;
       });
       tr.querySelector(".discSeasonInput").addEventListener("change", (e) => {
         disc.season_id = seasons[Number(e.target.value)] || null;
@@ -732,7 +737,7 @@
             <option value="4K UHD"${disc.format === "4K UHD" ? " selected" : ""}>4K UHD</option>
           </select>
         </td>
-        <td><input type="text" class="discLabelInput" value="${h(disc.label)}" placeholder="f.eks. Disk 1" style="width:120px;"></td>
+        <td><input type="text" class="discLabelInput" value="${h(disc.label)}" placeholder="f.eks. Disk 1" maxlength="255" style="width:120px;"></td>
         <td><input type="number" min="0" class="discSlotInput" value="${h(disc.storage_slot_no)}" style="width:80px;"></td>
         <td><input type="checkbox" class="discAddToStorageInput" ${disc.add_to_storage ? "checked" : ""}></td>
         <td><select multiple class="discContentInput">${contentOptionsHtml(disc)}</select></td>
@@ -744,7 +749,10 @@
         disc.format = e.target.value;
       });
       tr.querySelector(".discLabelInput").addEventListener("input", (e) => {
-        disc.label = e.target.value;
+        // Se tilsvarende kommentar i renderDiscs() - klipp til 255 tegn som
+        // en sikkerhetsmekanisme mot f.eks. doble paste-innlim.
+        disc.label = e.target.value.slice(0, 255);
+        if (e.target.value.length > 255) e.target.value = disc.label;
       });
       tr.querySelector(".discSlotInput").addEventListener("input", (e) => {
         disc.storage_slot_no = e.target.value === "" ? "" : Number(e.target.value);
