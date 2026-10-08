@@ -1085,8 +1085,9 @@ $sectionAccess = [
             ${IS_LOGGED_IN ? `
             <div class="seasonActions">
               <button type="button" class="btnToggleSeasonWatched" data-watched="${allWatched ? "1" : "0"}" ${episodeCount ? "" : "disabled"}>${escapeHtml(allWatched ? WTE_I18N.detail.season_mark_unwatched_btn : WTE_I18N.detail.season_mark_watched_btn)}</button>
-              <button type="button" class="btnRefreshSeason" data-source="tmdb" title="${escapeHtml(WTE_I18N.detail.refresh_tmdb_btn)}">TMDB⟳</button>
-              <button type="button" class="btnRefreshSeason" data-source="tvdb" title="${escapeHtml(WTE_I18N.detail.refresh_tvdb_btn)}">TVDB⟳</button>
+              <button type="button" class="btnRefreshSeason" data-source="tmdb" data-season-type="default" title="${escapeHtml(WTE_I18N.detail.refresh_tmdb_btn)}">TMDB⟳</button>
+              <button type="button" class="btnRefreshSeason" data-source="tvdb" data-season-type="default" title="${escapeHtml(WTE_I18N.detail.refresh_tvdb_btn)}">TVDB⟳</button>
+              <button type="button" class="btnRefreshSeason" data-source="tvdb" data-season-type="dvd" title="${escapeHtml(WTE_I18N.detail.refresh_tvdb_dvd_btn)}">TVDB⟳(DVD)</button>
               <button type="button" class="btnEditSeason" title="${escapeHtml(WTE_I18N.detail.edit_btn)}">✏️</button>
               <button type="button" class="btnDeleteSeason" title="${escapeHtml(WTE_I18N.detail.delete_btn)}">🗑️</button>
             </div>` : ""}
@@ -1131,7 +1132,7 @@ $sectionAccess = [
       if (deleteBtn) deleteBtn.addEventListener("click", () => deleteSeason(contentId, season));
 
       block.querySelectorAll(".btnRefreshSeason").forEach(btn => {
-        btn.addEventListener("click", () => refreshSeason(contentId, season, btn.dataset.source, block));
+        btn.addEventListener("click", () => refreshSeason(contentId, season, btn.dataset.source, block, btn.dataset.seasonType || "default"));
       });
 
       const toggleWatchedBtn = block.querySelector(".btnToggleSeasonWatched");
@@ -1159,12 +1160,12 @@ $sectionAccess = [
     });
   }
 
-  async function refreshSeason(contentId, season, source, block){
+  async function refreshSeason(contentId, season, source, block, seasonType){
     const statusEl = block.querySelector(".seasonRefreshStatus");
     statusEl.className = "refreshStatus seasonRefreshStatus";
     statusEl.textContent = WTE_I18N.detail.refreshing_season;
     try {
-      const res = await fetch("api.php?action=refresh_season&season_id=" + encodeURIComponent(season.season_id) + "&source=" + encodeURIComponent(source), {
+      const res = await fetch("api.php?action=refresh_season&season_id=" + encodeURIComponent(season.season_id) + "&source=" + encodeURIComponent(source) + "&season_type=" + encodeURIComponent(seasonType || "default"), {
         method: "POST",
         headers: csrfHeader(),
       });

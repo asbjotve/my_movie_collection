@@ -1076,9 +1076,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'delete
     exit;
 }
 
-// POST ?action=refresh_season&season_id=<hex>&source=tmdb|tvdb
+// POST ?action=refresh_season&season_id=<hex>&source=tmdb|tvdb&season_type=default|dvd|...
 // Henter hele sesongens episodeliste fra TMDB/TVDB og oppdaterer/
-// oppretter episoder deretter (kan ta noen sekunder). Se
+// oppretter episoder deretter (kan ta noen sekunder). season_type
+// gjelder kun source=tvdb (f.eks. 'dvd' for DVD-rekkefølge). Se
 // POST /media/seasons/{season_id}/refresh/{source} i
 // backend/app/routes/media_catalog_route.py.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refresh_season') {
@@ -1090,13 +1091,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'refres
 
     $seasonId = (string)($_GET['season_id'] ?? '');
     $source = (string)($_GET['source'] ?? '');
-    if (!preg_match('/^[0-9a-fA-F]{32}$/', $seasonId) || !in_array($source, ['tmdb', 'tvdb'], true)) {
+    $seasonType = (string)($_GET['season_type'] ?? 'default');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $seasonId) || !in_array($source, ['tmdb', 'tvdb'], true)
+        || !in_array($seasonType, ['default', 'dvd', 'official', 'absolute', 'alternate', 'regional'], true)) {
         http_response_code(400);
-        echo json_encode(['error' => 'Ugyldig season_id/source-parameter']);
+        echo json_encode(['error' => 'Ugyldig season_id/source/season_type-parameter']);
         exit;
     }
 
-    $refreshUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/refresh/' . $source;
+    $refreshUrl = MEDIA_API_BASE_URL . '/media/seasons/' . $seasonId . '/refresh/' . $source
+        . '?season_type=' . urlencode($seasonType);
 
     [$response, $httpCode, $curlError] = backend_curl_with_retry($refreshUrl, [
         CURLOPT_CUSTOMREQUEST => 'POST',

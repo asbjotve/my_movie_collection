@@ -3438,7 +3438,9 @@ def assign_episode_disc(db: Session, episode_id: str, disc_id: str | None) -> di
     return next(e for e in season["episodes"] if e["episode_id"] == _hex_id(row.episode_id))
 
 
-def refresh_season_from_source(db: Session, season_id: str, source: str) -> dict:
+def refresh_season_from_source(
+    db: Session, season_id: str, source: str, season_type: str = "default"
+) -> dict:
     """Henter hele sesongens episodeliste fra TMDB/TVDB i ett kall og
     oppdaterer/oppretter episoder deretter, matchet på episode_number:
     - finnes en episode med samme nummer fra før: tittel/beskrivelse/
@@ -3451,7 +3453,14 @@ def refresh_season_from_source(db: Session, season_id: str, source: str) -> dict
 
     Henter show-ens TMDB/TVDB-id fra content_external_source (samme
     kobling som settes via "Sett TMDB/TVDB-id"-modalen på selve serien,
-    IKKE en separat id pr. sesong/episode)."""
+    IKKE en separat id pr. sesong/episode).
+
+    season_type brukes kun for source='tvdb' - TVDB nummererer enkelte
+    serier helt forskjellig avhengig av om man ser på sendedato-
+    rekkefølge ('default') eller DVD/Blu-ray-utgivelsens rekkefølge
+    ('dvd'), se fetch_tvdb_season_episodes(). TMDB har ikke et
+    tilsvarende enkelt konsept, så parameteren ignoreres for source=
+    'tmdb'."""
 
     if source not in ("tmdb", "tvdb"):
         raise ContentExternalSourceError(f"Kun 'tmdb' og 'tvdb' støttes, ikke source={source!r}.", status_code=400)
@@ -3476,7 +3485,9 @@ def refresh_season_from_source(db: Session, season_id: str, source: str) -> dict
         if source == "tmdb":
             result = fetch_tmdb_season_episodes(show_external_id_row.external_id, row.season_number)
         else:
-            result = fetch_tvdb_season_episodes(show_external_id_row.external_id, row.season_number)
+            result = fetch_tvdb_season_episodes(
+                show_external_id_row.external_id, row.season_number, season_type=season_type
+            )
     except ExternalApiError as e:
         raise ContentExternalSourceError(str(e), status_code=e.status_code) from e
 

@@ -568,14 +568,16 @@ def patch_season_watched(
 def post_refresh_season(
     season_id: str,
     source: str,
+    season_type: str = "default",
     db: Session = Depends(get_media_db),
     current_user: User = Depends(get_current_user),
 ):
     """Henter hele sesongens episodeliste fra TMDB/TVDB og oppdaterer/
-    oppretter episoder deretter. Krever innlogging. Se
-    refresh_season_from_source()."""
+    oppretter episoder deretter. Krever innlogging. season_type gjelder
+    kun source='tvdb' (f.eks. 'dvd' for DVD-rekkefølge i stedet for
+    sendedato-rekkefølge). Se refresh_season_from_source()."""
     try:
-        return refresh_season_from_source(db, season_id, source)
+        return refresh_season_from_source(db, season_id, source, season_type=season_type)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

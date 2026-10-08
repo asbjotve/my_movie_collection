@@ -299,12 +299,27 @@ def fetch_tmdb_season_episodes(show_external_id: str, season_number: int) -> dic
     }
 
 
-def fetch_tvdb_season_episodes(show_external_id: str, season_number: int) -> dict:
+TVDB_SEASON_TYPES = ("default", "dvd", "official", "absolute", "alternate", "regional")
+
+
+def fetch_tvdb_season_episodes(
+    show_external_id: str, season_number: int, season_type: str = "default"
+) -> dict:
     """Som fetch_tmdb_season_episodes(), men mot TVDB - se
-    getSeriesEpisodes i TVDBs v4-API (filtrert på ?season=N, season-type
-    'default'). TVDB har som regel mer komplette sesong/episode-data enn
+    getSeriesEpisodes i TVDBs v4-API (filtrert på ?season=N).
+    TVDB har som regel mer komplette sesong/episode-data enn
     TMDB for serier (jf. Season/Episode-docstringene i media_models.py),
     så dette er ment som hovedkilden for serier.
+
+    season_type velger hvilken av TVDBs flere sesong-ordninger
+    episode-/sesongnumrene skal hentes etter - 'default' er som regel
+    sendedato-rekkefølge ("aired order"), mens 'dvd' er rekkefølgen
+    DVD/Blu-ray-utgivelser faktisk bruker. Enkelte serier (f.eks. Young
+    Indiana Jones Chronicles) er nummerert helt forskjellig i de to
+    ordningene, så en bruker som har registrert fysiske sesonger etter
+    DVD-rekkefølgen får "Sesong 1" til å bety noe helt annet enn TVDBs
+    default-rekkefølge - da må 'dvd' brukes i stedet, ellers finnes
+    ingen (eller feil) episoder for det sesongnummeret.
 
     NB: TVDB sin /episodes/{season-type}-rute returnerer kun engelsk
     tekst uten en eksplisitt språk-sti (/default/{lang}) - det holder
@@ -312,11 +327,14 @@ def fetch_tvdb_season_episodes(show_external_id: str, season_number: int) -> dic
     engelsk for TVDB-tekst (se _extract_tvdb_overview() i
     media_catalog.py)."""
 
+    if season_type not in TVDB_SEASON_TYPES:
+        raise ExternalApiError(f"Ugyldig season_type={season_type!r} for TVDB.")
+
     token = _get_tvdb_token()
 
     try:
         response = requests.get(
-            f"{TVDB_BASE_URL}/series/{show_external_id}/episodes/default",
+            f"{TVDB_BASE_URL}/series/{show_external_id}/episodes/{season_type}",
             params={"page": 0, "season": season_number},
             headers={"Authorization": f"Bearer {token}"},
             timeout=REQUEST_TIMEOUT_SECONDS,
@@ -346,3 +364,5 @@ def fetch_tvdb_season_episodes(show_external_id: str, season_number: int) -> dic
             for ep in episodes
         ],
     }
+
+
