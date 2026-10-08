@@ -17,10 +17,16 @@ from pydantic import BaseModel, field_validator
 
 CURRENCY_CODE_PATTERN = re.compile(r"^[A-Z]{3}$")
 
-# Samme to verdier som brukes ellers i backend for å velge TMDB/TVDB-
-# endepunkt (movie vs. tv) - se fetch_tmdb_details()/fetch_tvdb_details()
-# i external_apis.py.
-ContentType = Literal["movie", "tv"]
+# Samme to verdier som faktisk lagres i content.content_type i databasen
+# ("movie"/"series" - se f.eks. _get_or_create_content() i
+# physical_collection_import.py og detail.php sin content_type-select,
+# som viser disse oversatt som "Film"/"Serie" (no) eller "Movie"/"TV
+# series" (en) - selve de lagrede verdiene er alltid engelske interne
+# nøkkelord, uavhengig av visningsspråk). IKKE det samme som "tv" som
+# brukes andre steder i backend kun som TMDB/TVDB-endepunktvalg (se
+# fetch_tmdb_details()/fetch_tvdb_details() i external_apis.py) - de to
+# bruksområdene må ikke blandes sammen.
+ContentType = Literal["movie", "series"]
 
 
 class ContentFieldUpdateRequest(BaseModel):
