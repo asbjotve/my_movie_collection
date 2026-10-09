@@ -633,10 +633,10 @@ def put_episode_disc(
     db: Session = Depends(get_media_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Kobler (eller fjerner koblingen for, med disc_id=null) hvilken
-    fysisk disk episoden ligger på. Krever innlogging. Se
-    assign_episode_disc()."""
+    """Setter hvilke(n) fysisk(e) disk(er) episoden ligger på (erstatter
+    alle eksisterende koblinger med disc_ids - tom liste fjerner alle).
+    Krever innlogging. Se assign_episode_disc()."""
     try:
-        return assign_episode_disc(db, episode_id, payload.disc_id)
+        return assign_episode_disc(db, episode_id, payload.disc_ids)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))

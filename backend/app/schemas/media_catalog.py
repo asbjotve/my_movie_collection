@@ -248,9 +248,12 @@ class EpisodeUpdateRequest(BaseModel):
 
 
 class EpisodeDiscAssignRequest(BaseModel):
-    """Body for PUT /media/episodes/{episode_id}/disc. disc_id=None
-    fjerner en eventuell eksisterende disk-kobling for episoden (se
-    assign_episode_disc()) - disc_id må være en disk som fysisk
-    tilhører samme serie som episoden (validert server-side)."""
+    """Body for PUT /media/episodes/{episode_id}/disc. disc_ids
+    erstatter ALLE eksisterende disk-koblinger for episoden med denne
+    listen (tom liste fjerner alle koblinger) - se assign_episode_disc().
+    En episode kan ligge på flere disker samtidig (f.eks. en episode
+    som er delt i to deler på to ulike disker i en boks), derfor en
+    liste og ikke et enkelt felt. Hver disc_id må være en disk som
+    fysisk tilhører samme serie som episoden (validert server-side)."""
 
-    disc_id: str | None = None
+    disc_ids: list[str] = []

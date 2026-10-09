@@ -1236,7 +1236,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'delete
 }
 
 // POST ?action=assign_episode_disc&episode_id=<hex>
-// (body: {"disc_id": "<hex>"} eller {"disc_id": null} for å fjerne koblingen)
+// (body: {"disc_ids": ["<hex>", ...]} - erstatter ALLE eksisterende
+// disk-koblinger for episoden med denne listen, tom liste fjerner
+// alle. En episode kan ligge på flere disker samtidig, f.eks. en
+// episode som er delt i to deler på to ulike disker i en boks.
 // Bruker POST i stedet for PUT her (samme begrunnelse som andre steder
 // i denne filen). Se PUT /media/episodes/{episode_id}/disc i
 // backend/app/routes/media_catalog_route.py.

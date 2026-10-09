@@ -3102,7 +3102,7 @@ def _season_to_dict(row) -> dict:
     }
 
 
-def _episode_to_dict(row, disc_by_episode_hex: dict) -> dict:
+def _episode_to_dict(row, discs_by_episode_hex: dict) -> dict:
     ek = _hex_id(row.episode_id)
     return {
         "episode_id": ek,
@@ -3112,7 +3112,10 @@ def _episode_to_dict(row, disc_by_episode_hex: dict) -> dict:
         "runtime": row.runtime,
         "original_air_date": row.original_air_date.isoformat() if row.original_air_date else None,
         "watched_flag": bool(row.watched_flag),
-        "disc": disc_by_episode_hex.get(ek),
+        # Liste siden en episode kan ligge på flere disker samtidig
+        # (f.eks. en episode delt i to deler på to ulike disker i en
+        # boks) - se assign_episode_disc().
+        "discs": discs_by_episode_hex.get(ek, []),
     }
 
 
@@ -3155,7 +3158,7 @@ def list_seasons(db: Session, content_id: str) -> list[dict]:
     ).fetchall()
 
     episode_ids = [row.episode_id for row in episode_rows]
-    disc_by_episode_hex: dict[str, dict] = {}
+    discs_by_episode_hex: dict[str, list[dict]] = {}
     if episode_ids:
         disc_rows = db.execute(
             text(
@@ -3165,21 +3168,24 @@ def list_seasons(db: Session, content_id: str) -> list[dict]:
                 JOIN disc d ON d.disc_id = dce.disc_id
                 LEFT JOIN disc_in di ON di.disc_id = d.disc_id
                 WHERE dce.episode_id IN :episode_ids
+                ORDER BY di.box_set_disc_order IS NULL, di.box_set_disc_order
                 """
             ).bindparams(bindparam("episode_ids", expanding=True)),
             {"episode_ids": episode_ids},
         ).fetchall()
         for row in disc_rows:
-            disc_by_episode_hex[_hex_id(row.episode_id)] = {
-                "disc_id": _hex_id(row.disc_id),
-                "label": row.label,
-                "box_set_disc_order": row.box_set_disc_order,
-            }
+            discs_by_episode_hex.setdefault(_hex_id(row.episode_id), []).append(
+                {
+                    "disc_id": _hex_id(row.disc_id),
+                    "label": row.label,
+                    "box_set_disc_order": row.box_set_disc_order,
+                }
+            )
 
     episodes_by_season: dict[bytes, list[dict]] = {}
     for row in episode_rows:
         episodes_by_season.setdefault(row.season_id, []).append(
-            _episode_to_dict(row, disc_by_episode_hex)
+            _episode_to_dict(row, discs_by_episode_hex)
         )
 
     return [
@@ -3404,29 +3410,31 @@ def delete_episode(db: Session, episode_id: str) -> dict:
     return {"deleted": True, "episode_id": _hex_id(row.episode_id)}
 
 
-def assign_episode_disc(db: Session, episode_id: str, disc_id: str | None) -> dict:
-    """Kobler (eller fjerner koblingen for) hvilken fysisk disk en
-    episode ligger på - disc_contains_episode er mange-til-mange i
-    skjemaet, men UI-et her tillater kun én disk pr. episode (det
-    vanlige tilfellet), så eksisterende koblinger for episoden fjernes
-    først. disc_id=None fjerner koblingen uten å sette en ny."""
+def assign_episode_disc(db: Session, episode_id: str, disc_ids: list[str]) -> dict:
+    """Kobler (eller fjerner koblingen for) hvilke(n) fysisk(e) disk(er)
+    en episode ligger på - disc_contains_episode er mange-til-mange i
+    skjemaet, og dette støttes nå fullt ut her: en episode kan ligge på
+    flere disker samtidig (f.eks. en episode som er delt i to deler på
+    to ulike disker i en boks). Erstatter ALLE eksisterende koblinger
+    for episoden med disc_ids-listen - tom liste fjerner alle
+    koblinger uten å sette noen nye."""
 
     row = _get_episode_row(db, episode_id)
 
-    if disc_id is not None:
-        try:
-            raw_disc_id = _parse_hex_id(disc_id)
-        except (ValueError, AttributeError) as e:
-            raise ContentExternalSourceError(f"Ugyldig disc_id={disc_id!r}.", status_code=400) from e
-
-        valid_discs = {d["disc_id"] for d in list_discs_for_content(db, _hex_id(row.content_id))}
+    valid_discs = {d["disc_id"] for d in list_discs_for_content(db, _hex_id(row.content_id))}
+    raw_disc_ids = []
+    for disc_id in disc_ids:
         if disc_id.upper() not in valid_discs:
             raise ContentExternalSourceError(
                 "Denne disken tilhører ikke denne seriens fysiske eksemplarer.", status_code=400
             )
+        try:
+            raw_disc_ids.append(_parse_hex_id(disc_id))
+        except (ValueError, AttributeError) as e:
+            raise ContentExternalSourceError(f"Ugyldig disc_id={disc_id!r}.", status_code=400) from e
 
     db.execute(text("DELETE FROM disc_contains_episode WHERE episode_id = :id"), {"id": row.episode_id})
-    if disc_id is not None:
+    for raw_disc_id in raw_disc_ids:
         db.execute(
             text("INSERT INTO disc_contains_episode (disc_id, episode_id) VALUES (:disc_id, :episode_id)"),
             {"disc_id": raw_disc_id, "episode_id": row.episode_id},

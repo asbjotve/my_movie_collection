@@ -187,6 +187,7 @@ return [
             'episode_field_runtime'  => 'Runtime (min)',
             'episode_field_overview' => 'Overview',
             'episode_field_disc'     => 'Disc',
+            'episode_disc_multi_hint' => 'Hold Ctrl/Cmd and click to select multiple discs - useful when an episode is split across two discs.',
             'episode_watched_label'  => 'Watched',
             'episode_disc_none'      => 'No disc',
             'season_mark_watched_btn'   => 'Mark all watched',

@@ -190,6 +190,7 @@ return [
             'episode_field_runtime'  => 'Varighet (min)',
             'episode_field_overview' => 'Sammendrag',
             'episode_field_disc'     => 'Disk',
+            'episode_disc_multi_hint' => 'Hold inne Ctrl/Cmd og klikk for å velge flere disker - nyttig når en episode er delt på to disker.',
             'episode_watched_label'  => 'Sett',
             'episode_disc_none'      => 'Ingen disk',
             'season_mark_watched_btn'   => 'Merk alle sett',

@@ -1043,12 +1043,15 @@ $sectionAccess = [
       return;
     }
 
-    const discOptions = (season_disc_id) => {
-      const none = `<option value="" ${!season_disc_id ? "selected" : ""}>${escapeHtml(WTE_I18N.detail.episode_disc_none)}</option>`;
-      const opts = seasonsDiscsCache.map(d =>
-        `<option value="${escapeHtml(d.disc_id)}" ${d.disc_id === season_disc_id ? "selected" : ""}>${escapeHtml(d.label || d.disc_id)}</option>`
+    // Episode-disk-utvalget er et multi-select: en episode kan ligge
+    // på flere disker samtidig (f.eks. en episode som er delt i to
+    // deler på to ulike disker i en boks) - se assign_episode_disc()
+    // i backend/app/services/media_catalog.py. Ctrl/Cmd-klikk for å
+    // velge/fjerne flere.
+    const episodeDiscOptions = (discIds) => {
+      return seasonsDiscsCache.map(d =>
+        `<option value="${escapeHtml(d.disc_id)}" ${discIds.includes(d.disc_id) ? "selected" : ""}>${escapeHtml(d.label || d.disc_id)}</option>`
       ).join("");
-      return none + opts;
     };
 
     const blocks = seasons.map(season => {
@@ -1066,7 +1069,7 @@ $sectionAccess = [
           <td>${ep.runtime ? ep.runtime + WTE_I18N.detail.runtime_suffix : "-"}</td>
           <td><input type="checkbox" class="episodeWatchedCheckbox" ${ep.watched_flag ? "checked" : ""} ${IS_LOGGED_IN ? "" : "disabled"}></td>
           <td>
-            <select class="episodeDiscSelect" ${IS_LOGGED_IN ? "" : "disabled"}>${discOptions(ep.disc?.disc_id || null)}</select>
+            <select multiple class="episodeDiscSelect" size="${Math.min(Math.max((ep.discs || []).length, 1) + 1, 4)}" title="${escapeHtml(WTE_I18N.detail.episode_disc_multi_hint)}" ${IS_LOGGED_IN ? "" : "disabled"}>${episodeDiscOptions((ep.discs || []).map(d => d.disc_id))}</select>
           </td>
           ${IS_LOGGED_IN ? `
           <td class="episodeActions">
@@ -1208,12 +1211,12 @@ $sectionAccess = [
   }
 
   async function assignEpisodeDisc(contentId, episode, selectEl){
-    const discId = selectEl.value || null;
+    const discIds = Array.from(selectEl.selectedOptions).map(opt => opt.value).filter(Boolean);
     try {
       const res = await fetch("api.php?action=assign_episode_disc&episode_id=" + encodeURIComponent(episode.episode_id), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrfHeader() },
-        body: JSON.stringify({ disc_id: discId }),
+        body: JSON.stringify({ disc_ids: discIds }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
     } catch (err) {
