@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     MEDIA_DB_PORT: int = Field(default=3306)
     MEDIA_DB_NAME: str | None = None
 
+    # Kun brukt av restore-delen av "Sikkerhetskopiering"-funksjonen (se
+    # app/services/admin_backup.py) - MEDIA_DB_USER over har bevisst KUN
+    # SELECT/INSERT/UPDATE/DELETE (least-privilege for vanlig app-bruk),
+    # men en restore kjører DROP/CREATE/ALTER som den brukeren ikke har
+    # rettigheter til. Denne brukeren er scopet til db_mediearkiv.* med
+    # fulle rettigheter, og brukes KUN her, aldri av øvrig applikasjonskode.
+    MEDIA_DB_RESTORE_USER: str | None = None
+    MEDIA_DB_RESTORE_PASSWORD: str | None = None
+
     TMDB_API_KEY: str | None = None
     TVDB_API_KEY: str | None = None
     TVDB_PIN: str | None = None

@@ -256,11 +256,41 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
     </form>
   </div>
 
+  <div class="card">
+    <h1><?= htmlspecialchars(t('wte.admin_tilganger.backup_heading')) ?></h1>
+    <p class="subtitle"><?= htmlspecialchars(t('wte.admin_tilganger.backup_subtitle')) ?></p>
+    <button type="button" id="backupDownloadBtn" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.backup_download_btn')) ?></button>
+    <div id="backupDownloadFeedback"></div>
+  </div>
+
+  <div class="card dangerCard">
+    <h1><?= htmlspecialchars(t('wte.admin_tilganger.restore_heading')) ?></h1>
+    <p class="subtitle"><?= htmlspecialchars(t('wte.admin_tilganger.restore_subtitle')) ?></p>
+    <input type="file" id="restoreFileInput" accept=".sql" style="width:100%; padding:10px; border-radius:7px; background:var(--bg); color:var(--text); border:1px solid var(--border); font-size:13px;">
+    <button type="button" id="restoreOpenBtn" class="btnDanger" disabled><?= htmlspecialchars(t('wte.admin_tilganger.restore_btn')) ?></button>
+    <div id="restoreFeedback"></div>
+  </div>
+
   <div class="card dangerCard">
     <h1><?= htmlspecialchars(t('wte.admin_tilganger.reset_heading')) ?></h1>
     <p class="subtitle"><?= htmlspecialchars(t('wte.admin_tilganger.reset_subtitle')) ?></p>
     <button type="button" id="resetOpenBtn" class="btnDanger"><?= htmlspecialchars(t('wte.admin_tilganger.reset_btn')) ?></button>
     <div id="resetFeedback"></div>
+  </div>
+</div>
+
+<div class="modalOverlay" id="restoreModal">
+  <div class="modalBox">
+    <h2><?= htmlspecialchars(t('wte.admin_tilganger.restore_modal_heading')) ?></h2>
+    <p id="restoreModalBody"><?= sprintf(htmlspecialchars(t('wte.admin_tilganger.restore_modal_body_template')), '<strong id="restoreFileName"></strong>') ?></p>
+    <label for="restoreConfirmInput" style="font-size:13px; color:var(--muted); display:block; margin-top:14px;">
+      <?= sprintf(htmlspecialchars(t('wte.admin_tilganger.restore_confirm_label')), '<strong>GJENOPPRETT DATABASE</strong>') ?>
+    </label>
+    <input type="text" id="restoreConfirmInput" autocomplete="off">
+    <div class="modalActions">
+      <button type="button" id="restoreCancelBtn" class="btnSecondary"><?= htmlspecialchars(t('wte.admin_tilganger.restore_cancel_btn')) ?></button>
+      <button type="button" id="restoreConfirmBtn" class="btnDanger" disabled><?= htmlspecialchars(t('wte.admin_tilganger.restore_confirm_btn')) ?></button>
+    </div>
   </div>
 </div>
 
@@ -281,6 +311,156 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
 </div>
 
 <script>
+(function () {
+  // Nedlasting: rett GET mot api.php?action=backup_download, som
+  // strømmer en ren mysqldump av db_mediearkiv (se tilsvarende
+  // backend-endepunkt GET /admin/backup/download). Bruker et skjult
+  // <a download>-triggerpunkt heller enn window.location, slik at
+  // nettleserens filnavn-forslag (Content-Disposition) respekteres og
+  // vi kan vise en feilmelding hvis kallet feiler i stedet for å bare
+  // navigere til en feilside.
+  var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  var downloadBtn = document.getElementById('backupDownloadBtn');
+  var downloadFeedback = document.getElementById('backupDownloadFeedback');
+
+  function escapeHtmlShared(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  downloadBtn.addEventListener('click', function () {
+    downloadFeedback.innerHTML = '';
+    downloadBtn.disabled = true;
+    var originalText = downloadBtn.textContent;
+    downloadBtn.textContent = <?= json_encode(t('wte.admin_tilganger.backup_download_in_progress')) ?>;
+
+    fetch('api.php?action=backup_download', { credentials: 'same-origin' })
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().then(function (data) {
+            throw new Error(data.error || data.detail || <?= json_encode(t('wte.admin_tilganger.backup_download_failed')) ?>);
+          });
+        }
+        var disposition = res.headers.get('Content-Disposition') || '';
+        var match = disposition.match(/filename="?([^"]+)"?/);
+        var filename = match ? match[1] : 'db_mediearkiv_backup.sql';
+        return res.blob().then(function (blob) { return [blob, filename]; });
+      })
+      .then(function (result) {
+        var blob = result[0];
+        var filename = result[1];
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch(function (err) {
+        downloadFeedback.innerHTML = '<div class="errorBox">' + escapeHtmlShared(err.message) + '</div>';
+      })
+      .finally(function () {
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = originalText;
+      });
+  });
+
+  // Restore: velg fil -> åpne bekreftelsesmodal (samme mønster som
+  // reset-modalen) -> POST multipart/form-data mot
+  // api.php?action=backup_restore, som igjen proxyer videre til
+  // POST /admin/backup/restore i backend.
+  var RESTORE_PHRASE = 'GJENOPPRETT DATABASE';
+  var fileInput = document.getElementById('restoreFileInput');
+  var restoreOpenBtn = document.getElementById('restoreOpenBtn');
+  var restoreCancelBtn = document.getElementById('restoreCancelBtn');
+  var restoreConfirmBtn = document.getElementById('restoreConfirmBtn');
+  var restoreModal = document.getElementById('restoreModal');
+  var restoreFileName = document.getElementById('restoreFileName');
+  var restoreConfirmInput = document.getElementById('restoreConfirmInput');
+  var restoreFeedback = document.getElementById('restoreFeedback');
+
+  fileInput.addEventListener('change', function () {
+    restoreOpenBtn.disabled = !fileInput.files.length;
+  });
+
+  function closeRestoreModal() {
+    restoreModal.classList.remove('open');
+    restoreConfirmInput.value = '';
+    restoreConfirmBtn.disabled = true;
+  }
+
+  restoreOpenBtn.addEventListener('click', function () {
+    if (!fileInput.files.length) {
+      return;
+    }
+    restoreFeedback.innerHTML = '';
+    restoreFileName.textContent = fileInput.files[0].name;
+    restoreConfirmInput.value = '';
+    restoreConfirmBtn.disabled = true;
+    restoreModal.classList.add('open');
+  });
+
+  restoreCancelBtn.addEventListener('click', closeRestoreModal);
+  restoreModal.addEventListener('click', function (ev) {
+    if (ev.target === restoreModal) {
+      closeRestoreModal();
+    }
+  });
+
+  restoreConfirmInput.addEventListener('input', function () {
+    restoreConfirmBtn.disabled = restoreConfirmInput.value !== RESTORE_PHRASE;
+  });
+
+  restoreConfirmBtn.addEventListener('click', function () {
+    if (restoreConfirmInput.value !== RESTORE_PHRASE || !fileInput.files.length) {
+      return;
+    }
+    restoreConfirmBtn.disabled = true;
+    restoreConfirmInput.disabled = true;
+    var restoreModalBody = document.getElementById('restoreModalBody');
+    var originalModalBody = restoreModalBody.innerHTML;
+    restoreModalBody.textContent = <?= json_encode(t('wte.admin_tilganger.restore_in_progress')) ?>;
+
+    var formData = new FormData();
+    formData.append('confirm', restoreConfirmInput.value);
+    formData.append('file', fileInput.files[0]);
+
+    fetch('api.php?action=backup_restore', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-Token': csrfToken },
+      body: formData
+    })
+      .then(function (res) { return res.json().then(function (data) { return [res.ok, data]; }); })
+      .then(function (result) {
+        var ok = result[0];
+        var data = result[1];
+        closeRestoreModal();
+        restoreModalBody.innerHTML = originalModalBody;
+        restoreConfirmInput.disabled = false;
+        if (ok) {
+          restoreFeedback.innerHTML = '<div class="successBox">'
+            + escapeHtmlShared(<?= json_encode(t('wte.admin_tilganger.restore_success')) ?>) + '</div>';
+          fileInput.value = '';
+          restoreOpenBtn.disabled = true;
+        } else {
+          restoreFeedback.innerHTML = '<div class="errorBox">'
+            + escapeHtmlShared(data.error || data.detail || <?= json_encode(t('wte.admin_tilganger.restore_failed')) ?>) + '</div>';
+        }
+      })
+      .catch(function () {
+        closeRestoreModal();
+        restoreModalBody.innerHTML = originalModalBody;
+        restoreConfirmInput.disabled = false;
+        restoreFeedback.innerHTML = '<div class="errorBox">'
+          + escapeHtmlShared(<?= json_encode(t('wte.admin_tilganger.restore_failed')) ?>) + '</div>';
+      });
+  });
+})();
+
 (function () {
   var CONFIRM_PHRASE = 'NULLSTILL ALT';
   var csrfToken = document.querySelector('meta[name="csrf-token"]').content;

@@ -1337,6 +1337,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'reset_
     exit;
 }
 
+// GET ?action=backup_download
+// Proxyer rett gjennom til GET /admin/backup/download i
+// backend/app/routes/admin_backup_route.py - en ren mysqldump av
+// db_mediearkiv (ekskl. coverbilder, siden cover_image bare er en
+// URL-streng, ikke binærdata). Dette er IKKE et JSON-endepunkt, så vi
+// må overstyre Content-Type-headeren satt helt øverst i filen og
+// strømme filen rått i stedet for å echo'e JSON.
+if (($_GET['action'] ?? '') === 'backup_download') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $downloadUrl = MEDIA_API_BASE_URL . '/admin/backup/download';
+
+    $curlError = '';
+    [$httpCode, $raw] = auth_call_with_retry(
+        function (string $accessToken) use ($downloadUrl, &$curlError): array {
+            $ch = curl_init($downloadUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+                CURLOPT_TIMEOUT => 60,
+            ]);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            return [$code, $body === false ? null : $body];
+        }
+    );
+
+    if ($raw === null) {
+        http_response_code(502);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    if ($httpCode !== 200) {
+        http_response_code($httpCode ?: 502);
+        header('Content-Type: application/json; charset=utf-8');
+        echo $raw;
+        exit;
+    }
+
+    header_remove('Content-Type');
+    header('Content-Type: application/sql; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . date('Y-m-d_His') . '_db_mediearkiv_backup.sql"');
+    header('Content-Length: ' . strlen($raw));
+    echo $raw;
+    exit;
+}
+
+// POST ?action=backup_restore  (multipart/form-data: confirm, file)
+// Proxyer videre til POST /admin/backup/restore i
+// backend/app/routes/admin_backup_route.py. Siden PHP mottar filen som
+// multipart/form-data (ikke JSON, som resten av api.php), bygges et
+// nytt multipart-kall mot backend med CURLFile - vi kan ikke gjenbruke
+// backend_curl_with_retry() rått siden den antar en enkel
+// JSON-body/CURLOPT_POSTFIELDS-streng.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'backup_restore') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $confirm = (string)($_POST['confirm'] ?? '');
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler eller ugyldig fil']);
+        exit;
+    }
+
+    $restoreUrl = MEDIA_API_BASE_URL . '/admin/backup/restore';
+    $uploadedTmpPath = $_FILES['file']['tmp_name'];
+    $uploadedName = $_FILES['file']['name'];
+
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($restoreUrl, [
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_POSTFIELDS => [
+            'confirm' => $confirm,
+            'file' => new CURLFile($uploadedTmpPath, 'application/sql', $uploadedName),
+        ],
+        CURLOPT_TIMEOUT => 60, // restore kan ta litt tid på en større dump
+    ]);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Uten ?id=... hentes hele listen (GET /media/content), som før.
 // Med ?id=<hex content_id> hentes én enkelt rad for detaljsiden
 // (GET /media/content/{id}), brukt av detail.php.
