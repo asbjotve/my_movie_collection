@@ -767,6 +767,7 @@ $sectionAccess = [
   .episodeDiscCell{ min-width:160px; }
   .epDiscBadges{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
   .epDiscBadge{ background:var(--bg2, var(--bg)); border:1px solid var(--line); border-radius:10px; padding:2px 8px; font-size:10px; white-space:nowrap; }
+  .epDiscSep{ color:var(--muted); font-size:10px; }
   .epDiscNone{ color:var(--muted); font-size:11px; }
   .btnPickEpisodeDiscs.small{ font-size:10px; padding:2px 6px; border:1px solid var(--line); border-radius:6px; background:none; color:var(--muted); cursor:pointer; }
   .btnPickEpisodeDiscs.small:hover{ color:var(--text); }
@@ -1077,7 +1078,7 @@ $sectionAccess = [
       }
       return discs
         .map((d) => `<span class="epDiscBadge">${escapeHtml(d.label || d.disc_id)}</span>`)
-        .join(" ");
+        .join('<span class="epDiscSep">/</span>');
     };
 
     const blocks = seasons.map(season => {
