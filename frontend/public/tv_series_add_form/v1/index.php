@@ -166,7 +166,7 @@ function h(string $s): string
       margin-bottom:10px;
     }
     .seasonBlock .seasonHead h3{ margin:0; font-size:15px; }
-    .discRow select[multiple]{ min-height:70px; }
+    .discRow select[multiple]{ min-height:150px; min-width:260px; }
     .muted{ color:var(--muted); font-size:12px; }
     pre#payloadPreview{
       background:var(--panel2);

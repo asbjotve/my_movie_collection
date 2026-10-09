@@ -748,6 +748,7 @@ $sectionAccess = [
   .episodeTable tr:last-child td{ border-bottom:none; }
   .episodeTable .epOverview{ color: var(--muted); font-size:11px; margin-top:2px; }
   .episodeTable select{ background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; font-size:11px; padding:2px 4px; }
+  .episodeTable select.episodeDiscSelect{ min-width:220px; }
 </style>
 
 <script>
@@ -1069,7 +1070,7 @@ $sectionAccess = [
           <td>${ep.runtime ? ep.runtime + WTE_I18N.detail.runtime_suffix : "-"}</td>
           <td><input type="checkbox" class="episodeWatchedCheckbox" ${ep.watched_flag ? "checked" : ""} ${IS_LOGGED_IN ? "" : "disabled"}></td>
           <td>
-            <select multiple class="episodeDiscSelect" size="${Math.min(Math.max((ep.discs || []).length, 1) + 1, 4)}" title="${escapeHtml(WTE_I18N.detail.episode_disc_multi_hint)}" ${IS_LOGGED_IN ? "" : "disabled"}>${episodeDiscOptions((ep.discs || []).map(d => d.disc_id))}</select>
+            <select multiple class="episodeDiscSelect" size="${Math.min(Math.max((ep.discs || []).length, 1) + 2, 6)}" title="${escapeHtml(WTE_I18N.detail.episode_disc_multi_hint)}" ${IS_LOGGED_IN ? "" : "disabled"}>${episodeDiscOptions((ep.discs || []).map(d => d.disc_id))}</select>
           </td>
           ${IS_LOGGED_IN ? `
           <td class="episodeActions">
