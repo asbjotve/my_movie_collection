@@ -675,6 +675,21 @@ $sectionAccess = [
   </div>
 </div>
 
+<div id="discPickerModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox" style="max-width:420px;">
+    <div class="modalHeader">
+      <h3 id="discPickerModalTitle"></h3>
+      <button type="button" id="btnCloseDiscPickerModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <div id="discPickerModalStatus" class="refreshStatus"></div>
+    <div id="discPickerModalList" style="max-height:360px; overflow-y:auto; margin-top:10px;"></div>
+    <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" id="btnCancelDiscPickerModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.cancel_btn')) ?></button>
+      <button type="button" id="btnSaveDiscPickerModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.save_btn')) ?></button>
+    </div>
+  </div>
+</div>
+
 <style>
   .modalOverlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.6);
@@ -749,6 +764,14 @@ $sectionAccess = [
   .episodeTable .epOverview{ color: var(--muted); font-size:11px; margin-top:2px; }
   .episodeTable select{ background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; font-size:11px; padding:2px 4px; }
   .episodeTable select.episodeDiscSelect{ min-width:220px; }
+  .episodeDiscCell{ min-width:160px; }
+  .epDiscBadges{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  .epDiscBadge{ background:var(--bg2, var(--bg)); border:1px solid var(--line); border-radius:10px; padding:2px 8px; font-size:10px; white-space:nowrap; }
+  .epDiscNone{ color:var(--muted); font-size:11px; }
+  .btnPickEpisodeDiscs.small{ font-size:10px; padding:2px 6px; border:1px solid var(--line); border-radius:6px; background:none; color:var(--muted); cursor:pointer; }
+  .btnPickEpisodeDiscs.small:hover{ color:var(--text); }
+  .discPickerRow{ display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line); font-size:13px; cursor:pointer; }
+  .discPickerRow:last-child{ border-bottom:none; }
 </style>
 
 <script>
@@ -1044,15 +1067,17 @@ $sectionAccess = [
       return;
     }
 
-    // Episode-disk-utvalget er et multi-select: en episode kan ligge
-    // på flere disker samtidig (f.eks. en episode som er delt i to
-    // deler på to ulike disker i en boks) - se assign_episode_disc()
-    // i backend/app/services/media_catalog.py. Ctrl/Cmd-klikk for å
-    // velge/fjerne flere.
-    const episodeDiscOptions = (discIds) => {
-      return seasonsDiscsCache.map(d =>
-        `<option value="${escapeHtml(d.disc_id)}" ${discIds.includes(d.disc_id) ? "selected" : ""}>${escapeHtml(d.label || d.disc_id)}</option>`
-      ).join("");
+    // Episode-disk-koblingen vises som en kompakt liste med etiketter
+    // + en knapp som åpner en modal for å velge/fjerne disker (se
+    // openDiscPickerModal nedenfor) - en inline multi-select tok for
+    // mye plass i tabellen når episoden lå på mange disker.
+    const episodeDiscBadgesHtml = (discs) => {
+      if (!discs || !discs.length) {
+        return `<span class="epDiscNone">${escapeHtml(WTE_I18N.detail.episode_disc_none_assigned)}</span>`;
+      }
+      return discs
+        .map((d) => `<span class="epDiscBadge">${escapeHtml(d.label || d.disc_id)}</span>`)
+        .join(" ");
     };
 
     const blocks = seasons.map(season => {
@@ -1069,8 +1094,9 @@ $sectionAccess = [
           <td>${escapeHtml(ep.original_air_date || "-")}</td>
           <td>${ep.runtime ? ep.runtime + WTE_I18N.detail.runtime_suffix : "-"}</td>
           <td><input type="checkbox" class="episodeWatchedCheckbox" ${ep.watched_flag ? "checked" : ""} ${IS_LOGGED_IN ? "" : "disabled"}></td>
-          <td>
-            <select multiple class="episodeDiscSelect" size="${Math.min(Math.max((ep.discs || []).length, 1) + 2, 6)}" title="${escapeHtml(WTE_I18N.detail.episode_disc_multi_hint)}" ${IS_LOGGED_IN ? "" : "disabled"}>${episodeDiscOptions((ep.discs || []).map(d => d.disc_id))}</select>
+          <td class="episodeDiscCell">
+            <div class="epDiscBadges">${episodeDiscBadgesHtml(ep.discs)}</div>
+            ${IS_LOGGED_IN ? `<button type="button" class="btnPickEpisodeDiscs small" title="${escapeHtml(WTE_I18N.detail.episode_disc_pick_btn)}">${escapeHtml(WTE_I18N.detail.episode_disc_pick_btn)}</button>` : ""}
           </td>
           ${IS_LOGGED_IN ? `
           <td class="episodeActions">
@@ -1158,8 +1184,8 @@ $sectionAccess = [
         const watchedCb = row.querySelector(".episodeWatchedCheckbox");
         if (watchedCb) watchedCb.addEventListener("change", () => toggleEpisodeWatched(contentId, episode, watchedCb));
 
-        const discSelect = row.querySelector(".episodeDiscSelect");
-        if (discSelect) discSelect.addEventListener("change", () => assignEpisodeDisc(contentId, episode, discSelect));
+        const pickDiscsBtn = row.querySelector(".btnPickEpisodeDiscs");
+        if (pickDiscsBtn) pickDiscsBtn.addEventListener("click", () => openDiscPickerModal(contentId, episode));
       });
     });
   }
@@ -1211,20 +1237,66 @@ $sectionAccess = [
     }
   }
 
-  async function assignEpisodeDisc(contentId, episode, selectEl){
-    const discIds = Array.from(selectEl.selectedOptions).map(opt => opt.value).filter(Boolean);
-    try {
-      const res = await fetch("api.php?action=assign_episode_disc&episode_id=" + encodeURIComponent(episode.episode_id), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...csrfHeader() },
-        body: JSON.stringify({ disc_ids: discIds }),
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-    } catch (err) {
-      alert(WTE_I18N.detail.save_error_prefix + err.message);
-      await loadSeasonsTab(contentId);
-    }
+  async function assignEpisodeDisc(contentId, episodeId, discIds){
+    const res = await fetch("api.php?action=assign_episode_disc&episode_id=" + encodeURIComponent(episodeId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeader() },
+      body: JSON.stringify({ disc_ids: discIds }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.detail || json.error || ("HTTP " + res.status));
   }
+
+  // ---- "Velg disker for episode"-modal ----
+  const discPickerModalOverlay = document.getElementById("discPickerModalOverlay");
+  const discPickerModalTitle = document.getElementById("discPickerModalTitle");
+  const discPickerModalStatus = document.getElementById("discPickerModalStatus");
+  const discPickerModalList = document.getElementById("discPickerModalList");
+  let discPickerContentId = null;
+  let discPickerEpisodeId = null;
+
+  function openDiscPickerModal(contentId, episode){
+    discPickerContentId = contentId;
+    discPickerEpisodeId = episode.episode_id;
+    discPickerModalTitle.textContent = wteFormat(WTE_I18N.detail.episode_disc_modal_title, episode.episode_number ?? "?");
+    discPickerModalStatus.className = "refreshStatus";
+    discPickerModalStatus.textContent = "";
+
+    const selectedIds = (episode.discs || []).map(d => d.disc_id);
+    if (!seasonsDiscsCache.length) {
+      discPickerModalList.innerHTML = `<div class="emptyNote">${escapeHtml(WTE_I18N.detail.episode_disc_no_discs)}</div>`;
+    } else {
+      discPickerModalList.innerHTML = seasonsDiscsCache.map(d => `
+        <label class="discPickerRow">
+          <input type="checkbox" value="${escapeHtml(d.disc_id)}" ${selectedIds.includes(d.disc_id) ? "checked" : ""}>
+          <span>${escapeHtml(d.label || d.disc_id)}</span>
+        </label>
+      `).join("");
+    }
+    discPickerModalOverlay.style.display = "flex";
+  }
+
+  function closeDiscPickerModal(){
+    discPickerModalOverlay.style.display = "none";
+  }
+
+  document.getElementById("btnCloseDiscPickerModal").addEventListener("click", closeDiscPickerModal);
+  document.getElementById("btnCancelDiscPickerModal").addEventListener("click", closeDiscPickerModal);
+  discPickerModalOverlay.addEventListener("click", (e) => { if (e.target === discPickerModalOverlay) closeDiscPickerModal(); });
+
+  document.getElementById("btnSaveDiscPickerModal").addEventListener("click", async () => {
+    const discIds = Array.from(discPickerModalList.querySelectorAll("input[type=checkbox]:checked")).map(cb => cb.value);
+    discPickerModalStatus.className = "refreshStatus";
+    discPickerModalStatus.textContent = WTE_I18N.detail.saving_episode;
+    try {
+      await assignEpisodeDisc(discPickerContentId, discPickerEpisodeId, discIds);
+      closeDiscPickerModal();
+      await loadSeasonsTab(discPickerContentId);
+    } catch (err) {
+      discPickerModalStatus.className = "refreshStatus error";
+      discPickerModalStatus.textContent = WTE_I18N.detail.save_error_prefix + err.message;
+    }
+  });
 
   async function deleteSeason(contentId, season){
     const ok = await showConfirmModal({
