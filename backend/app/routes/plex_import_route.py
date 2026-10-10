@@ -7,15 +7,15 @@ plex_settings_route.py, so the settings page is the single source of
 truth for both "test connection" and the actual import.
 
 IMPORTANT: the import can take several minutes (one Plex HTTP request
-per movie, plus occasional TMDB lookups for brand new items) and the
-backend runs with a single uvicorn worker (see ecosystem.config.js) -
-running it synchronously inside the request handler was tried first
-and blocked ALL other API traffic on the site for the whole duration
-(confirmed in production). It therefore runs in a plain background
-thread with its own DB session (NOT the request-scoped one from
-Depends(get_media_db), which gets closed as soon as this endpoint
-returns) - progress/result is tracked in a small in-memory,
-process-global status dict that /plex/import/status polls.
+per movie/episode, plus occasional TMDB/TVDB lookups for brand new
+items) and the backend runs with a single uvicorn worker (see
+ecosystem.config.js) - running it synchronously inside the request
+handler was tried first and blocked ALL other API traffic on the site
+for the whole duration (confirmed in production). It therefore runs in
+a plain background thread with its own DB session (NOT the
+request-scoped one from Depends(get_media_db), which gets closed as
+soon as this endpoint returns) - progress/result is tracked in a small
+in-memory, process-global status dict that /plex/import/status polls.
 
 This in-memory state intentionally does NOT survive a backend restart
 (acceptable for a manually-triggered, single-admin-at-a-time job) -

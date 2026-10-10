@@ -499,8 +499,19 @@ class Episode(MediaBase):
     original_air_date = Column(Date, nullable=True)
     overview = Column(Text, nullable=True)
     watched_flag = Column(TINYINT(1), nullable=False, server_default="0")
+    # TVDB sin egen episode-id (ikke sesong/episode-nummer) - brukes til
+    # å matche presist mot Plex sin Guid-liste ved TV-import
+    # (plex_import.py), slik at en episode som er delt på flere fysiske
+    # disker i en annen rekkefølge enn aired order (se Young Indiana
+    # Jones-saken) fortsatt matches riktig. Satt/oppdatert når en
+    # episode først matches/opprettes via Plex-import - ikke et felt
+    # brukeren fyller ut manuelt noe sted ennå.
+    tvdb_episode_id = Column(String(20), nullable=True)
 
-    __table_args__ = (Index("idx_episode__season_id", "season_id"),)
+    __table_args__ = (
+        Index("idx_episode__season_id", "season_id"),
+        Index("idx_episode__tvdb_episode_id", "tvdb_episode_id"),
+    )
 
 
 class DiscContainsEpisode(MediaBase):
@@ -549,7 +560,14 @@ class ContentInDigitalLibrary(MediaBase):
     one row per Plex library item (content_id may also have physical
     copies, a wishlist entry, etc., entirely independently of this).
     Matching logic (TMDB id first, then title+year, otherwise a new
-    content row is created) lives in plex_import.py, not here."""
+    content row is created) lives in plex_import.py, not here.
+
+    For TV series, one Plex library item = one EPISODE (ratingKey is
+    unique per episode, not per show) - content_id still points at the
+    series' own content row (so "is this show owned digitally" can be
+    answered via a simple content_id join), while episode_id narrows
+    the row down to the specific episode whose file this row/its
+    digital_media_version rows describe. NULL for movies."""
 
     __tablename__ = "content_in_digital_library"
 
@@ -564,6 +582,11 @@ class ContentInDigitalLibrary(MediaBase):
         ForeignKey("digital_library.digital_library_id", ondelete="CASCADE", onupdate="CASCADE"),
         nullable=False,
     )
+    episode_id = Column(
+        BINARY(16),
+        ForeignKey("episode.episode_id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=True,
+    )
     # Plex sin egen (per bibliotek) item-id - brukes til å gjenkjenne
     # samme element ved neste sync (oppdatere i stedet for å duplisere).
     plex_rating_key = Column(String(20), nullable=False)
@@ -571,6 +594,7 @@ class ContentInDigitalLibrary(MediaBase):
     added_at = Column(TIMESTAMP, nullable=True)
 
     __table_args__ = (
+        Index("idx_content_in_digital_library__episode_id", "episode_id"),
         UniqueConstraint(
             "digital_library_id", "plex_rating_key",
             name="uk_content_in_digital_library__library_rating_key",

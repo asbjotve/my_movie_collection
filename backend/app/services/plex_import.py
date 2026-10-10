@@ -5,7 +5,8 @@ digital_media_version/digital_media_part (db_mediearkiv).
 Kjøres synkront via en manuell "Kjør import nå"-knapp (ingen
 jobbkø/scheduler ennå) - se plex_import_route.py.
 
-Matching mot eksisterende content (bekreftet med brukeren):
+Matching mot eksisterende content for FILM-bibliotek (bekreftet med
+brukeren):
 0. Allerede importert tidligere (samme digital_library_id +
    plex_rating_key finnes i content_in_digital_library fra en
    tidligere kjøring)? Gjenbruk da samme content_id uendret - dette
@@ -25,6 +26,35 @@ Matching mot eksisterende content (bekreftet med brukeren):
    fullverdig content-rad (tittel/cover/overview/etc.) med en gang,
    ikke bare det Plex selv oppgir.
 
+TV-SERIE-bibliotek (type="show") håndteres separat, se
+_match_or_create_series_content()/_find_or_create_season()/
+_match_or_create_episode() - kort oppsummert:
+- Serien matches via content_external_source(source='plex',
+  external_id=<show sin ratingKey>) først (samme "allerede importert"-
+  idé som steg 0 over, bare lagret på content i stedet for
+  content_in_digital_library siden en Plex-episode, ikke serien selv,
+  eier content_in_digital_library-raden for TV - se under), deretter
+  TVDB-id, så TMDB-id, så tittel+år, ellers opprettes en ny
+  content_type='series'-rad (med TVDB-detaljer flettet inn hvis
+  TVDB-id er kjent).
+- Hver sesong/episode matches/opprettes i `season`/`episode` (samme
+  tabeller som brukes av den fysiske box-set-importen).
+- Episode-matching prioriterer TVDB sin egen episode-id (kun oppgitt av
+  nyere Plex-metadata-agenter, se extract_tvdb_episode_id_from_guids())
+  fremfor sesong+episodenummer - dette unngår at en episode som er
+  registrert på en annen fysisk disk-rekkefølge enn TVDB sin
+  "aired order" (f.eks. Young Indiana Jones-saken, der DVD-rekkefølgen
+  ikke er aired order) matches feil episode-rad.
+- content_in_digital_library-raden opprettes per EPISODE (Plex sin
+  ratingKey er unik per episode, ikke per serie) - content_id peker
+  fortsatt på SERIEN, mens den nye episode_id-kolonnen peker på den
+  spesifikke episoden. digital_media_version/part kobles dermed til
+  riktig episodefil, ikke bare "den sist synkroniserte episoden".
+- Episode-/sesong-rader fjernes ALDRI automatisk ved pruning (de kan
+  være fysisk registrert uavhengig av Plex) - kun selve den digitale
+  koblingen (content_in_digital_library) fjernes for rating_key-er som
+  ikke lenger finnes i Plex.
+
 Import er bevisst én-veis (kun LESING fra Plex, se TODO.md) - denne
 modulen skriver ALDRI noe tilbake til Plex over API-et.
 
@@ -35,7 +65,9 @@ _prune_removed_items(). Hvis content-raden etter dette er helt
 foreldreløs (ikke fysisk eid, ingen andre digitale kilder, ikke del av
 en sesong/boxset/disc-ekstra/ønskeliste - bekreftet med brukeren)
 slettes også selve content-raden, se
-_delete_orphan_content_if_unreferenced().
+_delete_orphan_content_if_unreferenced() - i praksis skjer dette aldri
+for en serie med minst én sesong registrert, siden "season" er en av
+_ORPHAN_CHECK_TABLES.
 """
 
 import json
@@ -46,7 +78,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.services.external_apis import ExternalApiError, fetch_tmdb_details
+from app.services.external_apis import ExternalApiError, fetch_tmdb_details, fetch_tvdb_details
 from app.services.media_catalog import (
     ContentExternalSourceError,
     _compute_search_facets,
@@ -55,9 +87,12 @@ from app.services.media_catalog import (
 from app.services.plex_client import (
     PlexConnectionError,
     extract_tmdb_id_from_guids,
+    extract_tvdb_episode_id_from_guids,
+    extract_tvdb_id_from_guids,
     fetch_item_detail,
     fetch_library_items,
     fetch_library_sections,
+    fetch_show_episodes,
 )
 
 logger = logging.getLogger(__name__)
@@ -204,6 +239,230 @@ def _match_or_create_content(
     return content_id, True
 
 
+def _match_or_create_series_content(
+    db: Session, show_rating_key: str, tvdb_id: str | None, tmdb_id: str | None, title: str, year: int | None
+) -> tuple[bytes, bool]:
+    """Serie-variant av _match_or_create_content() over. Se modulens
+    docstring for selve matching-rekkefølgen (plex-rating_key-steg 0,
+    så TVDB-id, så TMDB-id, så tittel+år, ellers opprett ny).
+
+    content_in_digital_library har ingen rad for selve serien (kun for
+    hver episode, se _upsert_content_in_digital_library()), så "allerede
+    importert tidligere"-steget her sjekker i stedet
+    content_external_source(source='plex') direkte - samme rad brukes
+    uansett til å lagre showets rå Plex-metadata (se
+    _store_plex_raw_source(), kalt rett etter denne funksjonen uansett
+    match-utfall)."""
+
+    row = db.execute(
+        text("SELECT content_id FROM content_external_source WHERE source = 'plex' AND external_id = :rk"),
+        {"rk": show_rating_key},
+    ).fetchone()
+    if row:
+        return row[0], False
+
+    if tvdb_id:
+        row = db.execute(
+            text(
+                """
+                SELECT ces.content_id FROM content_external_source ces
+                JOIN content c ON c.content_id = ces.content_id
+                WHERE ces.source = 'tvdb' AND ces.external_id = :external_id AND c.content_type = 'series'
+                """
+            ),
+            {"external_id": tvdb_id},
+        ).fetchone()
+        if row:
+            return row[0], False
+
+    if tmdb_id:
+        row = db.execute(
+            text(
+                """
+                SELECT ces.content_id FROM content_external_source ces
+                JOIN content c ON c.content_id = ces.content_id
+                WHERE ces.source = 'tmdb' AND ces.external_id = :external_id AND c.content_type = 'series'
+                """
+            ),
+            {"external_id": tmdb_id},
+        ).fetchone()
+        if row:
+            return row[0], False
+
+    if year:
+        rows = db.execute(
+            text(
+                """
+                SELECT content_id FROM content
+                WHERE LOWER(title) = LOWER(:title) AND YEAR(first_release) = :year AND content_type = 'series'
+                LIMIT 2
+                """
+            ),
+            {"title": title, "year": year},
+        ).fetchall()
+        if len(rows) == 1:
+            return rows[0][0], False
+
+    content_id = _new_uuid_bytes()
+    first_release = f"{year}-01-01" if year else None
+    db.execute(
+        text(
+            """
+            INSERT INTO content (
+                content_id, title, content_type, overview,
+                first_release, watched_flag, temporary_flag
+            )
+            VALUES (
+                :content_id, :title, 'series', '',
+                :first_release, 0, 0
+            )
+            """
+        ),
+        {"content_id": content_id, "title": title, "first_release": first_release},
+    )
+
+    if tvdb_id:
+        try:
+            data = fetch_tvdb_details(tvdb_id, "series")
+        except ExternalApiError as exc:
+            logger.warning("Klarte ikke å hente TVDB-detaljer (id=%s) ved Plex-import: %s", tvdb_id, exc)
+        else:
+            facet_genres, facet_cast, facet_release_year = _compute_search_facets(data)
+            db.execute(
+                text(
+                    """
+                    INSERT INTO content_external_source (
+                        source, content_id, external_id, data_json, fetched_at,
+                        facet_genres, facet_cast, facet_release_year
+                    )
+                    VALUES (
+                        'tvdb', :content_id, :external_id, :data_json, :fetched_at,
+                        :facet_genres, :facet_cast, :facet_release_year
+                    )
+                    """
+                ),
+                {
+                    "content_id": content_id,
+                    "external_id": tvdb_id,
+                    "data_json": json.dumps(data, ensure_ascii=False),
+                    "fetched_at": datetime.now(timezone.utc),
+                    "facet_genres": json.dumps(facet_genres),
+                    "facet_cast": json.dumps(facet_cast),
+                    "facet_release_year": facet_release_year,
+                },
+            )
+            db.flush()
+            try:
+                merge_content_from_source(db, "tvdb", tvdb_id)
+            except ContentExternalSourceError as exc:
+                logger.warning("Klarte ikke å flette inn TVDB-data (id=%s) ved Plex-import: %s", tvdb_id, exc)
+
+    return content_id, True
+
+
+def _find_or_create_season(db: Session, content_id: bytes, season_number: int) -> tuple[bytes, bool]:
+    """Finner/oppretter en `season`-rad for denne serien - matcher kun
+    på (content_id, season_number), samme nøkkel som den fysiske
+    box-set-importen bruker (se _find_season()/_create_season() i
+    add_data/physical_collection_import.py - ikke gjenbrukt direkte
+    herfra siden den modulens versjon er private/modul-lokale
+    hjelpefunksjoner)."""
+
+    row = db.execute(
+        text("SELECT season_id FROM season WHERE content_id = :content_id AND season_number = :season_number"),
+        {"content_id": content_id, "season_number": season_number},
+    ).fetchone()
+    if row:
+        return row[0], False
+
+    season_id = _new_uuid_bytes()
+    db.execute(
+        text(
+            "INSERT INTO season (season_id, content_id, season_number, title, air_date, overview) "
+            "VALUES (:season_id, :content_id, :season_number, NULL, NULL, NULL)"
+        ),
+        {"season_id": season_id, "content_id": content_id, "season_number": season_number},
+    )
+    return season_id, True
+
+
+def _match_or_create_episode(
+    db: Session,
+    season_id: bytes,
+    episode_number: int,
+    tvdb_episode_id: str | None,
+    title: str | None,
+    runtime: int | None,
+    original_air_date: str | None,
+    overview: str | None,
+) -> tuple[bytes, bool]:
+    """Finner/oppretter en `episode`-rad. Prioriterer et eksakt treff på
+    TVDB sin egen episode-id (global, sesong-uavhengig) fremfor
+    sesong+episodenummer - se modulens docstring for hvorfor dette er
+    viktig for serier der den fysiske disk-rekkefølgen ikke følger TVDB
+    sin "aired order" (Young Indiana Jones-saken).
+
+    Et tvdb_episode_id-treff respekterer bevisst episodens EKSISTERENDE
+    season_id/episode_number i stedet for å flytte den til season_id-en
+    som ble gitt inn her - en fysisk registrering kan bevisst ha lagt
+    episoden i en annen sesong enn TVDB sin aired-rekkefølge tilsier,
+    og det skal ikke overstyres av en Plex-import."""
+
+    if tvdb_episode_id:
+        row = db.execute(
+            text("SELECT episode_id FROM episode WHERE tvdb_episode_id = :tvdb_episode_id"),
+            {"tvdb_episode_id": tvdb_episode_id},
+        ).fetchone()
+        if row:
+            return row[0], False
+
+    row = db.execute(
+        text("SELECT episode_id FROM episode WHERE season_id = :season_id AND episode_number = :episode_number"),
+        {"season_id": season_id, "episode_number": episode_number},
+    ).fetchone()
+    if row:
+        if tvdb_episode_id:
+            # Etterfyll tvdb_episode_id på en episode som allerede
+            # fantes (f.eks. fysisk registrert) fra før kolonnen ble
+            # tatt i bruk, slik at fremtidige reimporter matcher
+            # direkte på id i stedet for sesong+episodenummer.
+            db.execute(
+                text(
+                    "UPDATE episode SET tvdb_episode_id = :tvdb_episode_id "
+                    "WHERE episode_id = :episode_id AND tvdb_episode_id IS NULL"
+                ),
+                {"tvdb_episode_id": tvdb_episode_id, "episode_id": row[0]},
+            )
+        return row[0], False
+
+    episode_id = _new_uuid_bytes()
+    db.execute(
+        text(
+            """
+            INSERT INTO episode (
+                episode_id, season_id, episode_number, title, runtime,
+                original_air_date, overview, watched_flag, tvdb_episode_id
+            )
+            VALUES (
+                :episode_id, :season_id, :episode_number, :title, :runtime,
+                :original_air_date, :overview, 0, :tvdb_episode_id
+            )
+            """
+        ),
+        {
+            "episode_id": episode_id,
+            "season_id": season_id,
+            "episode_number": episode_number,
+            "title": title,
+            "runtime": runtime,
+            "original_air_date": original_air_date,
+            "overview": overview,
+            "tvdb_episode_id": tvdb_episode_id,
+        },
+    )
+    return episode_id, True
+
+
 def _upsert_digital_library(db: Session, section: dict) -> bytes:
     row = db.execute(
         text("SELECT digital_library_id FROM digital_library WHERE plex_section_key = :key"),
@@ -241,8 +500,16 @@ def _upsert_digital_library(db: Session, section: dict) -> bytes:
 
 
 def _upsert_content_in_digital_library(
-    db: Session, content_id: bytes, digital_library_id: bytes, rating_key: str, detail: dict
+    db: Session,
+    content_id: bytes,
+    digital_library_id: bytes,
+    rating_key: str,
+    detail: dict,
+    episode_id: bytes | None = None,
 ) -> bytes:
+    """episode_id er kun satt for TV-episoder (se modulens docstring) -
+    forblir NULL for filmer, uendret oppførsel der."""
+
     row = db.execute(
         text(
             "SELECT id FROM content_in_digital_library "
@@ -258,9 +525,15 @@ def _upsert_content_in_digital_library(
         db.execute(
             text(
                 "UPDATE content_in_digital_library SET content_id = :content_id, "
-                "plex_guid = :guid, added_at = :added_at WHERE id = :id"
+                "episode_id = :episode_id, plex_guid = :guid, added_at = :added_at WHERE id = :id"
             ),
-            {"content_id": content_id, "guid": guid, "added_at": added_at, "id": row[0]},
+            {
+                "content_id": content_id,
+                "episode_id": episode_id,
+                "guid": guid,
+                "added_at": added_at,
+                "id": row[0],
+            },
         )
         return row[0]
 
@@ -268,14 +541,15 @@ def _upsert_content_in_digital_library(
     db.execute(
         text(
             """
-            INSERT INTO content_in_digital_library (id, content_id, digital_library_id, plex_rating_key, plex_guid, added_at)
-            VALUES (:id, :content_id, :digital_library_id, :rating_key, :guid, :added_at)
+            INSERT INTO content_in_digital_library (id, content_id, digital_library_id, episode_id, plex_rating_key, plex_guid, added_at)
+            VALUES (:id, :content_id, :digital_library_id, :episode_id, :rating_key, :guid, :added_at)
             """
         ),
         {
             "id": cidl_id,
             "content_id": content_id,
             "digital_library_id": digital_library_id,
+            "episode_id": episode_id,
             "rating_key": rating_key,
             "guid": guid,
             "added_at": added_at,
@@ -461,21 +735,35 @@ def run_plex_import(
 ) -> dict:
     """Kjører en full import-runde for alle valgte bibliotek. Returnerer
     et sammendrag til UI-et - feiler IKKE hele kjøringen pga. ett enkelt
-    Plex-element (f.eks. korrupt/uventet respons) - den filmen logges i
-    "errors" og resten av biblioteket fortsetter.
+    Plex-element (f.eks. korrupt/uventet respons) - den filmen/episoden
+    logges i "errors" og resten av biblioteket fortsetter.
 
     progress_callback(library_title, processed, total), hvis gitt, kalles
     etter hvert element - brukes av plex_import_route.py til å oppdatere
     en in-memory statusstruktur som frontend kan polle (denne funksjonen
     kjøres synkront, ofte i en egen bakgrunnstråd, nettopp for at en lang
-    import ikke skal blokkere resten av nettstedet - se route-filen)."""
+    import ikke skal blokkere resten av nettstedet - se route-filen).
+
+    "movie"- og "show"-bibliotek har hver sin egen import-løkke (se
+    _import_movie_library()/_import_show_library()) siden de bygger
+    helt ulike rad-strukturer (én content-rad per film vs.
+    serie+sesong+episode per show) - selve biblioteks-/pruning-
+    rammeverket (digital_library-oppslag, progress_callback,
+    feilhåndtering per element) er likt nok til at begge kalles herfra
+    på samme måte."""
 
     summary = {
         "libraries_synced": [],
         "movies_created": 0,
         "movies_matched": 0,
-        "skipped_non_movie_libraries": [],
         "movies_pruned": 0,
+        "series_created": 0,
+        "series_matched": 0,
+        "seasons_created": 0,
+        "episodes_created": 0,
+        "episodes_matched": 0,
+        "episodes_pruned": 0,
+        "skipped_unsupported_libraries": [],
         "content_deleted": 0,
         "errors": [],
     }
@@ -489,10 +777,9 @@ def run_plex_import(
             summary["errors"].append(f"Bibliotek med key={key} finnes ikke lenger på Plex-serveren")
             continue
 
-        if section.get("type") != "movie":
-            # scope=movies_only (bekreftet med brukeren) - TV-serier
-            # kommer i en senere omgang.
-            summary["skipped_non_movie_libraries"].append(section.get("title"))
+        section_type = section.get("type")
+        if section_type not in ("movie", "show"):
+            summary["skipped_unsupported_libraries"].append(section.get("title"))
             continue
 
         digital_library_id = _upsert_digital_library(db, section)
@@ -506,62 +793,210 @@ def run_plex_import(
             summary["errors"].append(f"{section.get('title')}: {exc}")
             continue
 
-        created_count = 0
-        matched_count = 0
-        total_items = len(items)
-        seen_rating_keys: set[str] = set()
+        if section_type == "movie":
+            _import_movie_library(
+                db, base_url, token, verify_ssl, section, digital_library_id, items, summary, progress_callback
+            )
+        else:
+            _import_show_library(
+                db, base_url, token, verify_ssl, section, digital_library_id, items, summary, progress_callback
+            )
 
-        for processed, item in enumerate(items, start=1):
-            rating_key = item.get("ratingKey")
-            if not rating_key:
-                continue
-            # Regnes som "sett" selv om elementet feiler lenger ned - det
-            # finnes fortsatt på Plex-serveren, og skal dermed ikke prunes
-            # som fjernet (se _prune_removed_items()).
-            seen_rating_keys.add(rating_key)
-
-            title = item.get("title") or "Ukjent tittel"
-
-            try:
-                detail = fetch_item_detail(base_url, token, rating_key, verify_ssl) or item
-                tmdb_id = extract_tmdb_id_from_guids(detail)
-                title = detail.get("title") or title
-                year = detail.get("year") or item.get("year")
-
-                content_id, was_created = _match_or_create_content(
-                    db, digital_library_id, rating_key, tmdb_id, title, year
-                )
-                cidl_id = _upsert_content_in_digital_library(db, content_id, digital_library_id, rating_key, detail)
-                _replace_media_versions(db, cidl_id, detail.get("Media", []))
-                _store_plex_raw_source(db, content_id, rating_key, detail)
-                # Commit per item (not per library) so a failure on one item
-                # cannot roll back items that were already processed
-                # successfully earlier in the same library's loop.
-                db.commit()
-
-                if was_created:
-                    created_count += 1
-                else:
-                    matched_count += 1
-            except Exception as exc:  # noqa: BLE001 - must not abort the whole import on a single bad item
-                db.rollback()
-                summary["errors"].append(f"{title}: {exc}")
-
-            if progress_callback is not None:
-                progress_callback(section.get("title"), processed, total_items)
-
-        try:
-            pruned_count, content_deleted_count = _prune_removed_items(db, digital_library_id, seen_rating_keys)
-        except Exception as exc:  # noqa: BLE001 - pruning må aldri felle hele importen
-            db.rollback()
-            summary["errors"].append(f"{section.get('title')}: klarte ikke å fjerne slettede filmer: {exc}")
-            pruned_count = 0
-            content_deleted_count = 0
-        summary["movies_pruned"] += pruned_count
-        summary["content_deleted"] += content_deleted_count
-
-        summary["movies_created"] += created_count
-        summary["movies_matched"] += matched_count
         summary["libraries_synced"].append({"title": section.get("title"), "item_count": len(items)})
 
     return summary
+
+
+def _import_movie_library(
+    db: Session,
+    base_url: str,
+    token: str,
+    verify_ssl: bool,
+    section: dict,
+    digital_library_id: bytes,
+    items: list[dict],
+    summary: dict,
+    progress_callback,
+) -> None:
+    created_count = 0
+    matched_count = 0
+    total_items = len(items)
+    seen_rating_keys: set[str] = set()
+
+    for processed, item in enumerate(items, start=1):
+        rating_key = item.get("ratingKey")
+        if not rating_key:
+            continue
+        # Regnes som "sett" selv om elementet feiler lenger ned - det
+        # finnes fortsatt på Plex-serveren, og skal dermed ikke prunes
+        # som fjernet (se _prune_removed_items()).
+        seen_rating_keys.add(rating_key)
+
+        title = item.get("title") or "Ukjent tittel"
+
+        try:
+            detail = fetch_item_detail(base_url, token, rating_key, verify_ssl) or item
+            tmdb_id = extract_tmdb_id_from_guids(detail)
+            title = detail.get("title") or title
+            year = detail.get("year") or item.get("year")
+
+            content_id, was_created = _match_or_create_content(
+                db, digital_library_id, rating_key, tmdb_id, title, year
+            )
+            cidl_id = _upsert_content_in_digital_library(db, content_id, digital_library_id, rating_key, detail)
+            _replace_media_versions(db, cidl_id, detail.get("Media", []))
+            _store_plex_raw_source(db, content_id, rating_key, detail)
+            # Commit per item (not per library) so a failure on one item
+            # cannot roll back items that were already processed
+            # successfully earlier in the same library's loop.
+            db.commit()
+
+            if was_created:
+                created_count += 1
+            else:
+                matched_count += 1
+        except Exception as exc:  # noqa: BLE001 - must not abort the whole import on a single bad item
+            db.rollback()
+            summary["errors"].append(f"{title}: {exc}")
+
+        if progress_callback is not None:
+            progress_callback(section.get("title"), processed, total_items)
+
+    try:
+        pruned_count, content_deleted_count = _prune_removed_items(db, digital_library_id, seen_rating_keys)
+    except Exception as exc:  # noqa: BLE001 - pruning må aldri felle hele importen
+        db.rollback()
+        summary["errors"].append(f"{section.get('title')}: klarte ikke å fjerne slettede filmer: {exc}")
+        pruned_count = 0
+        content_deleted_count = 0
+    summary["movies_pruned"] += pruned_count
+    summary["content_deleted"] += content_deleted_count
+
+    summary["movies_created"] += created_count
+    summary["movies_matched"] += matched_count
+
+
+def _import_show_library(
+    db: Session,
+    base_url: str,
+    token: str,
+    verify_ssl: bool,
+    section: dict,
+    digital_library_id: bytes,
+    items: list[dict],
+    summary: dict,
+    progress_callback,
+) -> None:
+    """Som _import_movie_library(), men for content_type='series' -
+    se modulens docstring for matching-/koblings-strategien (serie via
+    content_external_source, sesong/episode via `season`/`episode`,
+    content_in_digital_library-rad per episode)."""
+
+    total_items = len(items)
+    # Rating-key-er for EPISODER (ikke show-nivå-elementer) - det er
+    # episode-rader som har en content_in_digital_library-rad, se
+    # modulens docstring. Brukes av pruning etter at hele biblioteket
+    # er gått gjennom.
+    seen_rating_keys: set[str] = set()
+
+    for processed, item in enumerate(items, start=1):
+        show_rating_key = item.get("ratingKey")
+        if not show_rating_key:
+            continue
+
+        title = item.get("title") or "Ukjent serie"
+
+        try:
+            show_detail = fetch_item_detail(base_url, token, show_rating_key, verify_ssl) or item
+            title = show_detail.get("title") or title
+            year = show_detail.get("year") or item.get("year")
+            tvdb_id = extract_tvdb_id_from_guids(show_detail)
+            tmdb_id = extract_tmdb_id_from_guids(show_detail)
+
+            content_id, series_was_created = _match_or_create_series_content(
+                db, show_rating_key, tvdb_id, tmdb_id, title, year
+            )
+            _store_plex_raw_source(db, content_id, show_rating_key, show_detail)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 - must not abort the whole import on a single bad show
+            db.rollback()
+            summary["errors"].append(f"{title}: {exc}")
+            if progress_callback is not None:
+                progress_callback(section.get("title"), processed, total_items)
+            continue
+
+        if series_was_created:
+            summary["series_created"] += 1
+        else:
+            summary["series_matched"] += 1
+
+        try:
+            episodes = fetch_show_episodes(base_url, token, show_rating_key, verify_ssl)
+        except PlexConnectionError as exc:
+            summary["errors"].append(f"{title}: {exc}")
+            if progress_callback is not None:
+                progress_callback(section.get("title"), processed, total_items)
+            continue
+
+        for ep_item in episodes:
+            ep_rating_key = ep_item.get("ratingKey")
+            if not ep_rating_key:
+                continue
+            # Samme "regnes som sett selv om den feiler lenger ned"-
+            # resonnement som for filmer - se seen_rating_keys over.
+            seen_rating_keys.add(ep_rating_key)
+
+            season_number = ep_item.get("parentIndex")
+            episode_number = ep_item.get("index")
+            ep_label = f"{title} S{season_number}E{episode_number}"
+
+            if season_number is None or episode_number is None:
+                summary["errors"].append(
+                    f"{title}: episode uten sesong-/episodenummer (ratingKey={ep_rating_key}) hoppet over"
+                )
+                continue
+
+            try:
+                tvdb_episode_id = extract_tvdb_episode_id_from_guids(ep_item)
+                ep_title = ep_item.get("title") or None
+                duration_ms = ep_item.get("duration")
+                runtime = (duration_ms // 60000) if duration_ms else None
+                # Plex sitt "YYYY-MM-DD" matcher allerede DATE-kolonnen,
+                # trenger ingen videre parsing.
+                original_air_date = ep_item.get("originallyAvailableAt")
+                overview = ep_item.get("summary") or None
+
+                season_id, season_was_created = _find_or_create_season(db, content_id, season_number)
+                if season_was_created:
+                    summary["seasons_created"] += 1
+
+                episode_id, episode_was_created = _match_or_create_episode(
+                    db, season_id, episode_number, tvdb_episode_id, ep_title, runtime, original_air_date, overview
+                )
+                cidl_id = _upsert_content_in_digital_library(
+                    db, content_id, digital_library_id, ep_rating_key, ep_item, episode_id=episode_id
+                )
+                _replace_media_versions(db, cidl_id, ep_item.get("Media", []))
+                db.commit()
+
+                if episode_was_created:
+                    summary["episodes_created"] += 1
+                else:
+                    summary["episodes_matched"] += 1
+            except Exception as exc:  # noqa: BLE001 - must not abort the whole import on a single bad episode
+                db.rollback()
+                summary["errors"].append(f"{ep_label}: {exc}")
+
+        if progress_callback is not None:
+            progress_callback(section.get("title"), processed, total_items)
+
+    try:
+        pruned_count, content_deleted_count = _prune_removed_items(db, digital_library_id, seen_rating_keys)
+    except Exception as exc:  # noqa: BLE001 - pruning må aldri felle hele importen
+        db.rollback()
+        summary["errors"].append(f"{section.get('title')}: klarte ikke å fjerne slettede episoder: {exc}")
+        pruned_count = 0
+        content_deleted_count = 0
+    summary["episodes_pruned"] += pruned_count
+    summary["content_deleted"] += content_deleted_count
+
