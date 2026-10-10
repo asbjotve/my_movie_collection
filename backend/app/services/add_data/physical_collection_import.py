@@ -56,6 +56,29 @@ def _get_content_by_imdb_id(db: Session, imdb_id: Optional[str]) -> Optional[byt
     return row[0] if row else None
 
 
+def _get_content_by_external_source(
+    db: Session, source: str, external_id: Optional[str]
+) -> Optional[bytes]:
+    """Slår opp eksisterende content via content_external_source, brukt for
+    tmdb/tvdb siden disse (i motsetning til imdb_id) ikke lagres direkte som
+    kolonne på content-tabellen.
+    """
+    if not external_id:
+        return None
+
+    row = db.execute(
+        text("""
+            SELECT content_id
+            FROM content_external_source
+            WHERE source = :source AND external_id = :external_id
+            LIMIT 1
+        """),
+        {"source": source, "external_id": external_id},
+    ).fetchone()
+
+    return row[0] if row else None
+
+
 def _fetch_external_source_payload(
     source: str, external_id: str, content_type: str = "movie"
 ) -> tuple[dict, Optional[datetime]]:
@@ -233,28 +256,26 @@ def _get_or_create_content(
     tvdb_id: Optional[str] = None,
     content_type: str = "movie",
 ) -> tuple[bytes, bool]:
-    if imdb_id:
-        existing_content_id = _get_content_by_imdb_id(db, imdb_id)
-        if existing_content_id:
-            return existing_content_id, False
+    existing_content_id = (
+        _get_content_by_imdb_id(db, imdb_id)
+        or _get_content_by_external_source(db, "tmdb", tmdb_id)
+        or _get_content_by_external_source(db, "tvdb", tvdb_id)
+    )
+    if existing_content_id:
+        return existing_content_id, False
 
-        return _create_content(
-            db=db,
-            title=title,
-            imdb_id=imdb_id,
-            tmdb_id=tmdb_id,
-            tvdb_id=tvdb_id,
-            temporary_flag=0,
-            content_type=content_type,
-        ), True
+    # temporary_flag markerer at posten mangler enhver ekstern kilde-id
+    # (imdb/tmdb/tvdb). imdb_id alene er ikke lenger utslagsgivende her,
+    # siden IMDb ikke har noe søke-API - tmdb/tvdb er de reelle kildene.
+    has_external_id = bool(imdb_id or tmdb_id or tvdb_id)
 
     return _create_content(
         db=db,
         title=title,
-        imdb_id=None,
+        imdb_id=imdb_id,
         tmdb_id=tmdb_id,
         tvdb_id=tvdb_id,
-        temporary_flag=1,
+        temporary_flag=0 if has_external_id else 1,
         content_type=content_type,
     ), True
 
