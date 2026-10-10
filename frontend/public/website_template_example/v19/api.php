@@ -338,6 +338,74 @@ if (($_GET['action'] ?? '') === 'list_owners') {
     exit;
 }
 
+// GET ?action=list_pending_duplicates
+// Brukes av duplicate_review.php: lister rader som
+// bulk_add_movies_form/v14 la i venteliste fordi strekkoden allerede
+// var registrert - se GET /import/physical-collection/pending i
+// backend/app/routes/add_data/physical_collection_import_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'list_pending_duplicates') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $pendingUrl = MEDIA_API_BASE_URL . '/import/physical-collection/pending';
+
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($pendingUrl, [
+        CURLOPT_TIMEOUT => 10,
+    ]);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// POST ?action=resolve_pending_duplicate&id=<int>
+// (body: {"action": "add_copy"|"discard"})
+// Brukes av duplicate_review.php: legger til en ny kopi av den
+// allerede-registrerte utgivelsen, eller forkaster ventelisteraden -
+// se POST /import/physical-collection/pending/{id}/resolve i
+// backend/app/routes/add_data/physical_collection_import_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'resolve_pending_duplicate') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    require_csrf_or_json_403();
+
+    $pendingId = (string)($_GET['id'] ?? '');
+    if (!preg_match('/^\d+$/', $pendingId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $resolveUrl = MEDIA_API_BASE_URL . '/import/physical-collection/pending/' . $pendingId . '/resolve';
+
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($resolveUrl, [
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ], ['Content-Type: application/json']);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=similar&id=<content_id>
 // Brukes av detail.php: "Lignende filmer"-forslag basert på delt
 // sjanger (filmer i samme filmgruppe er allerede dekket av den

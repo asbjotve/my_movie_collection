@@ -2,6 +2,13 @@ from typing import Annotated, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
+class ResolvePendingDuplicatePayload(BaseModel):
+    """Body for POST /import/physical-collection/pending/{id}/resolve -
+    see duplicate_review.php."""
+
+    action: Literal["add_copy", "discard"]
+
+
 class BonusItemPayload(BaseModel):
     seq_no: Optional[int] = None
     title: str

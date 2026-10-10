@@ -95,6 +95,8 @@ return [
                 'card_access_desc'       => 'Choose which pages/sections require login, and set the default language for new visitors.',
                 'card_plex_title'        => 'Plex connection',
                 'card_plex_desc'         => 'Set the server URL and token for Plex Media Server (the import comes later).',
+                'card_duplicate_review_title' => 'Duplicates from bulk-add',
+                'card_duplicate_review_desc'  => 'Titles found to already exist during bulk-add - choose whether to add them as a new copy, or discard them.',
                 'card_system_status_title' => 'System status',
                 'card_system_status_desc'  => 'Simple overview of database/API connectivity.',
                 'note' => '🔒 <strong>Note:</strong> "Administration" should almost certainly require login – this is where data can be changed/deleted, unlike "My movies"/"Wishlist" which likely only display data.',

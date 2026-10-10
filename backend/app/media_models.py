@@ -655,3 +655,34 @@ class DigitalMediaPart(MediaBase):
         Index("idx_digital_media_part__media_version_id", "media_version_id"),
     )
 
+
+class PendingDuplicateImport(MediaBase):
+    """A row from bulk_add_movies_form/v14 (singles tab) whose barcode
+    matched an already-registered physical_collection - instead of
+    aborting the whole batch (see import_singles_payload()), the row
+    is parked here so the user can later decide, one title at a time,
+    whether to add it as a new copy of the existing release or discard
+    it. See GET/POST /import/physical-collection/pending and the
+    duplicate_review.php admin page."""
+
+    __tablename__ = "pending_duplicate_import"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+    title = Column(Text, nullable=True)
+    barcode = Column(String(13), nullable=True)
+    matched_collection_id = Column(
+        BINARY(16),
+        ForeignKey("physical_collection.collection_id", ondelete="CASCADE", onupdate="CASCADE"),
+        nullable=False,
+    )
+    # Full SingleRowPayload (title/format/barcode/imdb_id/tmdb_id/tvdb_id/
+    # discs/bonus_items) as JSON, so "add as copy" can replay the exact
+    # same disc/bonus-item data the user originally entered.
+    row_payload = Column(LONGTEXT(collation="utf8mb4_bin"), nullable=False)
+
+    __table_args__ = (
+        Index("idx_pending_duplicate_import__matched_collection_id", "matched_collection_id"),
+        CheckConstraint("json_valid(row_payload)", name="pending_duplicate_import_chk_1"),
+    )
+

@@ -193,6 +193,7 @@ return [
             'idle' => 'No requests sent yet.',
             'sending' => 'Sending payload to the API…',
             'success' => 'Payload sent successfully.',
+            'success_queued' => 'Payload sent successfully. {n} title(s) already existed (same barcode) and were queued for review - see "Duplicates from bulk-add" under Administration.',
             'error' => 'The API returned an error.',
             'search_short' => 'Type at least 2 characters to search.',
             'search_loading' => 'Searching…',

@@ -193,6 +193,7 @@ return [
             'idle' => 'Ingen forespørsler er sendt ennå.',
             'sending' => 'Sender payload til API-et…',
             'success' => 'Payload ble sendt uten feil.',
+            'success_queued' => 'Payload ble sendt uten feil. {n} tittel(er) fantes fra før (samme strekkode) og ble lagt i venteliste for gjennomgang - se "Duplikater fra bulk-registrering" under Administrering.',
             'error' => 'API-et returnerte en feil.',
             'search_short' => 'Skriv minst 2 tegn for å søke.',
             'search_loading' => 'Søker…',

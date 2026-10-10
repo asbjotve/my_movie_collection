@@ -726,12 +726,148 @@ def _default_box_disc_label(
     return f"Box-set – {type_disc}"
 
 
+def _get_next_copy_id(db: Session, collection_id: bytes) -> int:
+    row = db.execute(
+        text("""
+            SELECT COALESCE(MAX(copy_id), 0)
+            FROM physical_copy
+            WHERE collection_id = :collection_id
+        """),
+        {"collection_id": collection_id},
+    ).fetchone()
+
+    return int(row[0] or 0) + 1
+
+
+def _create_copy_with_discs(
+    db: Session,
+    collection_id: bytes,
+    copy_id: int,
+    title: str,
+    content_id: bytes,
+    discs: list[dict],
+    payload_storage_id: Optional[bytes],
+    storage_next_slot_cache: dict[bytes, int],
+) -> tuple[int, int]:
+    """Creates one physical_copy (copy_id) under collection_id, plus all
+    its discs/bonus-items/storage-slots. Shared by import_singles_payload
+    (new releases) and resolve_pending_duplicate_as_copy() (an extra copy
+    of an already-registered release)."""
+    created_discs = 0
+    created_bonus_items = 0
+
+    _ensure_physical_copy(
+        db=db,
+        collection_id=collection_id,
+        copy_id=copy_id,
+    )
+
+    for disc_no, disc_payload in enumerate(discs, start=1):
+        label = _normalize_label(disc_payload.get("label"))
+        if not label:
+            label = _default_single_disc_label(
+                title=title,
+                type_disc=disc_payload["type_disc"],
+                disc_no=disc_no,
+            )
+
+        disc_id = _create_disc(
+            db=db,
+            type_disc=disc_payload["type_disc"],
+            format_value=disc_payload["format"],
+            label=label,
+        )
+        created_discs += 1
+
+        _create_disc_in(
+            db=db,
+            collection_id=collection_id,
+            copy_id=copy_id,
+            disc_id=disc_id,
+            box_set_disc_order=disc_no,
+            related_content_id=content_id,
+        )
+
+        _set_disc_related_content(
+            db=db,
+            disc_id=disc_id,
+            content_ids=[content_id],
+        )
+
+        created_bonus_items += _create_bonus_items(
+            db=db,
+            disc_id=disc_id,
+            bonus_items=disc_payload.get("bonus_items", []),
+        )
+
+        add_to_storage = bool(disc_payload.get("add_to_storage", False))
+        storage_slot_no = disc_payload.get("storage_slot_no")
+
+        if add_to_storage:
+            if payload_storage_id is None:
+                raise ValueError(
+                    f"Disc for '{title}' has add_to_storage=true, "
+                    "but no storage_id is defined on payload"
+                )
+
+            if storage_slot_no is not None:
+                assigned_slot = storage_slot_no
+            else:
+                if payload_storage_id not in storage_next_slot_cache:
+                    current_max = _get_storage_max_slot(db, payload_storage_id)
+                    storage_next_slot_cache[payload_storage_id] = current_max + 1
+
+                assigned_slot = storage_next_slot_cache[payload_storage_id]
+                storage_next_slot_cache[payload_storage_id] += 1
+
+            _create_disc_in_storage(
+                db=db,
+                storage_id=payload_storage_id,
+                disc_id=disc_id,
+                number_in_storage=assigned_slot,
+            )
+
+    return created_discs, created_bonus_items
+
+
+def _queue_pending_duplicate(
+    db: Session,
+    title: str,
+    barcode: Optional[str],
+    matched_collection_id: bytes,
+    row: dict,
+) -> None:
+    db.execute(
+        text("""
+            INSERT INTO pending_duplicate_import (
+                title,
+                barcode,
+                matched_collection_id,
+                row_payload
+            )
+            VALUES (
+                :title,
+                :barcode,
+                :matched_collection_id,
+                :row_payload
+            )
+        """),
+        {
+            "title": title,
+            "barcode": barcode,
+            "matched_collection_id": matched_collection_id,
+            "row_payload": json.dumps(row, ensure_ascii=False),
+        },
+    )
+
+
 def import_singles_payload(db: Session, payload: dict) -> dict:
     imported_rows = 0
     created_contents = 0
     created_collections = 0
     created_discs = 0
     created_bonus_items = 0
+    queued_for_review = 0
 
     default_copy_count = payload.get("default_copy_count", 1)
     payload_storage_id = _uuid_str_to_bytes(payload.get("storage_id"))
@@ -752,7 +888,21 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
             box_set_barcode=None,
         )
         if existing_collection_id:
-            raise ValueError(f"Single release with barcode {barcode} already exists")
+            # Don't raise here: that would roll back the *entire* batch
+            # (see import_physical_collection_payload()'s single shared
+            # transaction), including the other, genuinely new titles in
+            # the same submission. Instead, park the row for manual
+            # review - see duplicate_review.php /
+            # resolve_pending_duplicate_as_copy().
+            _queue_pending_duplicate(
+                db=db,
+                title=title,
+                barcode=barcode,
+                matched_collection_id=existing_collection_id,
+                row=row,
+            )
+            queued_for_review += 1
+            continue
 
         content_id, was_created = _get_or_create_content(
             db=db,
@@ -780,76 +930,18 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
         )
 
         for copy_id in range(1, default_copy_count + 1):
-            _ensure_physical_copy(
+            row_created_discs, row_created_bonus_items = _create_copy_with_discs(
                 db=db,
                 collection_id=collection_id,
                 copy_id=copy_id,
+                title=title,
+                content_id=content_id,
+                discs=discs,
+                payload_storage_id=payload_storage_id,
+                storage_next_slot_cache=storage_next_slot_cache,
             )
-
-            for disc_no, disc_payload in enumerate(discs, start=1):
-                label = _normalize_label(disc_payload.get("label"))
-                if not label:
-                    label = _default_single_disc_label(
-                        title=title,
-                        type_disc=disc_payload["type_disc"],
-                        disc_no=disc_no,
-                    )
-
-                disc_id = _create_disc(
-                    db=db,
-                    type_disc=disc_payload["type_disc"],
-                    format_value=disc_payload["format"],
-                    label=label,
-                )
-                created_discs += 1
-
-                _create_disc_in(
-                    db=db,
-                    collection_id=collection_id,
-                    copy_id=copy_id,
-                    disc_id=disc_id,
-                    box_set_disc_order=disc_no,
-                    related_content_id=content_id,
-                )
-
-                _set_disc_related_content(
-                    db=db,
-                    disc_id=disc_id,
-                    content_ids=[content_id],
-                )
-
-                created_bonus_items += _create_bonus_items(
-                    db=db,
-                    disc_id=disc_id,
-                    bonus_items=disc_payload.get("bonus_items", []),
-                )
-
-                add_to_storage = bool(disc_payload.get("add_to_storage", False))
-                storage_slot_no = disc_payload.get("storage_slot_no")
-
-                if add_to_storage:
-                    if payload_storage_id is None:
-                        raise ValueError(
-                            f"Disc for '{title}' has add_to_storage=true, "
-                            "but no storage_id is defined on payload"
-                        )
-
-                    if storage_slot_no is not None:
-                        assigned_slot = storage_slot_no
-                    else:
-                        if payload_storage_id not in storage_next_slot_cache:
-                            current_max = _get_storage_max_slot(db, payload_storage_id)
-                            storage_next_slot_cache[payload_storage_id] = current_max + 1
-
-                        assigned_slot = storage_next_slot_cache[payload_storage_id]
-                        storage_next_slot_cache[payload_storage_id] += 1
-
-                    _create_disc_in_storage(
-                        db=db,
-                        storage_id=payload_storage_id,
-                        disc_id=disc_id,
-                        number_in_storage=assigned_slot,
-                    )
+            created_discs += row_created_discs
+            created_bonus_items += row_created_bonus_items
 
         imported_rows += 1
 
@@ -859,6 +951,129 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
         "imported_rows": imported_rows,
         "created_contents": created_contents,
         "created_collections": created_collections,
+        "created_discs": created_discs,
+        "created_bonus_items": created_bonus_items,
+        "queued_for_review": queued_for_review,
+    }
+
+
+def list_pending_duplicates(db: Session) -> list[dict]:
+    """Rows parked by import_singles_payload() because their barcode
+    matched an already-registered physical_collection - see
+    duplicate_review.php."""
+    rows = db.execute(
+        text("""
+            SELECT
+                p.id,
+                p.created_at,
+                p.title,
+                p.barcode,
+                p.row_payload,
+                pc.format AS matched_format,
+                GROUP_CONCAT(DISTINCT c.title ORDER BY c.title SEPARATOR ', ') AS matched_titles
+            FROM pending_duplicate_import p
+            JOIN physical_collection pc ON pc.collection_id = p.matched_collection_id
+            LEFT JOIN content_in_physical_collection cip ON cip.collection_id = pc.collection_id
+            LEFT JOIN content c ON c.content_id = cip.content_id
+            GROUP BY p.id, p.created_at, p.title, p.barcode, p.row_payload, pc.format
+            ORDER BY p.created_at ASC, p.id ASC
+        """)
+    ).fetchall()
+
+    result = []
+    for row in rows:
+        row_payload = json.loads(row.row_payload)
+        result.append(
+            {
+                "id": row.id,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "title": row.title,
+                "barcode": row.barcode,
+                "matched_format": row.matched_format,
+                "matched_titles": row.matched_titles,
+                "disc_count": len(row_payload.get("discs", [])),
+            }
+        )
+    return result
+
+
+def _get_pending_duplicate(db: Session, pending_id: int) -> Optional[dict]:
+    row = db.execute(
+        text("""
+            SELECT id, title, barcode, matched_collection_id, row_payload
+            FROM pending_duplicate_import
+            WHERE id = :id
+        """),
+        {"id": pending_id},
+    ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def discard_pending_duplicate(db: Session, pending_id: int) -> dict:
+    pending = _get_pending_duplicate(db, pending_id)
+    if not pending:
+        raise ValueError(f"No pending duplicate import with id {pending_id}")
+
+    db.execute(
+        text("DELETE FROM pending_duplicate_import WHERE id = :id"),
+        {"id": pending_id},
+    )
+    db.commit()
+    return {"status": "ok", "action": "discarded", "id": pending_id}
+
+
+def resolve_pending_duplicate_as_copy(db: Session, pending_id: int) -> dict:
+    """Adds a new physical_copy (+ discs) to the already-registered
+    collection this pending row matched, using the same barcode/discs the
+    user originally entered in bulk_add_movies_form."""
+    pending = _get_pending_duplicate(db, pending_id)
+    if not pending:
+        raise ValueError(f"No pending duplicate import with id {pending_id}")
+
+    row = json.loads(pending["row_payload"])
+    collection_id = pending["matched_collection_id"]
+    title = row["title"]
+    discs = row.get("discs", [])
+
+    content_row = db.execute(
+        text("""
+            SELECT content_id
+            FROM content_in_physical_collection
+            WHERE collection_id = :collection_id
+            LIMIT 1
+        """),
+        {"collection_id": collection_id},
+    ).fetchone()
+    if not content_row:
+        raise ValueError(
+            f"Matched collection for pending duplicate {pending_id} has no linked content"
+        )
+    content_id = content_row[0]
+
+    copy_id = _get_next_copy_id(db, collection_id)
+
+    created_discs, created_bonus_items = _create_copy_with_discs(
+        db=db,
+        collection_id=collection_id,
+        copy_id=copy_id,
+        title=title,
+        content_id=content_id,
+        discs=discs,
+        payload_storage_id=None,
+        storage_next_slot_cache={},
+    )
+
+    db.execute(
+        text("DELETE FROM pending_duplicate_import WHERE id = :id"),
+        {"id": pending_id},
+    )
+
+    db.commit()
+    return {
+        "status": "ok",
+        "action": "added_as_copy",
+        "id": pending_id,
+        "copy_id": copy_id,
         "created_discs": created_discs,
         "created_bonus_items": created_bonus_items,
     }

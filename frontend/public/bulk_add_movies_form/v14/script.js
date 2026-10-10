@@ -216,8 +216,11 @@ async function submitPayload(payload, submitButton) {
       return;
     }
 
+    const queuedForReview = Number(data?.queued_for_review || 0);
     const message = data?.status === 'ok'
-      ? `${fmt('status.success')} (${data.kind || payload.kind})`
+      ? (queuedForReview > 0
+          ? `${fmt('status.success_queued', { n: queuedForReview })} (${data.kind || payload.kind})`
+          : `${fmt('status.success')} (${data.kind || payload.kind})`)
       : fmt('status.success');
     setStatus('success', message, data);
   } catch (error) {

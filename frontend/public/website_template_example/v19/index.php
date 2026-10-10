@@ -709,6 +709,12 @@ $sectionAccess = [
           <p><?= htmlspecialchars(t('wte.index.administrering.card_plex_desc')) ?></p>
         </a>
       </div>
+      <div class="adminCard card">
+        <a href="duplicate_review.php" style="color:inherit; text-decoration:none; display:block;">
+          <h3><?= htmlspecialchars(t('wte.index.administrering.card_duplicate_review_title')) ?></h3>
+          <p><?= htmlspecialchars(t('wte.index.administrering.card_duplicate_review_desc')) ?></p>
+        </a>
+      </div>
       <?php endif; ?>
       <div class="adminCard card">
         <?php if (!$isLoggedIn): ?><span class="lockedBadge badge"><?= htmlspecialchars(t('wte.index.administrering.locked_badge')) ?></span><?php endif; ?>

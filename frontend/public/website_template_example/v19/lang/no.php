@@ -98,6 +98,8 @@ return [
                 'card_access_desc'       => 'Velg hvilke sider/seksjoner som krever innlogging, og sett default-språk for nye besøkende.',
                 'card_plex_title'        => 'Plex-tilkobling',
                 'card_plex_desc'         => 'Sett server-URL og token for Plex Media Server (importen kommer senere).',
+                'card_duplicate_review_title' => 'Duplikater fra bulk-registrering',
+                'card_duplicate_review_desc'  => 'Titler som ble funnet å finnes fra før under bulk-registrering - velg om de skal legges til som ny kopi, eller forkastes.',
                 'card_system_status_title' => 'Systemstatus',
                 'card_system_status_desc'  => 'Enkel oversikt over database/API-tilkobling.',
                 'note' => '🔒 <strong>Vurdering:</strong> "Administrering" bør nesten helt sikkert kreve innlogging – dette er stedet hvor data kan endres/slettes, i motsetning til "Mine filmer"/"Ønskeliste" som trolig bare viser data.',
