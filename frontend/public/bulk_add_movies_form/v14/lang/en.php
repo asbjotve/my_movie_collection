@@ -31,6 +31,7 @@ return [
             'send_api' => 'Send to API',
             'submit_singles' => 'Send singles',
             'submit_box_sets' => 'Send box sets',
+            'submit_pasted_payload' => 'Send pasted payload',
             'save_discs' => 'Save discs',
             'save_items' => 'Save items',
             'close' => 'Close',
@@ -60,6 +61,7 @@ return [
             'setup' => 'Shared settings',
             'singles' => 'Single releases',
             'boxsets' => 'Box sets',
+            'paste' => 'Paste finished payload',
             'titles' => 'Titles',
             'movies_in_box' => 'Movies in box',
             'discs_in_box' => 'Discs in this box',
@@ -80,6 +82,7 @@ return [
             'label' => 'Label',
             'storage_slot_no' => 'Storage slot',
             'add_to_storage' => 'Add to storage',
+            'pasted_payload' => 'Finished JSON payload',
         ],
         'col' => [
             'title' => 'Title',
@@ -113,6 +116,7 @@ return [
             'box_barcode' => '13 digits',
             'search' => 'Search movies or TV shows…',
             'search_tvdb' => 'Search for a movie in TVDB…',
+            'pasted_payload' => '{"kind": "singles" or "box_sets_bulk", ...}',
         ],
         'hint' => [
             'storage_id' => 'Used for every disc with “Add to storage” enabled.',
@@ -120,6 +124,7 @@ return [
             'quick_add' => 'Creates a new single row with the title prefilled.',
             'discs_html' => 'Each single release must contain at least one <strong>feature</strong> disc before sending.',
             'boxsets' => 'Add one or more box sets and send them together as one payload.',
+            'paste_payload' => 'Already have a finished "singles" or "box_sets_bulk" payload (e.g. from an earlier preview, or written/generated manually)? Paste it here and send it directly, without filling out the forms above.',
             'related_movie' => 'Select one or more titles (ctrl/cmd+click for several). None selected means the disc belongs to the whole box set.',
             'send_api' => 'Preview keeps the exact JSON shape. Send posts the same payload to the backend API.',
             'search' => 'Tip: include a year, for example “Titanic 1997”.',
@@ -134,6 +139,7 @@ return [
         'tab' => [
             'singles' => 'Single releases',
             'boxsets' => 'Box sets',
+            'paste' => 'Paste payload',
         ],
         'modal' => [
             'paste' => [
@@ -214,6 +220,7 @@ return [
         'err' => [
             'missing_feature_disc' => 'Each single release must contain at least one FEATURE disc. Missing for:',
             'invalid_search_target' => 'Could not find the selected row to update.',
+            'invalid_json_payload' => 'Invalid JSON',
         ],
         'confirm' => [
             'reset' => 'Reset everything? This also removes the saved draft from this browser.',

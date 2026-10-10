@@ -1429,6 +1429,19 @@ document.getElementById('btnSubmitBoxSets').addEventListener('click', () => {
     box_sets: readAllBoxSets(),
   }, document.getElementById('btnSubmitBoxSets'));
 });
+document.getElementById('btnSubmitPastedPayload').addEventListener('click', () => {
+  const submitButton = document.getElementById('btnSubmitPastedPayload');
+  const raw = document.getElementById('pastedPayloadArea').value;
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch (error) {
+    setStatus('error', `${fmt('err.invalid_json_payload')}: ${error.message}`, { error: error.message });
+    return;
+  }
+  submitPayload(payload, submitButton);
+});
+
 document.getElementById('btnBoxPasteApply').addEventListener('click', () => {
   const lines = document.getElementById('boxPasteArea').value
     .split('\n')

@@ -470,6 +470,7 @@ function h(string $s): string
           <div class="tabBar" id="mainTabs">
             <button class="tabBtn active" type="button" data-tab="singles"><?= h(tr($t, 'tab.singles')) ?></button>
             <button class="tabBtn" type="button" data-tab="boxsets"><?= h(tr($t, 'tab.boxsets')) ?></button>
+            <button class="tabBtn" type="button" data-tab="paste"><?= h(tr($t, 'tab.paste')) ?></button>
           </div>
 
           <section class="tabPanel active" data-tab-panel="singles">
@@ -540,6 +541,22 @@ function h(string $s): string
               </div>
             </div>
             <div class="stack" id="boxSetsContainer"></div>
+          </section>
+
+          <section class="tabPanel" data-tab-panel="paste">
+            <div class="toolbar">
+              <div>
+                <h2><?= h(tr($t, 'section.paste')) ?></h2>
+                <p><?= h(tr($t, 'hint.paste_payload')) ?></p>
+              </div>
+              <div class="btnRow">
+                <button class="btn btnSuccess" type="button" id="btnSubmitPastedPayload"><?= h(tr($t, 'btn.submit_pasted_payload')) ?></button>
+              </div>
+            </div>
+            <div class="field span-12">
+              <label for="pastedPayloadArea"><?= h(tr($t, 'label.pasted_payload')) ?></label>
+              <textarea id="pastedPayloadArea" class="mono" rows="16" placeholder="<?= h(tr($t, 'ph.pasted_payload')) ?>"></textarea>
+            </div>
           </section>
         </div>
       </article>

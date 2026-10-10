@@ -31,6 +31,7 @@ return [
             'send_api' => 'Send til API',
             'submit_singles' => 'Send enkeltutgivelser',
             'submit_box_sets' => 'Send boks-sett',
+            'submit_pasted_payload' => 'Send limt payload',
             'save_discs' => 'Lagre discer',
             'save_items' => 'Lagre bonusposter',
             'close' => 'Lukk',
@@ -60,6 +61,7 @@ return [
             'setup' => 'Felles innstillinger',
             'singles' => 'Enkeltutgivelser',
             'boxsets' => 'Boks-sett',
+            'paste' => 'Lim inn ferdig payload',
             'titles' => 'Titler',
             'movies_in_box' => 'Filmer i boksen',
             'discs_in_box' => 'Discer i denne boksen',
@@ -80,6 +82,7 @@ return [
             'label' => 'Label',
             'storage_slot_no' => 'Lagringsplassnummer',
             'add_to_storage' => 'Legg til i lagringsplass',
+            'pasted_payload' => 'Ferdig JSON-payload',
         ],
         'col' => [
             'title' => 'Tittel',
@@ -113,6 +116,7 @@ return [
             'box_barcode' => '13 siffer',
             'search' => 'Søk etter film eller TV-serie…',
             'search_tvdb' => 'Søk etter film i TVDB…',
+            'pasted_payload' => '{"kind": "singles" eller "box_sets_bulk", ...}',
         ],
         'hint' => [
             'storage_id' => 'Brukes for alle discer som har «Legg til i lagringsplass» aktivert.',
@@ -120,6 +124,7 @@ return [
             'quick_add' => 'Oppretter en ny single-rad med tittelen ferdig utfylt.',
             'discs_html' => 'Hver enkeltutgivelse må ha minst én <strong>feature</strong>-disc før innsending.',
             'boxsets' => 'Legg til ett eller flere boks-sett og send dem samlet som én payload.',
+            'paste_payload' => 'Har du allerede en ferdig «singles»- eller «box_sets_bulk»-payload (f.eks. fra en tidligere forhåndsvisning, eller skrevet/generert manuelt)? Lim den inn her og send den direkte, uten å fylle ut skjemaene over.',
             'related_movie' => 'Velg én eller flere titler (ctrl/cmd+klikk for flere). Ingen valgt betyr at discen tilhører hele boksen.',
             'send_api' => 'Forhåndsvisning viser nøyaktig JSON-form. «Send til API» poster samme payload til backend.',
             'search' => 'Tips: ta med årstall, for eksempel «Titanic 1997».',
@@ -134,6 +139,7 @@ return [
         'tab' => [
             'singles' => 'Enkeltutgivelser',
             'boxsets' => 'Boks-sett',
+            'paste' => 'Lim inn payload',
         ],
         'modal' => [
             'paste' => [
@@ -214,6 +220,7 @@ return [
         'err' => [
             'missing_feature_disc' => 'Hver enkeltutgivelse må ha minst én disc av typen «feature». Mangler for:',
             'invalid_search_target' => 'Fant ikke raden som skulle oppdateres.',
+            'invalid_json_payload' => 'Ugyldig JSON',
         ],
         'confirm' => [
             'reset' => 'Nullstille alt? Dette fjerner også lagret utkast i denne nettleseren.',
