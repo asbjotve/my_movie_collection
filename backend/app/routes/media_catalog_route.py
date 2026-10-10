@@ -43,6 +43,7 @@ from app.services.media_catalog import (
     list_content_covers,
     list_discs_for_content,
     list_group_names,
+    list_owner_names,
     list_seasons,
     merge_content_from_source,
     refresh_season_from_source,
@@ -89,6 +90,15 @@ def get_groups(db: Session = Depends(get_media_db)):
     list_group_names().
     """
     return list_group_names(db)
+
+
+@router.get("/owners", dependencies=[Depends(require_api_key)])
+def get_owners(db: Session = Depends(get_media_db)):
+    """Alle registrerte eiere (owner), for autofullføring i
+    redigerings-popupen for "owner"-feltet på "Samlingsopplysninger" -
+    se list_owner_names().
+    """
+    return list_owner_names(db)
 
 
 @router.get("/stats", dependencies=[Depends(require_api_key)])

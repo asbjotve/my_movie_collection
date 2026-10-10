@@ -2223,6 +2223,19 @@ def list_group_names(db: Session) -> list[dict]:
     return [{"group_id": r.group_id, "name": r.name} for r in rows]
 
 
+def list_owner_names(db: Session) -> list[dict]:
+    """Alle registrerte eiere (kun owner_id/name) - brukes til
+    autofullføring i redigerings-popupen for "owner"-feltet på
+    "Samlingsopplysninger" (se GET /media/owners), samme resonnement
+    som list_group_names(): unngår stave-/kasus-varianter av samme
+    eier og sparer brukeren for å skrive inn navnet manuelt hver gang.
+    Skriver man inn et navn som ikke finnes i listen, opprettes
+    automatisk en ny eier (se _get_or_create_owner_id()).
+    """
+    rows = db.execute(text("SELECT owner_id, name FROM owner ORDER BY name ASC")).fetchall()
+    return [{"owner_id": r.owner_id, "name": r.name} for r in rows]
+
+
 # Tabeller (utenom content_external_source, som håndteres separat siden
 # den har source i primærnøkkelen) som kan peke på en content-rad -
 # brukt av _move_content_references() ved sammenslåing av to

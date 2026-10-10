@@ -308,6 +308,36 @@ if (($_GET['action'] ?? '') === 'list_groups') {
     exit;
 }
 
+// GET ?action=list_owners
+// Brukes til autofullføring i redigerings-popupen for "owner"-feltet på
+// "Samlingsopplysninger" i detail.php: lister alle eksisterende eiere
+// (owner), slik at brukeren kan velge en eksisterende eier fremfor å
+// skrive inn navnet på nytt - se GET /media/owners i
+// backend/app/routes/media_catalog_route.py.
+if (($_GET['action'] ?? '') === 'list_owners') {
+    $ownersUrl = MEDIA_API_BASE_URL . '/media/owners';
+
+    $ch = curl_init($ownersUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=similar&id=<content_id>
 // Brukes av detail.php: "Lignende filmer"-forslag basert på delt
 // sjanger (filmer i samme filmgruppe er allerede dekket av den

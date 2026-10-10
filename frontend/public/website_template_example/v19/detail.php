@@ -896,7 +896,7 @@ $sectionAccess = [
           ${c.barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.barcode_label, escapeHtml(c.barcode))}</span>` : ""}
           ${c.box_set_barcode ? `<span class="meta">${wteFormat(WTE_I18N.detail.box_barcode_label, escapeHtml(c.box_set_barcode))}</span>` : ""}
           ${c.owner ? `<span class="meta">${wteFormat(WTE_I18N.detail.owner_label, escapeHtml(c.owner))}</span>` : ""}
-          ${IS_LOGGED_IN ? `<button type="button" class="editPencilBtn" data-field="owner" data-type="text" data-collection-id="${escapeHtml(c.collection_id)}" data-copy-id="${c.copy_id}" title="${escapeHtml(WTE_I18N.detail.edit_field_btn)}">✏️</button>` : ""}
+          ${IS_LOGGED_IN ? `<button type="button" class="editPencilBtn" data-field="owner" data-type="ownerSelect" data-collection-id="${escapeHtml(c.collection_id)}" data-copy-id="${c.copy_id}" title="${escapeHtml(WTE_I18N.detail.edit_field_btn)}">✏️</button>` : ""}
           ${hasBoxItems ? `<span class="hint">${WTE_I18N.detail.show_box_contents}</span>` : ""}
           ${hasDiscs ? `<span class="hint">${WTE_I18N.detail.show_discs}</span>` : ""}
         </div>
@@ -2353,6 +2353,28 @@ $sectionAccess = [
     }
   }
 
+  // Samme resonnement som loadGroupNameOptions() over, men for
+  // eier-feltet på "Samlingsopplysninger" (GET /media/owners) - lar
+  // brukeren velge en eksisterende eier i stedet for å skrive inn
+  // navnet manuelt hver gang (unngår stave-/kasus-varianter). Skriver
+  // man inn noe som ikke finnes i listen, opprettes en ny eier (se
+  // _get_or_create_owner_id() i backend).
+  async function loadOwnerNameOptions(){
+    const datalist = document.getElementById("ownerNameOptions");
+    if (!datalist) return;
+    try {
+      const res = await fetch("api.php?action=list_owners");
+      if (!res.ok) return;
+      const owners = await res.json();
+      datalist.innerHTML = owners.map(
+        (o) => `<option value="${escapeHtml(o.name)}"></option>`
+      ).join("");
+    } catch (err) {
+      // Stille feil - autofullføring er en bekvemmelighet, ikke
+      // nødvendig for at redigeringen skal fungere.
+    }
+  }
+
   // Bygger innholdet i "Filmgrupper"-redigeringsmodalen: én "chip" pr.
   // gruppe filmen tilhører (med en ×-knapp for å fjerne den), pluss et
   // felt for å legge til en ny/eksisterende gruppe. Kalles både når
@@ -2503,6 +2525,16 @@ $sectionAccess = [
         `<option value="${v}" ${ctx.value === v ? "selected" : ""}>${escapeHtml(WTE_I18N.detail["edit_field_type_" + v])}</option>`
       ).join("");
       inputHtml = `<select id="editFieldInput" style="${inputStyle}">${options}</select>`;
+    } else if (ctx.type === "ownerSelect") {
+      // Fritekst-input med <datalist>-forslag (samme kombo-mønster
+      // som gruppenavn-feltet) - lar brukeren velge en eksisterende
+      // eier, men hindrer ikke at en ny eier opprettes ved å skrive
+      // inn et navn som ikke finnes i listen (se
+      // _get_or_create_owner_id() i backend).
+      inputHtml = `
+        <input id="editFieldInput" type="text" list="ownerNameOptions" autocomplete="off" value="${escapeHtml(ctx.value ?? "")}" style="${inputStyle}">
+        <datalist id="ownerNameOptions"></datalist>
+      `;
     } else {
       inputHtml = `<input id="editFieldInput" type="${ctx.type}" value="${escapeHtml(ctx.value ?? "")}" style="${inputStyle}">`;
     }
@@ -2514,6 +2546,7 @@ $sectionAccess = [
     // lukk-knapp siden ingenting usaved gjenstår å avbryte.
     document.getElementById("btnSaveEditField").style.display = ctx.type === "groupsManage" ? "none" : "";
     if (ctx.type === "groupsManage") loadGroupNameOptions();
+    if (ctx.type === "ownerSelect") loadOwnerNameOptions();
     const focusTarget = document.getElementById("editFieldInput")
       || document.getElementById("editFieldInputTitle")
       || document.getElementById("groupsManageAddInput")
