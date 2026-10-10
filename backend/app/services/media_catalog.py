@@ -1969,6 +1969,8 @@ def get_data_health_issues(db: Session) -> dict:
         text("SELECT content_id, title, cover_image, imdb_id FROM content")
     ).fetchall()
 
+    preferred_language = get_tmdb_data_language_preference()
+
     tmdb_rows = db.execute(
         text(
             """
@@ -2018,7 +2020,7 @@ def get_data_health_issues(db: Session) -> dict:
         else:
             tmdb_data = tmdb_by_id.get(content_id)
             if tmdb_data is not None:
-                if not _extract_tmdb_overview(tmdb_data):
+                if not _extract_tmdb_overview(tmdb_data, preferred_language):
                     issues.append("missing_overview")
                 if not tmdb_data.get("runtime"):
                     issues.append("missing_runtime")
@@ -2080,6 +2082,8 @@ def bulk_refresh_tmdb_for_flagged_content(db: Session) -> dict:
     ).fetchall()
     content_by_id = {_hex_id(row.content_id): row for row in content_rows}
 
+    preferred_language = get_tmdb_data_language_preference()
+
     tmdb_rows = db.execute(
         text(
             """
@@ -2103,7 +2107,7 @@ def bulk_refresh_tmdb_for_flagged_content(db: Session) -> dict:
         needs_refresh = (
             not content_info.cover_image
             or not content_info.imdb_id
-            or not _extract_tmdb_overview(data)
+            or not _extract_tmdb_overview(data, preferred_language)
             or not data.get("runtime")
         )
         if needs_refresh:
@@ -2768,7 +2772,7 @@ def _map_tmdb_to_content_fields(data: dict, preferred_language: str = "no") -> d
     release_date = data.get("release_date") or data.get("first_air_date")
     if release_date:
         fields["first_release"] = release_date
-    overview = _extract_tmdb_overview(data)
+    overview = _extract_tmdb_overview(data, preferred_language)
     if overview:
         fields["overview"] = overview
     if data.get("runtime"):
@@ -2802,6 +2806,22 @@ def _map_tmdb_to_content_fields(data: dict, preferred_language: str = "no") -> d
 # dette skillet finnes.
 _NON_LATIN_SCRIPT_PATTERN = re.compile(r"[^\x00-\u024F\u1E00-\u1EFF\s\d\W]")
 
+# TMDB sin "language"-forespørselsparameter bruker BCP-47-koder
+# ("nb-NO"), MEN append_to_response=translations sin egen liste tagger
+# norske oversettelser med den rene ISO 639-1-koden "no" (bokmål) -
+# aldri "nb". De to stemmer altså ikke overens: en forespørsel med
+# language="nb-NO" kan returnere "ingen oversettelse funnet" (title
+# faller tilbake til original_title) SELV OM en fullverdig norsk
+# oversettelse faktisk finnes - bare under koden "no" i translations-
+# lista. Bekreftet direkte mot TMDB sitt API (movie/942 = "Lethal
+# Weapon 2" har en "no"-oversettelse med title="Dødelig våpen 2" og en
+# overview, men toppnivå-feltene fra samme kall med language=nb-NO var
+# begge tomme/falt tilbake til original). _extract_tmdb_title()/
+# _extract_tmdb_overview() sjekker derfor EKSPLISITT etter "no"
+# (og "nb", i tilfelle TMDB endrer praksis) i translations-lista FØR de
+# gir opp og evt. faller videre til engelsk.
+_NORWEGIAN_ISO_CODES = ("no", "nb")
+
 
 def _looks_non_latin(text_value: str) -> bool:
     return bool(_NON_LATIN_SCRIPT_PATTERN.search(text_value))
@@ -2813,20 +2833,24 @@ def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | Non
     fetch_tmdb_details()) mangler oversettelse.
 
     Hvis "title"/"name" og "original_title"/"original_name" er
-    identiske (= ingen reell oversettelse til forespurt språk ble
-    funnet av TMDB), beholdes original-tittelen AS-IS når den er
-    skrevet med latinske bokstaver (f.eks. en norsk original som
-    "Giftige løgner" - å bytte den ut med en engelsk alternativ-tittel
-    som "Lethal Lies" bare fordi admin har valgt "engelsk" som
-    foretrukket henting-språk, gir en dårligere/feil tittel for
-    titler som uansett er norske/skandinaviske i utgangspunktet).
+    identiske (= toppnivå-feltene fant ingen oversettelse for forespurt
+    språk), prøves FØRST en norsk oversettelse fra
+    append_to_response=translations hvis admin foretrekker norsk (se
+    _NORWEGIAN_ISO_CODES over for hvorfor dette trengs i tillegg til
+    selve language-parameteren).
+
+    Hvis det fortsatt ikke finnes noen brukbar tittel, beholdes
+    original-tittelen AS-IS når den er skrevet med latinske bokstaver
+    (f.eks. en norsk original som "Giftige løgner" - å bytte den ut med
+    en engelsk alternativ-tittel som "Lethal Lies" bare fordi admin har
+    valgt "engelsk" som foretrukket henting-språk, gir en dårligere/feil
+    tittel for titler som uansett er norske/skandinaviske i
+    utgangspunktet).
 
     Unntak: hvis original-tittelen IKKE er latinsk (f.eks. den
     persiske tittelen 'جدایی نادر از سیمین' i stedet for "A
     Separation") er den ubrukelig for de aller fleste brukere her -
-    da hentes en engelsk oversettelse fra
-    append_to_response=translations (samme mønster som
-    _extract_tmdb_overview()) som siste utvei, uansett
+    da hentes en engelsk oversettelse som siste utvei, uansett
     preferred_language - det er bedre enn en tittel ingen kan lese."""
 
     title = data.get("title") or data.get("name")
@@ -2836,12 +2860,24 @@ def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | Non
     if original_title and title != original_title:
         return title
 
-    # Her er title == original_title (ingen reell oversettelse funnet
-    # for forespurt språk). Hent engelsk oversettelse hvis admin
-    # foretrekker engelsk, ELLER hvis original-tittelen uansett ikke er
-    # latinsk (og dermed ulesbar for de fleste her).
+    # Her er title == original_title (toppnivå-feltene fant ingen
+    # oversettelse for forespurt språk) - se _NORWEGIAN_ISO_CODES over
+    # for hvorfor dette IKKE nødvendigvis betyr at TMDB mangler en
+    # norsk oversettelse.
+    translations = (data.get("translations") or {}).get("translations") or []
+
+    if preferred_language == "no":
+        for entry in translations:
+            if entry.get("iso_639_1") in _NORWEGIAN_ISO_CODES:
+                entry_data = entry.get("data") or {}
+                norwegian_title = entry_data.get("title") or entry_data.get("name")
+                if norwegian_title:
+                    return norwegian_title
+
+    # Hent engelsk oversettelse hvis admin foretrekker engelsk, ELLER
+    # hvis original-tittelen uansett ikke er latinsk (og dermed ulesbar
+    # for de fleste her).
     if preferred_language == "en" or (original_title and _looks_non_latin(original_title)):
-        translations = (data.get("translations") or {}).get("translations") or []
         for entry in translations:
             if entry.get("iso_639_1") == "en":
                 entry_data = entry.get("data") or {}
@@ -2851,24 +2887,38 @@ def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | Non
     return title
 
 
-def _extract_tmdb_overview(data: dict) -> str | None:
-    """TMDB returnerer kun overview på det forespurte språket (nb-NO -
-    se fetch_tmdb_details()), uten automatisk fallback til engelsk hvis
-    den norske oversettelsen mangler. Norsk er et lite språk, så dette
-    rammer mange titler (bekreftet: 647/773 av katalogen manglet
-    "overview" etter en full bulk-refresh, se health-check-siden).
+def _extract_tmdb_overview(data: dict, preferred_language: str = "no") -> str | None:
+    """TMDB returnerer kun overview på det forespurte språket (se
+    fetch_tmdb_details()), uten automatisk fallback hvis den
+    oversettelsen mangler på toppnivå - selv om en fullverdig
+    oversettelse finnes i append_to_response=translations (se
+    _NORWEGIAN_ISO_CODES over for eksempel/begrunnelse: samme
+    "no" vs. "nb-NO"-kode-mismatch rammer overview like mye som tittel).
+    Norsk er et lite språk, så dette rammet mange titler (bekreftet:
+    647/773 av katalogen manglet "overview" etter en full bulk-refresh,
+    se health-check-siden - en del av disse hadde trolig en reell norsk
+    oversettelse liggende i translations hele tiden, bare under "no").
 
-    append_to_response=translations (allerede med i hvert TMDB-kall)
-    gir tilgang til ALLE oversettelser TMDB har lagret for tittelen -
-    brukes her som fallback: engelsk foretrukket, ellers første
-    tilgjengelige ikke-tomme oversettelse. Løser dermed det reelle
-    problemet (visning av en beskrivelse) i stedet for å flagge titler
-    som "mangler data" når data faktisk finnes, bare ikke på norsk.
+    Prøver derfor, i rekkefølge: (1) toppnivå-feltet, (2) norsk
+    oversettelse fra translations hvis admin foretrekker norsk,
+    (3) engelsk oversettelse, (4) første tilgjengelige ikke-tomme
+    oversettelse uansett språk. Løser dermed det reelle problemet
+    (visning av en beskrivelse) i stedet for å flagge titler som
+    "mangler data" når data faktisk finnes, bare ikke der toppnivå-
+    feltet lette.
     """
     if data.get("overview"):
         return data["overview"]
 
     translations = (data.get("translations") or {}).get("translations") or []
+
+    if preferred_language == "no":
+        for entry in translations:
+            if entry.get("iso_639_1") in _NORWEGIAN_ISO_CODES:
+                overview = (entry.get("data") or {}).get("overview")
+                if overview:
+                    return overview
+
     for entry in translations:
         if entry.get("iso_639_1") == "en":
             overview = (entry.get("data") or {}).get("overview")
