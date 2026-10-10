@@ -1,5 +1,5 @@
-"""Pydantic-schemas for /settings/default-language og
-/settings/default-currency-endepunktene.
+"""Pydantic-schemas for /settings/default-language,
+/settings/default-currency og /settings/tmdb-data-language-endepunktene.
 """
 
 import re
@@ -42,4 +42,17 @@ class DefaultCurrencyUpdateRequest(BaseModel):
         value = value.strip().upper()
         if not CURRENCY_CODE_PATTERN.match(value):
             raise ValueError("default_currency must be a 3-letter ISO 4217 code (e.g. NOK, EUR, USD)")
+        return value
+
+
+class TmdbDataLanguageUpdateRequest(BaseModel):
+    """Body for PUT /settings/tmdb-data-language."""
+
+    tmdb_data_language: str
+
+    @field_validator("tmdb_data_language")
+    @classmethod
+    def validate_language(cls, value: str) -> str:
+        if value not in ALLOWED_LANGUAGES:
+            raise ValueError(f"tmdb_data_language must be one of {ALLOWED_LANGUAGES}")
         return value

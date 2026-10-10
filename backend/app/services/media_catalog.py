@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
+from app.db import AppSetting, SessionLocal as AppSessionLocal
 from app.media_db import MediaSessionLocal
 from app.services.external_apis import (
     ExternalApiError,
@@ -37,6 +38,44 @@ class ContentExternalSourceError(ValueError):
     def __init__(self, message: str, status_code: int = 400) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+# --- Foretrukket språk ved henting av data fra TMDB ---------------------
+#
+# app_settings (tmdb_data_language-nøkkelen) ligger i en ANNEN database
+# enn media-katalogen denne filen ellers bruker (se app/db.py sin egen
+# engine/SessionLocal vs. app/media_db.py sin MediaSessionLocal) - derfor
+# åpnes en egen, kortlevd sesjon her i stedet for å gjenbruke en
+# media-db-Session fra kalleren.
+TMDB_LOCALE_BY_PREFERENCE = {"no": "nb-NO", "en": "en-US"}
+
+
+def get_tmdb_data_language_preference() -> str:
+    """Henter admins "foretrukket språk ved henting av data"-innstilling
+    (satt via admin_tilganger.php, se PUT /settings/tmdb-data-language) -
+    "no" eller "en". Returnerer "no" (uendret oppførsel) hvis ingen
+    overstyring er lagret ennå, eller hvis oppslaget feiler av en eller
+    annen grunn (f.eks. app-databasen utilgjengelig akkurat da) - en
+    feilende innstillingsoppslag skal aldri stoppe selve TMDB-hentingen."""
+    try:
+        session = AppSessionLocal()
+        try:
+            row = (
+                session.query(AppSetting)
+                .filter(AppSetting.setting_key == "tmdb_data_language")
+                .first()
+            )
+            value = row.setting_value if row else None
+        finally:
+            session.close()
+    except Exception:  # pylint: disable=broad-except
+        return "no"
+
+    return value if value in TMDB_LOCALE_BY_PREFERENCE else "no"
+
+
+def _tmdb_locale_for_preference(preference: str) -> str:
+    return TMDB_LOCALE_BY_PREFERENCE.get(preference, "nb-NO")
 
 
 class ContentExternalSourceConflict(ContentExternalSourceError):
@@ -2411,7 +2450,11 @@ def set_content_external_id(
 
     try:
         if source == "tmdb":
-            data_json = fetch_tmdb_details(external_id, content_type)
+            data_json = fetch_tmdb_details(
+                external_id,
+                content_type,
+                language=_tmdb_locale_for_preference(get_tmdb_data_language_preference()),
+            )
         else:
             data_json = fetch_tvdb_details(external_id, content_type)
     except ExternalApiError as e:
@@ -2595,7 +2638,11 @@ def update_content_external_source(
 
     try:
         if source == "tmdb":
-            data_json = fetch_tmdb_details(external_id, content_type)
+            data_json = fetch_tmdb_details(
+                external_id,
+                content_type,
+                language=_tmdb_locale_for_preference(get_tmdb_data_language_preference()),
+            )
         else:
             data_json = fetch_tvdb_details(external_id, content_type)
     except ExternalApiError as e:
@@ -2707,10 +2754,10 @@ def _extract_tmdb_certification(data: dict) -> str | None:
     return None
 
 
-def _map_tmdb_to_content_fields(data: dict) -> dict:
+def _map_tmdb_to_content_fields(data: dict, preferred_language: str = "no") -> dict:
     fields: dict = {}
 
-    title = _extract_tmdb_title(data)
+    title = _extract_tmdb_title(data, preferred_language)
     if title:
         fields["title"] = title
     original_title = data.get("original_title") or data.get("original_name")
@@ -2748,19 +2795,39 @@ def _map_tmdb_to_content_fields(data: dict) -> dict:
     return fields
 
 
-def _extract_tmdb_title(data: dict) -> str | None:
+# Brukes av _extract_tmdb_title() til å avgjøre om original_title er
+# "lesbar" nok til å beholdes som den er (Latin-baserte skrift-systemer,
+# inkl. nordiske bokstaver/aksenter) - treffer IKKE f.eks. persisk,
+# koreansk, kyrillisk, kinesisk/japansk. Se docstring under for hvorfor
+# dette skillet finnes.
+_NON_LATIN_SCRIPT_PATTERN = re.compile(r"[^\x00-\u024F\u1E00-\u1EFF\s\d\W]")
+
+
+def _looks_non_latin(text_value: str) -> bool:
+    return bool(_NON_LATIN_SCRIPT_PATTERN.search(text_value))
+
+
+def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | None:
     """TMDB sin "title" (filmer) / "name" (serier) faller tilbake til
-    "original_title"/"original_name" (ikke engelsk) når forespurt
-    språk (nb-NO - se fetch_tmdb_details()) mangler oversettelse - det
-    gir f.eks. den persiske tittelen 'جدایی نادر از سیمین' i stedet for
-    "A Separation" for filmer uten norsk oversettelse registrert i
-    TMDB (oppdaget via Plex-import).
+    "original_title"/"original_name" når forespurt språk (se
+    fetch_tmdb_details()) mangler oversettelse.
 
     Hvis "title"/"name" og "original_title"/"original_name" er
-    identiske (= ingen reell norsk oversettelse ble funnet), prøves en
-    engelsk oversettelse fra append_to_response=translations (samme
-    mønster som _extract_tmdb_overview()) før original-tittelen til
-    slutt beholdes som siste utvei."""
+    identiske (= ingen reell oversettelse til forespurt språk ble
+    funnet av TMDB), beholdes original-tittelen AS-IS når den er
+    skrevet med latinske bokstaver (f.eks. en norsk original som
+    "Giftige løgner" - å bytte den ut med en engelsk alternativ-tittel
+    som "Lethal Lies" bare fordi admin har valgt "engelsk" som
+    foretrukket henting-språk, gir en dårligere/feil tittel for
+    titler som uansett er norske/skandinaviske i utgangspunktet).
+
+    Unntak: hvis original-tittelen IKKE er latinsk (f.eks. den
+    persiske tittelen 'جدایی نادر از سیمین' i stedet for "A
+    Separation") er den ubrukelig for de aller fleste brukere her -
+    da hentes en engelsk oversettelse fra
+    append_to_response=translations (samme mønster som
+    _extract_tmdb_overview()) som siste utvei, uansett
+    preferred_language - det er bedre enn en tittel ingen kan lese."""
 
     title = data.get("title") or data.get("name")
     original_title = data.get("original_title") or data.get("original_name")
@@ -2769,13 +2836,18 @@ def _extract_tmdb_title(data: dict) -> str | None:
     if original_title and title != original_title:
         return title
 
-    translations = (data.get("translations") or {}).get("translations") or []
-    for entry in translations:
-        if entry.get("iso_639_1") == "en":
-            entry_data = entry.get("data") or {}
-            english_title = entry_data.get("title") or entry_data.get("name")
-            if english_title:
-                return english_title
+    # Her er title == original_title (ingen reell oversettelse funnet
+    # for forespurt språk). Hent engelsk oversettelse hvis admin
+    # foretrekker engelsk, ELLER hvis original-tittelen uansett ikke er
+    # latinsk (og dermed ulesbar for de fleste her).
+    if preferred_language == "en" or (original_title and _looks_non_latin(original_title)):
+        translations = (data.get("translations") or {}).get("translations") or []
+        for entry in translations:
+            if entry.get("iso_639_1") == "en":
+                entry_data = entry.get("data") or {}
+                english_title = entry_data.get("title") or entry_data.get("name")
+                if english_title:
+                    return english_title
     return title
 
 
@@ -2923,7 +2995,7 @@ def merge_content_from_source(db: Session, source: str, external_id: str) -> dic
 
     data = json.loads(source_row.data_json)
     mapped = (
-        _map_tmdb_to_content_fields(data)
+        _map_tmdb_to_content_fields(data, get_tmdb_data_language_preference())
         if source == "tmdb"
         else _map_tvdb_to_content_fields(data)
     )

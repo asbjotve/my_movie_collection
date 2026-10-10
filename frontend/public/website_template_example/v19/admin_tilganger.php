@@ -74,6 +74,23 @@ if ($csrfOk && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['default_cu
     }
 }
 
+$tmdbLangError = null;
+$tmdbLangSaved = false;
+
+if ($csrfOk && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tmdb_data_language'])) {
+    $requestedTmdbLang = (string)$_POST['tmdb_data_language'];
+    if (in_array($requestedTmdbLang, WTE_AVAILABLE_LANGS, true)) {
+        [$httpCode, $data] = update_tmdb_data_language_setting($requestedTmdbLang);
+        if ($httpCode === 200) {
+            $tmdbLangSaved = true;
+        } else {
+            $tmdbLangError = $data['detail'] ?? $data['error'] ?? t('wte.admin_tilganger.tmdb_lang_save_failed');
+        }
+    } else {
+        $tmdbLangError = t('wte.admin_tilganger.tmdb_lang_save_failed');
+    }
+}
+
 // Hent gjeldende status etter en eventuell lagring over, slik at siden
 // alltid viser ferskest mulig tilstand (samme mønster som 2fa_setup.php).
 $currentAccess = fetch_section_access([
@@ -94,6 +111,11 @@ $currentDefaultLang = fetch_default_language_setting() ?? wte_default_lang();
 // overstyring lagret ennå" (backend faller da tilbake til NOK, se
 // _load_physical_copies() i media_catalog.py).
 $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
+
+// Gjeldende "foretrukket språk ved henting av data fra TMDB" - null
+// betyr "ingen overstyring lagret ennå" (backend faller da tilbake til
+// "no", se get_tmdb_data_language_preference() i media_catalog.py).
+$currentTmdbDataLang = fetch_tmdb_data_language_setting() ?? 'no';
 ?>
 <!doctype html>
 <html lang="<?= htmlspecialchars($GLOBALS['__wte_lang']) ?>">
@@ -253,6 +275,30 @@ $currentDefaultCurrency = fetch_default_currency_setting() ?? 'NOK';
         style="width:100%; padding:10px; border-radius:7px; background:var(--bg); color:var(--text); border:1px solid var(--border); font-size:14px; text-transform:uppercase;"
       >
       <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.currency_save_btn')) ?></button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h1><?= htmlspecialchars(t('wte.admin_tilganger.tmdb_lang_heading')) ?></h1>
+    <p class="subtitle"><?= htmlspecialchars(t('wte.admin_tilganger.tmdb_lang_subtitle')) ?></p>
+
+    <?php if ($tmdbLangError): ?>
+      <div class="errorBox"><?= htmlspecialchars($tmdbLangError) ?></div>
+    <?php endif; ?>
+    <?php if ($tmdbLangSaved): ?>
+      <div class="successBox"><?= htmlspecialchars(t('wte.admin_tilganger.tmdb_lang_saved_notice')) ?></div>
+    <?php endif; ?>
+
+    <form method="post">
+      <?= csrf_field() ?>
+      <select name="tmdb_data_language" style="width:100%; padding:10px; border-radius:7px; background:var(--bg); color:var(--text); border:1px solid var(--border); font-size:14px;">
+        <?php foreach (WTE_AVAILABLE_LANGS as $langCode): ?>
+          <option value="<?= htmlspecialchars($langCode) ?>" <?= $currentTmdbDataLang === $langCode ? 'selected' : '' ?>>
+            <?= htmlspecialchars(t('wte.admin_tilganger.lang_' . $langCode)) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+      <button type="submit" class="btnPrimary"><?= htmlspecialchars(t('wte.admin_tilganger.tmdb_lang_save_btn')) ?></button>
     </form>
   </div>
 

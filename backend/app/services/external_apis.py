@@ -118,8 +118,17 @@ def search_tvdb(query: str, content_type: str) -> list[dict]:
     return normalized
 
 
-def fetch_tmdb_details(external_id: str, content_type: str) -> dict:
-    """Henter fulle detaljer for én TMDB-tittel (film eller serie)."""
+def fetch_tmdb_details(external_id: str, content_type: str, language: str = "nb-NO") -> dict:
+    """Henter fulle detaljer for én TMDB-tittel (film eller serie).
+
+    'language' styrer hvilket språk TMDB returnerer title/overview på
+    (append_to_response=translations gir uansett tilgang til ALLE
+    oversettelser som fallback, se _extract_tmdb_title()/
+    _extract_tmdb_overview() i media_catalog.py) - bestemmes av admins
+    "foretrukket språk ved henting av data"-innstilling
+    (tmdb_data_language, se get_tmdb_data_language() i
+    media_catalog.py), default "nb-NO" for uendret oppførsel der
+    kalleren ikke bryr seg (f.eks. cover-only-henting)."""
 
     if not settings.TMDB_API_KEY:
         raise ExternalApiError(
@@ -134,7 +143,7 @@ def fetch_tmdb_details(external_id: str, content_type: str) -> dict:
             url,
             params={
                 "api_key": settings.TMDB_API_KEY,
-                "language": "nb-NO",
+                "language": language,
                 "append_to_response": (
                     "alternative_titles,credits,external_ids,images,"
                     "keywords,release_dates,translations"

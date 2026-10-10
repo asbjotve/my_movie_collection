@@ -82,6 +82,8 @@ from app.services.external_apis import ExternalApiError, fetch_tmdb_details, fet
 from app.services.media_catalog import (
     ContentExternalSourceError,
     _compute_search_facets,
+    _tmdb_locale_for_preference,
+    get_tmdb_data_language_preference,
     merge_content_from_source,
 )
 from app.services.plex_client import (
@@ -202,7 +204,9 @@ def _match_or_create_content(
 
     if tmdb_id:
         try:
-            data = fetch_tmdb_details(tmdb_id, "movie")
+            data = fetch_tmdb_details(
+                tmdb_id, "movie", language=_tmdb_locale_for_preference(get_tmdb_data_language_preference())
+            )
         except ExternalApiError as exc:
             logger.warning("Klarte ikke å hente TMDB-detaljer (id=%s) ved Plex-import: %s", tmdb_id, exc)
         else:

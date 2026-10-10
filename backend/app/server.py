@@ -10,6 +10,7 @@ from app.routes.auth_route import router as auth_router
 from app.routes.section_access_route import router as section_access_router
 from app.routes.app_settings_route import router as app_settings_router
 from app.routes.app_settings_route import currency_router as default_currency_router
+from app.routes.app_settings_route import tmdb_language_router
 from app.routes.plex_import_route import router as plex_import_router
 from app.routes.plex_settings_route import router as plex_settings_router
 from app.routes.admin_reset_route import router as admin_reset_router
@@ -38,6 +39,7 @@ app.include_router(auth_router)
 app.include_router(section_access_router)
 app.include_router(app_settings_router)
 app.include_router(default_currency_router)
+app.include_router(tmdb_language_router)
 app.include_router(plex_settings_router)
 app.include_router(plex_import_router)
 app.include_router(admin_reset_router)

@@ -12,7 +12,11 @@ from app.services.external_apis import (
     fetch_tmdb_details,
     fetch_tvdb_details,
 )
-from app.services.media_catalog import _compute_search_facets
+from app.services.media_catalog import (
+    _compute_search_facets,
+    _tmdb_locale_for_preference,
+    get_tmdb_data_language_preference,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +99,9 @@ def _fetch_external_source_payload(
 
     try:
         if source == "tmdb":
-            data = fetch_tmdb_details(external_id, content_type)
+            data = fetch_tmdb_details(
+                external_id, content_type, language=_tmdb_locale_for_preference(get_tmdb_data_language_preference())
+            )
         else:
             data = fetch_tvdb_details(external_id, content_type)
         return data, datetime.utcnow()

@@ -550,6 +550,80 @@ function update_default_currency_setting(string $currency): array
 }
 
 /**
+ * Henter admin-overstyrt "foretrukket språk ved henting av data fra
+ * TMDB" via GET /settings/tmdb-data-language - "no" eller "en", styrer
+ * hvilket språk tittel/beskrivelse hentes på fra TMDB (se
+ * get_tmdb_data_language_preference() i backend/app/services/
+ * media_catalog.py). Krever innlogging+admin-rolle (ulikt
+ * default-language/default-currency sin GET), siden denne kun brukes
+ * av admin_tilganger.php.
+ *
+ * Returnerer null hvis ingen overstyring er lagret ennå, eller hvis
+ * kallet feiler - kaller-siden faller da tilbake til "no" (samme
+ * default som backend bruker).
+ */
+function fetch_tmdb_data_language_setting(): ?string
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return null;
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/tmdb-data-language');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $accessToken],
+        CURLOPT_TIMEOUT => 5,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false || $httpCode !== 200) {
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data) || !isset($data['tmdb_data_language']) || !is_string($data['tmdb_data_language'])) {
+        return null;
+    }
+
+    return $data['tmdb_data_language'];
+}
+
+/**
+ * Oppdaterer "foretrukket språk ved henting av data fra TMDB" via PUT
+ * /settings/tmdb-data-language. Krever et gyldig access_token for en
+ * innlogget admin-bruker (require_role("admin") i backend).
+ */
+function update_tmdb_data_language_setting(string $language): array
+{
+    $accessToken = $_SESSION['auth_access_token'] ?? null;
+    if (!$accessToken) {
+        return [401, ['error' => 'Ikke innlogget']];
+    }
+
+    $ch = curl_init(AUTH_API_BASE_URL . '/settings/tmdb-data-language');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ],
+        CURLOPT_POSTFIELDS => json_encode(['tmdb_data_language' => $language]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return [502, null];
+    }
+
+    return [$httpCode, json_decode($response, true)];
+}
+
+/**
  * Henter lagrede Plex-innstillinger via GET /settings/plex. Krever et
  * gyldig access_token for en innlogget admin-bruker (require_role
  * "admin" i backend) - i motsetning til
