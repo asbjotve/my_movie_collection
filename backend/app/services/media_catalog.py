@@ -764,6 +764,19 @@ def list_content(db: Session) -> list[dict]:
         )
     ).fetchall()
 
+    # Brukes til å skille "eid fysisk" (collections ikke-tom) fra
+    # "kun tilgjengelig digitalt via Plex" i frontend - se
+    # in_digital_library under og index.php sin "vis Plex-materiale"-
+    # bryter (default av, siden fysisk eierskap er utgangspunktet for
+    # samlingen). DISTINCT content_id holder - radene er per episode
+    # for TV-serier, men vi trenger bare et ja/nei-flagg per content.
+    digital_library_content_ids = {
+        _hex_id(row.content_id)
+        for row in db.execute(
+            text("SELECT DISTINCT content_id FROM content_in_digital_library")
+        ).fetchall()
+    }
+
     collections_by_content: dict[str, list[dict]] = {}
     for row in collection_rows:
         key = _hex_id(row.content_id)
@@ -840,6 +853,7 @@ def list_content(db: Session) -> list[dict]:
                 "cast": facets.get("cast", []),
                 "release_year": release_year,
                 "decade": (release_year // 10) * 10 if release_year else None,
+                "in_digital_library": content_id in digital_library_content_ids,
             }
         )
 

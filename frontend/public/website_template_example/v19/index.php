@@ -524,6 +524,7 @@ $sectionAccess = [
         <input id="mineFilmerSearch" placeholder="<?= htmlspecialchars(t('wte.index.mine_filmer.search_placeholder')) ?>" />
       </div>
       <div class="chiprow" id="mineFilmerTypeChips"></div>
+      <div class="chiprow" id="mineFilmerOwnershipChips"></div>
       <button type="button" class="btn facetToggleBtn" id="btnToggleGenreFacet" data-facet="genre"><?= htmlspecialchars(t('wte.index.mine_filmer.genre_filter_label')) ?><span class="facetCount" id="mineFilmerGenreCount" style="display:none;"></span></button>
       <button type="button" class="btn facetToggleBtn" id="btnToggleDecadeFacet" data-facet="decade"><?= htmlspecialchars(t('wte.index.mine_filmer.decade_filter_label')) ?><span class="facetCount" id="mineFilmerDecadeCount" style="display:none;"></span></button>
       <?php if ($isLoggedIn): ?>
@@ -891,11 +892,19 @@ $sectionAccess = [
   // decade-feltene som backend nå leverer på hvert content-objekt
   // (list_content() i media_catalog.py).
   let mineFilmerActiveType = null;
+  // Eierskap-filter: "owned" (standard - kun fysisk eid, dvs.
+  // collections ikke-tom), "all" (vis alt) eller "plex" (vis kun
+  // innhold som IKKE er fysisk eid, altså rent Plex-/digitalt
+  // materiale) - se in_digital_library/collections i list_content()
+  // (media_catalog.py). Samlingen er i utgangspunktet fysisk
+  // DVD/Blu-ray-materiale, så "owned" er standardvalget.
+  let mineFilmerOwnershipFilter = "owned";
   const mineFilmerActiveGenres = new Set();
   const mineFilmerActiveDecades = new Set();
   const mineFilmerActiveOwners = new Set();
   const mineFilmerSearch = document.getElementById("mineFilmerSearch");
   const mineFilmerTypeChips = document.getElementById("mineFilmerTypeChips");
+  const mineFilmerOwnershipChips = document.getElementById("mineFilmerOwnershipChips");
   const mineFilmerGenreChips = document.getElementById("mineFilmerGenreChips");
   const mineFilmerDecadeChips = document.getElementById("mineFilmerDecadeChips");
   // Eier-chippene finnes bare i DOM-en når innlogget (se PHP-if rundt
@@ -955,6 +964,14 @@ $sectionAccess = [
     return mineFilmerData.filter(item => {
       if (mineFilmerActiveType && item.content_type !== mineFilmerActiveType) return false;
       if (showUnwatched && item.watched_flag) return false;
+      // "owned": kun fysisk eid (collections ikke-tom). "plex": kun
+      // innhold som er importert/koblet fra Plex OG IKKE fysisk eid
+      // (fysisk materiale filtreres bort, selv om det også skulle
+      // finnes en Plex-kobling for samme content-rad). "all": ingen
+      // eierskaps-filtrering.
+      const isOwned = (item.collections || []).length > 0;
+      if (mineFilmerOwnershipFilter === "owned" && !isOwned) return false;
+      if (mineFilmerOwnershipFilter === "plex" && (!item.in_digital_library || isOwned)) return false;
       if (mineFilmerActiveGenres.size && !(item.genres || []).some(g => mineFilmerActiveGenres.has(g))) return false;
       if (mineFilmerActiveDecades.size && !mineFilmerActiveDecades.has(item.decade)) return false;
       if (mineFilmerActiveOwners.size && !(item.owners || []).some(o => mineFilmerActiveOwners.has(o))) return false;
@@ -969,6 +986,24 @@ $sectionAccess = [
       ].filter(Boolean).join(" ").toLowerCase();
       return haystack.includes(term);
     });
+  }
+
+  // Enkeltvalg (som type-chippene) - "owned" er standard siden
+  // samlingen primært er fysisk DVD/Blu-ray-materiale.
+  function renderMineFilmerOwnershipChips(){
+    const options = [
+      ["owned", WTE_I18N.mine_filmer.ownership_owned],
+      ["all", WTE_I18N.mine_filmer.ownership_all],
+      ["plex", WTE_I18N.mine_filmer.ownership_plex],
+    ];
+    mineFilmerOwnershipChips.innerHTML = "";
+    for (const [value, label] of options){
+      const el = document.createElement("div");
+      el.className = "chip btn" + (mineFilmerOwnershipFilter === value ? " active" : "");
+      el.textContent = label;
+      el.onclick = () => { mineFilmerOwnershipFilter = value; renderMineFilmerOwnershipChips(); renderMineFilmer(); };
+      mineFilmerOwnershipChips.appendChild(el);
+    }
   }
 
   function renderMineFilmerTypeChips(){
@@ -1057,11 +1092,13 @@ $sectionAccess = [
   btnResetMineFilmerFilters.addEventListener("click", () => {
     mineFilmerSearch.value = "";
     mineFilmerActiveType = null;
+    mineFilmerOwnershipFilter = "owned";
     mineFilmerActiveGenres.clear();
     mineFilmerActiveDecades.clear();
     mineFilmerActiveOwners.clear();
     mineFilmerOnlyUnwatched.checked = false;
     renderMineFilmerTypeChips();
+    renderMineFilmerOwnershipChips();
     renderMineFilmerGenreChips();
     renderMineFilmerDecadeChips();
     renderMineFilmerOwnerChips();
@@ -1123,6 +1160,7 @@ $sectionAccess = [
       return;
     }
     renderMineFilmerTypeChips();
+    renderMineFilmerOwnershipChips();
     renderMineFilmerGenreChips();
     renderMineFilmerDecadeChips();
     renderMineFilmerOwnerChips();
