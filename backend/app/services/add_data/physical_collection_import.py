@@ -14,6 +14,7 @@ from app.services.external_apis import (
 )
 from app.services.media_catalog import (
     _compute_search_facets,
+    _get_or_create_owner_id,
     _tmdb_locale_for_preference,
     get_tmdb_data_language_preference,
 )
@@ -403,6 +404,7 @@ def _ensure_physical_copy(
     db: Session,
     collection_id: bytes,
     copy_id: int,
+    owner_id: Optional[int] = None,
 ) -> None:
     row = db.execute(
         text("""
@@ -425,16 +427,19 @@ def _ensure_physical_copy(
         text("""
             INSERT INTO physical_copy (
                 copy_id,
-                collection_id
+                collection_id,
+                owner_id
             )
             VALUES (
                 :copy_id,
-                :collection_id
+                :collection_id,
+                :owner_id
             )
         """),
         {
             "copy_id": copy_id,
             "collection_id": collection_id,
+            "owner_id": owner_id,
         },
     )
 
@@ -775,6 +780,7 @@ def _create_copy_with_discs(
     discs: list[dict],
     payload_storage_id: Optional[bytes],
     storage_next_slot_cache: dict[bytes, int],
+    owner_id: Optional[int] = None,
 ) -> tuple[int, int]:
     """Creates one physical_copy (copy_id) under collection_id, plus all
     its discs/bonus-items/storage-slots. Shared by import_singles_payload
@@ -787,6 +793,7 @@ def _create_copy_with_discs(
         db=db,
         collection_id=collection_id,
         copy_id=copy_id,
+        owner_id=owner_id,
     )
 
     for disc_no, disc_payload in enumerate(discs, start=1):
@@ -899,6 +906,7 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
     default_copy_count = payload.get("default_copy_count", 1)
     payload_storage_id = _uuid_str_to_bytes(payload.get("storage_id"))
     storage_next_slot_cache: dict[bytes, int] = {}
+    owner_id = _get_or_create_owner_id(db, payload.get("owner"))
 
     for row in payload.get("rows", []):
         title = row["title"]
@@ -966,6 +974,7 @@ def import_singles_payload(db: Session, payload: dict) -> dict:
                 discs=discs,
                 payload_storage_id=payload_storage_id,
                 storage_next_slot_cache=storage_next_slot_cache,
+                owner_id=owner_id,
             )
             created_discs += row_created_discs
             created_bonus_items += row_created_bonus_items
@@ -1115,6 +1124,7 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
 
     payload_storage_id = _uuid_str_to_bytes(payload.get("storage_id"))
     storage_next_slot_cache: dict[bytes, int] = {}
+    owner_id = _get_or_create_owner_id(db, payload.get("owner"))
 
     for box_set in payload.get("box_sets", []):
         box_set_barcode = box_set.get("box_set_barcode")
@@ -1149,6 +1159,7 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
                 db=db,
                 collection_id=box_collection_id,
                 copy_id=copy_id,
+                owner_id=owner_id,
             )
 
         movie_content_ids: list[bytes] = []
@@ -1218,6 +1229,7 @@ def import_box_sets_bulk_payload(db: Session, payload: dict) -> dict:
                         db=db,
                         collection_id=inner_collection_id,
                         copy_id=copy_id,
+                        owner_id=owner_id,
                     )
 
             inner_case_collection_ids.append(inner_collection_id)
@@ -1363,6 +1375,7 @@ def import_tv_series_boxset_payload(db: Session, payload: dict) -> dict:
     box = payload.get("box") or {}
     seasons_payload = payload.get("seasons", [])
     discs_payload = payload.get("discs", [])
+    owner_id = _get_or_create_owner_id(db, payload.get("owner"))
 
     title = series.get("title")
     if not title:
@@ -1402,7 +1415,9 @@ def import_tv_series_boxset_payload(db: Session, payload: dict) -> dict:
     created_collections = 1
 
     for copy_id in range(1, copy_count + 1):
-        _ensure_physical_copy(db=db, collection_id=box_collection_id, copy_id=copy_id)
+        _ensure_physical_copy(
+            db=db, collection_id=box_collection_id, copy_id=copy_id, owner_id=owner_id
+        )
 
     _ensure_content_in_collection(
         db=db,
@@ -1464,7 +1479,9 @@ def import_tv_series_boxset_payload(db: Session, payload: dict) -> dict:
             )
 
             for copy_id in range(1, copy_count + 1):
-                _ensure_physical_copy(db=db, collection_id=inner_collection_id, copy_id=copy_id)
+                _ensure_physical_copy(
+                    db=db, collection_id=inner_collection_id, copy_id=copy_id, owner_id=owner_id
+                )
 
         season_lookup[season_number] = {
             "season_id": season_id,
@@ -1609,6 +1626,7 @@ def import_mixed_boxset_payload(db: Session, payload: dict) -> dict:
     series_payload_list = payload.get("series", [])
     movies_payload_list = payload.get("movies", [])
     discs_payload = payload.get("discs", [])
+    owner_id = _get_or_create_owner_id(db, payload.get("owner"))
 
     format_value = box.get("format")
     box_set_barcode = box.get("box_set_barcode")
@@ -1635,7 +1653,9 @@ def import_mixed_boxset_payload(db: Session, payload: dict) -> dict:
     created_episodes = 0
 
     for copy_id in range(1, copy_count + 1):
-        _ensure_physical_copy(db=db, collection_id=box_collection_id, copy_id=copy_id)
+        _ensure_physical_copy(
+            db=db, collection_id=box_collection_id, copy_id=copy_id, owner_id=owner_id
+        )
 
     # series_index -> content_id
     series_content_ids: list[bytes] = []
@@ -1716,7 +1736,7 @@ def import_mixed_boxset_payload(db: Session, payload: dict) -> dict:
 
                 for copy_id in range(1, copy_count + 1):
                     _ensure_physical_copy(
-                        db=db, collection_id=inner_collection_id, copy_id=copy_id
+                        db=db, collection_id=inner_collection_id, copy_id=copy_id, owner_id=owner_id
                     )
 
             season_lookup[(series_idx, season_number)] = {
@@ -1798,7 +1818,9 @@ def import_mixed_boxset_payload(db: Session, payload: dict) -> dict:
             )
 
             for copy_id in range(1, copy_count + 1):
-                _ensure_physical_copy(db=db, collection_id=inner_collection_id, copy_id=copy_id)
+                _ensure_physical_copy(
+                    db=db, collection_id=inner_collection_id, copy_id=copy_id, owner_id=owner_id
+                )
 
         movie_lookup.append(
             {"content_id": content_id, "inner_collection_id": inner_collection_id}

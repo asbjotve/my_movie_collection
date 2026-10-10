@@ -452,6 +452,12 @@ function h(string $s): string
               <input type="text" id="storageId" class="mono" value="564a3999-5d00-11f1-9526-bab3c527eb51" />
               <small><?= h(tr($t, 'hint.storage_id')) ?></small>
             </div>
+            <div class="field span-4">
+              <label for="ownerName"><?= h(tr($t, 'label.owner')) ?></label>
+              <input type="text" id="ownerName" list="ownerNameOptions" autocomplete="off" placeholder="<?= h(tr($t, 'ph.owner')) ?>" />
+              <datalist id="ownerNameOptions"></datalist>
+              <small><?= h(tr($t, 'hint.owner')) ?></small>
+            </div>
           </div>
           <details class="noteBox" open>
             <summary><?= h(tr($t, 'btn.show_help')) ?></summary>

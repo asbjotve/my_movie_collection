@@ -111,6 +111,24 @@ try {
         exit;
     }
 
+    // GET ?action=list_owners
+    // Brukes til autofullføring i "Eier"-feltet (felles innstillinger):
+    // lister alle eksisterende eiere, slik at brukeren kan velge en
+    // eksisterende eier fremfor å skrive inn navnet på nytt - se
+    // GET /media/owners i backend/app/routes/media_catalog_route.py.
+    // Rent lesende, krever derfor kun INTERNAL_API_KEY (ikke innlogging).
+    if ($action === 'list_owners') {
+        [$ownersJson, $ownersCode] = makeRequest(
+            INTERNAL_API_BASE_URL . '/media/owners',
+            'GET',
+            ['X-API-Key: ' . INTERNAL_API_KEY]
+        );
+
+        http_response_code($ownersCode);
+        echo $ownersJson;
+        exit;
+    }
+
     // TVDB-søk: kun brukt til å hente en tvdb_id (bulk_add_movies_form
     // henter selv IKKE fulle detaljer - det gjør backend server-side,
     // se PATCH /media/external-source/tvdb/{id} i media_catalog_route.py).

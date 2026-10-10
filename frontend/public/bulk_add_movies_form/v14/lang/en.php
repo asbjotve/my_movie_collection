@@ -69,6 +69,7 @@ return [
         ],
         'label' => [
             'storage_id' => 'Storage ID',
+            'owner' => 'Owner',
             'default_format' => 'Default format',
             'default_copy_count' => 'Default copy count',
             'quick_add_title' => 'Quick add title',
@@ -114,12 +115,14 @@ return [
             'optional_label' => 'optional label',
             'quick_add_title' => 'e.g. Hidalgo',
             'box_barcode' => '13 digits',
+            'owner' => 'e.g. John Smith',
             'search' => 'Search movies or TV shows…',
             'search_tvdb' => 'Search for a movie in TVDB…',
             'pasted_payload' => '{"kind": "singles" or "box_sets_bulk", ...}',
         ],
         'hint' => [
             'storage_id' => 'Used for every disc with “Add to storage” enabled.',
+            'owner' => 'Optional - applied to every physical copy created in this submission. Type a new name to create a new owner.',
             'default_format' => 'Used when you add a new single row or disc draft.',
             'quick_add' => 'Creates a new single row with the title prefilled.',
             'discs_html' => 'Each single release must contain at least one <strong>feature</strong> disc before sending.',

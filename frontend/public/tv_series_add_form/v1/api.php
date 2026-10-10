@@ -36,6 +36,14 @@ require_login_or_json_401();
 
 require_once __DIR__ . '/config_tvdb.php';
 
+// Intern API-nøkkel (samme .env-verdi som backend sin INTERNAL_API_KEY,
+// se app/api_key.py::require_api_key()), brukt kun for rene lese-kall
+// (f.eks. GET /media/owners for eier-autofullføring) - IKKE for
+// /import/physical-collection, som krever innlogget bruker (JWT), se
+// submit-håndteringen under. config_tvdb.php har allerede lastet
+// dotenv fra prosjekt-roten over.
+define('INTERNAL_API_KEY', $_ENV['INTERNAL_API_KEY'] ?? '');
+
 /**
  * Performs a GET against TVDB v4 with a Bearer token, retrying once
  * with a forced token refresh if TVDB responds 401 (expired/invalid
@@ -136,9 +144,38 @@ try {
         exit;
     }
 
-    if ($action !== 'search_tvdb') {
+    if ($action !== 'search_tvdb' && $action !== 'list_owners') {
         http_response_code(400);
         echo json_encode(['error' => 'Ugyldig action-parameter'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // GET ?action=list_owners
+    // Autofullføring for "Eier"-feltet - se tilsvarende action i
+    // bulk_add_movies_form/v14/api.php og GET /media/owners i
+    // backend/app/routes/media_catalog_route.py.
+    if ($action === 'list_owners') {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => INTERNAL_API_BASE_URL . '/media/owners',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['X-API-Key: ' . INTERNAL_API_KEY],
+            CURLOPT_TIMEOUT        => 15,
+        ]);
+        $ownersResponse = curl_exec($ch);
+        $ownersCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $ownersErr = curl_error($ch);
+        curl_close($ch);
+
+        if ($ownersResponse === false) {
+            error_log('tv_series_add_form list_owners cURL-feil: ' . $ownersErr);
+            http_response_code(502);
+            echo json_encode(['error' => 'Kunne ikke kontakte backend (nettverksfeil).'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        http_response_code($ownersCode > 0 ? $ownersCode : 502);
+        echo $ownersResponse;
         exit;
     }
 

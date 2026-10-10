@@ -270,6 +270,12 @@ function h(string $s): string
           <label for="copyCount">Antall eksemplarer</label>
           <input type="number" id="copyCount" value="1" min="1">
         </div>
+        <div class="field">
+          <label for="ownerName">Eier</label>
+          <input type="text" id="ownerName" list="ownerNameOptions" autocomplete="off" placeholder="f.eks. Ola Nordmann">
+          <datalist id="ownerNameOptions"></datalist>
+          <small>Valgfritt - settes på alle eksemplarer som opprettes i denne innsendingen. Skriv inn et nytt navn for å opprette en ny eier.</small>
+        </div>
       </div>
     </div>
   </div>

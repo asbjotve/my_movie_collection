@@ -968,6 +968,14 @@
    * button and the "paste raw JSON" submit button.
    */
   async function submitToBackend(payload, submitBtn, statusEl) {
+    // Centralized here so it covers both submit paths (built form +
+    // pasted raw JSON). A pasted payload that already specifies an
+    // owner is not overridden.
+    if (payload && typeof payload === "object" && payload.owner === undefined) {
+      const ownerName = document.getElementById("ownerName").value.trim();
+      if (ownerName) payload.owner = ownerName;
+    }
+
     submitBtn.disabled = true;
     statusEl.textContent = "Sender inn...";
     statusEl.style.color = "";
@@ -1193,4 +1201,27 @@
   addSeason();
   addDisc();
   updateModeVisibility();
+
+  // Autofullføring for "Eier"-feltet - se api.php?action=list_owners
+  // og tilsvarende i bulk_add_movies_form/v14.
+  (async function loadOwnerNameOptions() {
+    try {
+      const res = await fetch("api.php?action=list_owners");
+      if (!res.ok) return;
+      const data = await res.json();
+      const owners = Array.isArray(data) ? data : (Array.isArray(data?.owners) ? data.owners : []);
+      const datalist = document.getElementById("ownerNameOptions");
+      if (!datalist) return;
+      datalist.innerHTML = "";
+      owners.forEach(owner => {
+        const name = typeof owner === "string" ? owner : owner?.name;
+        if (!name) return;
+        const option = document.createElement("option");
+        option.value = name;
+        datalist.appendChild(option);
+      });
+    } catch {
+      // Stille feil - autofullføring er en bekvemmelighet, ikke kritisk.
+    }
+  })();
 })();

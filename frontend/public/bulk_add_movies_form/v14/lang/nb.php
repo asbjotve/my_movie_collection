@@ -69,6 +69,7 @@ return [
         ],
         'label' => [
             'storage_id' => 'Lagringsplass-ID',
+            'owner' => 'Eier',
             'default_format' => 'Standardformat',
             'default_copy_count' => 'Standard antall kopier',
             'quick_add_title' => 'Hurtig-legg til tittel',
@@ -114,12 +115,14 @@ return [
             'optional_label' => 'valgfri label',
             'quick_add_title' => 'f.eks. Hidalgo',
             'box_barcode' => '13 siffer',
+            'owner' => 'f.eks. Ola Nordmann',
             'search' => 'Søk etter film eller TV-serie…',
             'search_tvdb' => 'Søk etter film i TVDB…',
             'pasted_payload' => '{"kind": "singles" eller "box_sets_bulk", ...}',
         ],
         'hint' => [
             'storage_id' => 'Brukes for alle discer som har «Legg til i lagringsplass» aktivert.',
+            'owner' => 'Valgfritt - settes på alle eksemplarer som opprettes i denne innsendingen. Skriv inn et nytt navn for å opprette en ny eier.',
             'default_format' => 'Brukes når du legger til ny single-rad eller et nytt disc-utkast.',
             'quick_add' => 'Oppretter en ny single-rad med tittelen ferdig utfylt.',
             'discs_html' => 'Hver enkeltutgivelse må ha minst én <strong>feature</strong>-disc før innsending.',

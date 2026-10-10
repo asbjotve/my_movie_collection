@@ -39,6 +39,7 @@ class SingleRowPayload(BaseModel):
 class SinglesImportPayload(BaseModel):
     kind: Literal["singles"]
     storage_id: Optional[str] = None
+    owner: Optional[str] = None
     default_copy_count: int = Field(ge=1)
     rows: List[SingleRowPayload] = Field(default_factory=list)
 
@@ -79,6 +80,7 @@ class BoxSetPayload(BaseModel):
 class BoxSetsBulkImportPayload(BaseModel):
     kind: Literal["box_sets_bulk"]
     storage_id: Optional[str] = None
+    owner: Optional[str] = None
     box_sets: List[BoxSetPayload] = Field(default_factory=list)
 
 
@@ -131,6 +133,7 @@ class TvSeriesBoxsetImportPayload(BaseModel):
     kind: Literal["tv_series_boxset"]
     series: TvSeriesPayload
     box: TvBoxPayload
+    owner: Optional[str] = None
     seasons: List[TvSeasonPayload] = Field(default_factory=list)
     discs: List[TvDiscPayload] = Field(default_factory=list)
 
@@ -191,6 +194,7 @@ class MixedBoxsetImportPayload(BaseModel):
 
     kind: Literal["mixed_boxset"]
     box: TvBoxPayload
+    owner: Optional[str] = None
     series: List[MixedSeriesEntryPayload] = Field(default_factory=list)
     movies: List[MixedMovieEntryPayload] = Field(default_factory=list)
     discs: List[MixedDiscPayload] = Field(default_factory=list)

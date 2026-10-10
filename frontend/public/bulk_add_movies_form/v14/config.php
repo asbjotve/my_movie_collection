@@ -14,4 +14,11 @@ define('TMDB_BASE_URL', 'https://api.themoviedb.org/3');
 if (!TMDB_API_KEY) {
     throw new Exception('TMDB_API_KEY er ikke satt i .env filen');
 }
+
+// Intern API-nøkkel (samme .env-verdi som backend sin INTERNAL_API_KEY -
+// se app/api_key.py::require_api_key()), brukt for rene lese-kall mot
+// FastAPI-backendet (f.eks. GET /media/owners for eier-autofullføring)
+// som IKKE krever innlogget bruker/JWT, i motsetning til selve
+// import-endepunktet (se "submit"-handlingen i api.php).
+define('INTERNAL_API_KEY', $_ENV['INTERNAL_API_KEY'] ?? '');
 ?>

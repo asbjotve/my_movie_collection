@@ -102,6 +102,38 @@ function getStorageId() {
   return document.getElementById('storageId').value.trim() || DEFAULT_STORAGE_ID;
 }
 
+function getOwnerName() {
+  return document.getElementById('ownerName').value.trim() || null;
+}
+
+/**
+ * Henter eksisterende eiere (api.php?action=list_owners, se GET
+ * /media/owners) og fyller <datalist id="ownerNameOptions"> slik at
+ * brukeren kan velge en eksisterende eier - eller skrive inn et nytt
+ * navn for å opprette en ny (se _get_or_create_owner_id() i
+ * media_catalog.py, brukt av import_*_payload()-funksjonene).
+ */
+async function loadOwnerNameOptions() {
+  try {
+    const response = await fetch(`${API_ENDPOINT}?action=list_owners`);
+    if (!response.ok) return;
+    const data = await response.json();
+    const owners = Array.isArray(data) ? data : (Array.isArray(data?.owners) ? data.owners : []);
+    const datalist = document.getElementById('ownerNameOptions');
+    if (!datalist) return;
+    datalist.innerHTML = '';
+    owners.forEach(owner => {
+      const name = typeof owner === 'string' ? owner : owner?.name;
+      if (!name) return;
+      const option = document.createElement('option');
+      option.value = name;
+      datalist.appendChild(option);
+    });
+  } catch {
+    // Stille feil - autofullføring er en bekvemmelighet, ikke kritisk.
+  }
+}
+
 function showPreview(obj) {
   previewPre.textContent = JSON.stringify(obj, null, 2);
   openModal('previewModal');
@@ -185,6 +217,14 @@ function formatErrorDetail(data) {
 }
 
 async function submitPayload(payload, submitButton) {
+  // Sett "owner" sentralt her slik at det dekker alle tre innsendingsveier
+  // (singles, box_sets_bulk og lim-inn-payload) i ett felles punkt. En
+  // limt inn payload som allerede har en eier-verdi overstyres ikke.
+  if (payload && typeof payload === 'object' && payload.owner === undefined) {
+    const ownerName = getOwnerName();
+    if (ownerName) payload.owner = ownerName;
+  }
+
   const previousLabel = submitButton.textContent;
   submitButton.disabled = true;
   setStatus('sending', fmt('status.sending'), payload);
@@ -986,6 +1026,7 @@ function serializeState() {
 
   return {
     storage_id: getStorageId(),
+    owner: getOwnerName(),
     singles,
     boxSets,
   };
@@ -996,6 +1037,8 @@ function restoreState(state) {
 
   const restoredStorageId = state.storage_id ?? state.singles?.storage_id ?? DEFAULT_STORAGE_ID;
   document.getElementById('storageId').value = String(restoredStorageId);
+
+  if (typeof state.owner === 'string') document.getElementById('ownerName').value = state.owner;
 
   if (state.singles?.default_format) document.getElementById('singleFormat').value = state.singles.default_format;
   if (state.singles?.default_copy_count) document.getElementById('singleCopyCount').value = String(state.singles.default_copy_count);
@@ -1525,6 +1568,7 @@ function autoInit() {
   addSingleRow();
   boxSetsContainer.appendChild(createBoxSetCard());
   setStatus('idle', fmt('status.idle'), {});
+  loadOwnerNameOptions();
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
