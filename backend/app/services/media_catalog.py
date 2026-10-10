@@ -2799,13 +2799,6 @@ def _map_tmdb_to_content_fields(data: dict, preferred_language: str = "no") -> d
     return fields
 
 
-# Brukes av _extract_tmdb_title() til å avgjøre om original_title er
-# "lesbar" nok til å beholdes som den er (Latin-baserte skrift-systemer,
-# inkl. nordiske bokstaver/aksenter) - treffer IKKE f.eks. persisk,
-# koreansk, kyrillisk, kinesisk/japansk. Se docstring under for hvorfor
-# dette skillet finnes.
-_NON_LATIN_SCRIPT_PATTERN = re.compile(r"[^\x00-\u024F\u1E00-\u1EFF\s\d\W]")
-
 # TMDB sin "language"-forespørselsparameter bruker BCP-47-koder
 # ("nb-NO"), MEN append_to_response=translations sin egen liste tagger
 # norske oversettelser med den rene ISO 639-1-koden "no" (bokmål) -
@@ -2823,10 +2816,6 @@ _NON_LATIN_SCRIPT_PATTERN = re.compile(r"[^\x00-\u024F\u1E00-\u1EFF\s\d\W]")
 _NORWEGIAN_ISO_CODES = ("no", "nb")
 
 
-def _looks_non_latin(text_value: str) -> bool:
-    return bool(_NON_LATIN_SCRIPT_PATTERN.search(text_value))
-
-
 def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | None:
     """TMDB sin "title" (filmer) / "name" (serier) faller tilbake til
     "original_title"/"original_name" når forespurt språk (se
@@ -2839,19 +2828,30 @@ def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | Non
     _NORWEGIAN_ISO_CODES over for hvorfor dette trengs i tillegg til
     selve language-parameteren).
 
-    Hvis det fortsatt ikke finnes noen brukbar tittel, beholdes
-    original-tittelen AS-IS når den er skrevet med latinske bokstaver
-    (f.eks. en norsk original som "Giftige løgner" - å bytte den ut med
-    en engelsk alternativ-tittel som "Lethal Lies" bare fordi admin har
-    valgt "engelsk" som foretrukket henting-språk, gir en dårligere/feil
-    tittel for titler som uansett er norske/skandinaviske i
-    utgangspunktet).
+    Hvis det fortsatt ikke finnes noen norsk oversettelse, sjekkes
+    "original_language" (ISO 639-1-kode TMDB selv oppgir for filmens/
+    seriens originalspråk - mer pålitelig enn å gjette ut fra
+    skrifttegnene i original_title, slik en tidligere versjon av denne
+    funksjonen gjorde):
 
-    Unntak: hvis original-tittelen IKKE er latinsk (f.eks. den
-    persiske tittelen 'جدایی نادر از سیمین' i stedet for "A
-    Separation") er den ubrukelig for de aller fleste brukere her -
-    da hentes en engelsk oversettelse som siste utvei, uansett
-    preferred_language - det er bedre enn en tittel ingen kan lese."""
+    - Hvis originalen allerede ER norsk/skandinavisk (f.eks. "Giftige
+      løgner", original_language="no") beholdes den AS-IS - å bytte
+      den ut med en engelsk alternativ-tittel som "Lethal Lies" bare
+      fordi admin har valgt "norsk" som foretrukket henting-språk, gir
+      en dårligere/feil tittel for en film som uansett er norsk i
+      utgangspunktet.
+    - Hvis originalen er på et HELT ANNET språk enn norsk (fransk,
+      tysk, persisk, koreansk osv., f.eks. "La Fille de d'Artagnan",
+      original_language="fr") og ingen norsk oversettelse finnes,
+      er en engelsk oversettelse ("D'Artagnan's Daughter") mer nyttig
+      for de fleste brukere her enn originaltittelen - hentes derfor
+      som fallback uansett preferred_language (ikke bare for
+      ikke-latinske skriftsystemer, slik en tidligere versjon gjorde -
+      det beholdt feilaktig f.eks. franske originaltitler siden de ER
+      skrevet med latinske bokstaver, selv om de ikke er lesbare for
+      de fleste her).
+    - Finnes det verken en norsk eller engelsk oversettelse, beholdes
+      original-tittelen som siste utvei (bedre enn ingenting)."""
 
     title = data.get("title") or data.get("name")
     original_title = data.get("original_title") or data.get("original_name")
@@ -2865,6 +2865,7 @@ def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | Non
     # for hvorfor dette IKKE nødvendigvis betyr at TMDB mangler en
     # norsk oversettelse.
     translations = (data.get("translations") or {}).get("translations") or []
+    original_language = data.get("original_language")
 
     if preferred_language == "no":
         for entry in translations:
@@ -2873,11 +2874,16 @@ def _extract_tmdb_title(data: dict, preferred_language: str = "no") -> str | Non
                 norwegian_title = entry_data.get("title") or entry_data.get("name")
                 if norwegian_title:
                     return norwegian_title
+        if original_language in _NORWEGIAN_ISO_CODES:
+            return title
 
     # Hent engelsk oversettelse hvis admin foretrekker engelsk, ELLER
-    # hvis original-tittelen uansett ikke er latinsk (og dermed ulesbar
-    # for de fleste her).
-    if preferred_language == "en" or (original_title and _looks_non_latin(original_title)):
+    # hvis originalen uansett ikke er norsk (preferred_language=="no"
+    # men original_language er f.eks. "fr"/"fa"/"ko" - ingen norsk
+    # oversettelse ble funnet over, og originaltittelen er da hverken
+    # norsk eller engelsk). Finnes ingen engelsk oversettelse heller,
+    # faller den siste "return title" under tilbake til originalen.
+    if preferred_language == "en" or original_language not in _NORWEGIAN_ISO_CODES:
         for entry in translations:
             if entry.get("iso_639_1") == "en":
                 entry_data = entry.get("data") or {}
