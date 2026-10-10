@@ -313,6 +313,24 @@ if (!empty($currentPlexSettings['base_url']) && !empty($currentPlexSettings['tok
             t('wte.plex_settings.import_pruned'),
             (string)$importSummary['movies_pruned']
           )) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($importSummary['series_created']) || !empty($importSummary['series_matched']) || !empty($importSummary['episodes_created']) || !empty($importSummary['episodes_matched'])): ?>
+          <div><?= htmlspecialchars(wteFormatServer(
+            t('wte.plex_settings.import_series_summary'),
+            (string)($importSummary['series_created'] ?? 0),
+            (string)($importSummary['series_matched'] ?? 0),
+            (string)($importSummary['seasons_created'] ?? 0),
+            (string)($importSummary['episodes_created'] ?? 0),
+            (string)($importSummary['episodes_matched'] ?? 0)
+          )) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($importSummary['episodes_pruned'])): ?>
+          <div><?= htmlspecialchars(wteFormatServer(
+            t('wte.plex_settings.import_episodes_pruned'),
+            (string)$importSummary['episodes_pruned']
+          )) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($importSummary['movies_pruned']) || !empty($importSummary['episodes_pruned'])): ?>
           <?php if (!empty($importSummary['content_deleted'])): ?>
             <div><?= htmlspecialchars(wteFormatServer(
               t('wte.plex_settings.import_content_deleted'),
@@ -320,8 +338,8 @@ if (!empty($currentPlexSettings['base_url']) && !empty($currentPlexSettings['tok
             )) ?></div>
           <?php endif; ?>
         <?php endif; ?>
-        <?php if (!empty($importSummary['skipped_non_movie_libraries'])): ?>
-          <div><?= htmlspecialchars(t('wte.plex_settings.import_skipped_libraries')) ?> <?= htmlspecialchars(implode(', ', $importSummary['skipped_non_movie_libraries'])) ?></div>
+        <?php if (!empty($importSummary['skipped_unsupported_libraries'])): ?>
+          <div><?= htmlspecialchars(t('wte.plex_settings.import_skipped_libraries')) ?> <?= htmlspecialchars(implode(', ', $importSummary['skipped_unsupported_libraries'])) ?></div>
         <?php endif; ?>
         <?php if (!empty($importSummary['errors'])): ?>
           <div><?= htmlspecialchars(t('wte.plex_settings.import_errors_heading')) ?></div>

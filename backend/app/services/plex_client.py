@@ -162,6 +162,17 @@ def fetch_item_detail(base_url: str, token: str, rating_key: str, verify_ssl: bo
     return items[0] if items else None
 
 
+def fetch_show_episodes(base_url: str, token: str, show_rating_key: str, verify_ssl: bool = True) -> list[dict]:
+    """Henter ALLE episoder for én serie, på tvers av sesonger, i én
+    flat liste (GET /library/metadata/{ratingKey}/allLeaves) - enklere
+    enn å gå om sesong-for-sesong. Hvert element har bl.a. parentIndex
+    (sesongnummer), index (episodenummer), title, originallyAvailableAt,
+    duration, Media/Part (filinfo) og sin egen Guid-liste."""
+
+    data = _plex_request(base_url, token, f"/library/metadata/{show_rating_key}/allLeaves", verify_ssl)
+    return data.get("MediaContainer", {}).get("Metadata", [])
+
+
 def extract_tmdb_id_from_guids(item: dict) -> str | None:
     """Plex sin nyere metadata-agent oppgir eksterne id-er som en liste
     under "Guid": [{"id": "tmdb://603"}, {"id": "imdb://tt0133093"}, ...].
@@ -179,5 +190,47 @@ def extract_tmdb_id_from_guids(item: dict) -> str | None:
         # f.eks. "com.plexapp.agents.themoviedb://603?lang=en" -> "603"
         after = top_level_guid.split("themoviedb://", 1)[1]
         return after.split("?", 1)[0]
+
+    return None
+
+
+def extract_tvdb_id_from_guids(item: dict) -> str | None:
+    """Samme som extract_tmdb_id_from_guids(), men for TVDB - brukes
+    til å matche en SERIE (show-nivå item) mot en eksisterende
+    content-rad. For den eldre agenten er toppnivå-"guid" på formatet
+    "com.plexapp.agents.thetvdb://<show_id>?lang=en" for show-elementer
+    - kun første "/"-segment tas med, siden samme felt på et
+    EPISODE-item i stedet er "<show_id>/<season>/<episode>" (se
+    extract_tvdb_episode_id_from_guids() for presis episode-matching -
+    IKKE bruk denne funksjonen på episode-items, den vil returnere
+    show-id-en, ikke en episode-id)."""
+
+    for guid_entry in item.get("Guid", []):
+        guid_id = guid_entry.get("id", "")
+        if guid_id.startswith("tvdb://"):
+            return guid_id.removeprefix("tvdb://").split("/", 1)[0]
+
+    top_level_guid = item.get("guid", "")
+    if "thetvdb://" in top_level_guid:
+        after = top_level_guid.split("thetvdb://", 1)[1]
+        after = after.split("?", 1)[0]
+        return after.split("/", 1)[0]
+
+    return None
+
+
+def extract_tvdb_episode_id_from_guids(item: dict) -> str | None:
+    """Presis TVDB EPISODE-id (ikke serie-id) for ett episode-item -
+    kun tilgjengelig via den nyere agentens "Guid"-liste
+    ([{"id": "tvdb://7658965"}, ...], en egen id-serie fra
+    sesong/episode-numre). Den eldre agenten oppgir ikke en egen
+    episode-id (kun show-id + sesong/episode-numre i toppnivå-"guid"),
+    så denne returnerer None for slike items - sesong+episodenummer
+    brukes da som fallback for matching i stedet (se plex_import.py)."""
+
+    for guid_entry in item.get("Guid", []):
+        guid_id = guid_entry.get("id", "")
+        if guid_id.startswith("tvdb://"):
+            return guid_id.removeprefix("tvdb://")
 
     return None
