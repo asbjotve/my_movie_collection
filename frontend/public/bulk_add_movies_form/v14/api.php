@@ -76,6 +76,19 @@ try {
             exit;
         }
 
+        // Store bulk-payloads (mange rader, hver med tmdb_id/tvdb_id) kan
+        // ta betydelig lengre tid enn vanlige kall, siden backend henter
+        // fulle detaljer fra TMDB/TVDB synkront per rad inni én delt
+        // transaksjon (se import_singles_payload()). Et for kort klient-
+        // tidsavbrudd her fikk brukeren til å tro requesten feilet og
+        // sende på nytt mens den første fortsatt kjørte server-side -
+        // det endte i en reell låse-konflikt (samme lagringsplass-rad)
+        // og en "Lock wait timeout" i MySQL. Både PHPs max_execution_time
+        // og cURL-tidsavbruddet må derfor være romslige nok til at en stor,
+        // men reell, import rekker å fullføre før klienten gir opp - men
+        // fortsatt under Apache sin Timeout-grense (300s, se apache2.conf).
+        set_time_limit(280);
+
         // Automatisk, stille fornying av access_token (uten å be om passord
         // på nytt) hvis det første forsøket feiler med 401 - se
         // auth_call_with_retry()/auth_refresh_access_token() i auth.php og
@@ -86,7 +99,8 @@ try {
                     INTERNAL_API_BASE_URL . '/import/physical-collection',
                     'POST',
                     ['Content-Type: application/json', 'Authorization: Bearer ' . $accessToken],
-                    json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    270
                 );
                 return [$code, $resp];
             }
@@ -253,7 +267,7 @@ try {
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
-function makeRequest(string $url, string $method = 'GET', array $headers = [], ?string $body = null): array
+function makeRequest(string $url, string $method = 'GET', array $headers = [], ?string $body = null, int $timeoutSeconds = 20): array
 {
     $ch = curl_init($url);
 
@@ -261,7 +275,7 @@ function makeRequest(string $url, string $method = 'GET', array $headers = [], ?
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_TIMEOUT => 20,
+        CURLOPT_TIMEOUT => $timeoutSeconds,
         CURLOPT_CUSTOMREQUEST => $method,
     ];
 
