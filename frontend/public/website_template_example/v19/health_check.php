@@ -14,6 +14,7 @@ $username = require_login();
 <meta charset="utf-8">
 <title><?= htmlspecialchars(t('wte.index.administrering.card_health_check_title')) ?></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<?= csrf_meta_tag() ?>
 <style>
   :root{
     --bg:#0f1115; --panel:#161922; --border:#262b38; --text:#e7e9ee;
@@ -94,6 +95,14 @@ $username = require_login();
 (async function () {
   const loadingMsg = document.getElementById('loadingMsg');
   const errorMsg = document.getElementById('errorMsg');
+
+  // CSRF-token lest fra <meta name="csrf-token"> (satt server-side av
+  // csrf_meta_tag() i _shared/auth.php) - samme mønster som
+  // csrfHeader() i index.php/detail.php/duplicate_review.php.
+  function csrfHeader() {
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    return { 'X-CSRF-Token': token };
+  }
 
   // Menneskelesbare etiketter for issue-kodene backend returnerer (se
   // get_data_health_issues() i media_catalog.py) - holdes i JS
@@ -248,7 +257,7 @@ $username = require_login();
     bulkRefreshStatus.style.display = '';
     bulkRefreshStatus.textContent = 'Starter jobb…';
     try {
-      const res = await fetch('api.php?action=bulk_refresh_tmdb', { method: 'POST' });
+      const res = await fetch('api.php?action=bulk_refresh_tmdb', { method: 'POST', headers: csrfHeader() });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || data.detail || ('HTTP ' + res.status));
