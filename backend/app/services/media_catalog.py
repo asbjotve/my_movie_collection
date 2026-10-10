@@ -1956,17 +1956,20 @@ def get_data_health_issues(db: Session) -> dict:
     cover, overview, runtime, eller en gyldig TMDB/TVDB-kilde.
 
     Merk: content.overview og content.runtime er legacy-kolonner som
-    så godt som alltid er tomme i praksis (samme situasjon som
-    first_release, se get_collection_stats()) - selve dataene ligger i
-    TMDBs lagrede data_json. Disse feltene sjekkes derfor der, ikke i
-    content-tabellen direkte, ellers ville nesten alle rader (falskt)
-    bli flagget som "mangler overview/runtime".
+    som regel er tomme (samme situasjon som first_release, se
+    get_collection_stats()) - selve dataene ligger normalt i TMDBs
+    lagrede data_json, og sjekkes derfor primært der. MEN: brukeren kan
+    også redigere overview/runtime manuelt på detaljsiden (PATCH
+    /media/content/{id}), og det skriver direkte til content-tabellen
+    uten å oppdatere den cachede TMDB-JSON-en - en rad regnes derfor
+    kun som "mangler overview/runtime" hvis BEGGE kildene er tomme,
+    ellers ville en manuell rettelse feilaktig forbli flagget.
 
-    content.imdb_id sjekkes derimot direkte, siden den kolonnen faktisk
-    brukes/fylles inn i praksis.
+    content.imdb_id sjekkes derimot kun direkte, siden den kolonnen
+    faktisk brukes/fylles inn i praksis og ikke har noen TMDB-fallback.
     """
     content_rows = db.execute(
-        text("SELECT content_id, title, cover_image, imdb_id FROM content")
+        text("SELECT content_id, title, cover_image, imdb_id, overview, runtime FROM content")
     ).fetchall()
 
     preferred_language = get_tmdb_data_language_preference()
@@ -2016,13 +2019,17 @@ def get_data_health_issues(db: Session) -> dict:
             issues.append("missing_imdb_id")
 
         if content_id not in external_source_ids:
+            if not row.overview:
+                issues.append("missing_overview")
+            if not row.runtime:
+                issues.append("missing_runtime")
             issues.append("missing_external_source")
         else:
             tmdb_data = tmdb_by_id.get(content_id)
             if tmdb_data is not None:
-                if not _extract_tmdb_overview(tmdb_data, preferred_language):
+                if not row.overview and not _extract_tmdb_overview(tmdb_data, preferred_language):
                     issues.append("missing_overview")
-                if not tmdb_data.get("runtime"):
+                if not row.runtime and not tmdb_data.get("runtime"):
                     issues.append("missing_runtime")
 
         if issues:
@@ -2042,6 +2049,7 @@ def get_data_health_issues(db: Session) -> dict:
         "issue_counts": issue_counts,
         "items": flagged,
     }
+
 
 
 def bulk_refresh_tmdb_for_flagged_content(db: Session) -> dict:
