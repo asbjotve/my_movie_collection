@@ -46,6 +46,7 @@ RESET_TABLES_IN_ORDER: list[str] = [
     "physical_copy",
     "episode",
     "content_in_digital_library",
+    "pending_duplicate_import",
     "physical_collection",
     "season",
     "content",
