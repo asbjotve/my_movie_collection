@@ -951,7 +951,7 @@
   document.getElementById("addMixedDiscBtn").addEventListener("click", addMixedDisc);
 
   document.getElementById("previewBtn").addEventListener("click", () => {
-    const payload = buildPayload();
+    const payload = applyOwnerToPayload(buildPayload());
     document.getElementById("payloadPreview").textContent = JSON.stringify(payload, null, 2);
   });
 
@@ -960,6 +960,20 @@
     if (!text || text === "(ikke generert ennå)") return;
     navigator.clipboard.writeText(text).catch(() => {});
   });
+
+  /**
+   * Setter payload.owner (fra "Eier"-feltet) hvis payload-objektet ikke
+   * allerede har en eier-verdi - delt mellom forhåndsvisning og faktisk
+   * innsending (previewBtn/submitBtn og submitToBackend()), slik at
+   * forhåndsvisningen alltid viser det som vil bli sendt inn.
+   */
+  function applyOwnerToPayload(payload) {
+    if (payload && typeof payload === "object" && payload.owner === undefined) {
+      const ownerName = document.getElementById("ownerName").value.trim();
+      if (ownerName) payload.owner = ownerName;
+    }
+    return payload;
+  }
 
   /**
    * Posts a payload object to the backend import endpoint via api.php,
@@ -971,10 +985,7 @@
     // Centralized here so it covers both submit paths (built form +
     // pasted raw JSON). A pasted payload that already specifies an
     // owner is not overridden.
-    if (payload && typeof payload === "object" && payload.owner === undefined) {
-      const ownerName = document.getElementById("ownerName").value.trim();
-      if (ownerName) payload.owner = ownerName;
-    }
+    applyOwnerToPayload(payload);
 
     submitBtn.disabled = true;
     statusEl.textContent = "Sender inn...";
@@ -1006,7 +1017,7 @@
   }
 
   document.getElementById("submitBtn").addEventListener("click", () => {
-    const payload = buildPayload();
+    const payload = applyOwnerToPayload(buildPayload());
     document.getElementById("payloadPreview").textContent = JSON.stringify(payload, null, 2);
     submitToBackend(
       payload,

@@ -107,6 +107,20 @@ function getOwnerName() {
 }
 
 /**
+ * Setter payload.owner (fra "Eier"-feltet) hvis payload-objektet ikke
+ * allerede har en eier-verdi - delt mellom forhåndsvisning og faktisk
+ * innsending, slik at forhåndsvisningen alltid viser det som vil bli
+ * sendt inn (se submitPayload()).
+ */
+function applyOwnerToPayload(payload) {
+  if (payload && typeof payload === 'object' && payload.owner === undefined) {
+    const ownerName = getOwnerName();
+    if (ownerName) payload.owner = ownerName;
+  }
+  return payload;
+}
+
+/**
  * Henter eksisterende eiere (api.php?action=list_owners, se GET
  * /media/owners) og fyller <datalist id="ownerNameOptions"> slik at
  * brukeren kan velge en eksisterende eier - eller skrive inn et nytt
@@ -220,10 +234,7 @@ async function submitPayload(payload, submitButton) {
   // Sett "owner" sentralt her slik at det dekker alle tre innsendingsveier
   // (singles, box_sets_bulk og lim-inn-payload) i ett felles punkt. En
   // limt inn payload som allerede har en eier-verdi overstyres ikke.
-  if (payload && typeof payload === 'object' && payload.owner === undefined) {
-    const ownerName = getOwnerName();
-    if (ownerName) payload.owner = ownerName;
-  }
+  applyOwnerToPayload(payload);
 
   const previousLabel = submitButton.textContent;
   submitButton.disabled = true;
@@ -1447,7 +1458,7 @@ document.getElementById('singleQuickImport').addEventListener('keydown', event =
 });
 document.getElementById('btnSinglePreview').addEventListener('click', () => {
   if (!validateSinglesHaveFeatureDisc()) return;
-  showPreview(readSinglesForm());
+  showPreview(applyOwnerToPayload(readSinglesForm()));
 });
 document.getElementById('btnSubmitSingles').addEventListener('click', () => {
   if (!validateSinglesHaveFeatureDisc()) return;
@@ -1459,11 +1470,11 @@ document.getElementById('btnAddBoxSet').addEventListener('click', () => {
   scheduleSave();
 });
 document.getElementById('btnPreviewAllBoxSets').addEventListener('click', () => {
-  showPreview({
+  showPreview(applyOwnerToPayload({
     kind: 'box_sets_bulk',
     storage_id: getStorageId(),
     box_sets: readAllBoxSets(),
-  });
+  }));
 });
 document.getElementById('btnSubmitBoxSets').addEventListener('click', () => {
   submitPayload({
