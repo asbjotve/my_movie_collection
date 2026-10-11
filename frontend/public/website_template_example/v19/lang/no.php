@@ -88,6 +88,8 @@ return [
                 'card_edit_lists_desc'   => 'Opprett, endre eller slett egendefinerte lister.',
                 'card_bulk_add_title'    => 'Bulk-registrering av filmer',
                 'card_bulk_add_desc'     => 'Registrer flere filmer/serier samtidig, inkludert fysiske eksemplarer (åpnes i eget verktøy).',
+                'card_bulk_add_tv_title' => 'Bulk-registrering av TV-serier',
+                'card_bulk_add_tv_desc'  => 'Registrer TV-serier med sesonger/episoder og fysiske eksemplarer (åpnes i eget verktøy).',
                 'card_stats_title'       => 'Statistikk',
                 'card_stats_desc'        => 'Oversikt over samlingen: antall, tiår, sjangre, formater og grupper.',
                 'card_health_check_title' => 'Datakvalitet',

@@ -680,6 +680,12 @@ $sectionAccess = [
         </a>
       </div>
       <div class="adminCard card">
+        <a href="/tv_series_add_form/v1/index.php" style="color:inherit; text-decoration:none; display:block;">
+          <h3><?= htmlspecialchars(t('wte.index.administrering.card_bulk_add_tv_title')) ?></h3>
+          <p><?= htmlspecialchars(t('wte.index.administrering.card_bulk_add_tv_desc')) ?></p>
+        </a>
+      </div>
+      <div class="adminCard card">
         <a href="stats.php" style="color:inherit; text-decoration:none; display:block;">
           <h3><?= htmlspecialchars(t('wte.index.administrering.card_stats_title')) ?></h3>
           <p><?= htmlspecialchars(t('wte.index.administrering.card_stats_desc')) ?></p>

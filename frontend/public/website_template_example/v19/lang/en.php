@@ -85,6 +85,8 @@ return [
                 'card_edit_lists_desc'   => 'Create, edit or delete custom lists.',
                 'card_bulk_add_title'    => 'Bulk-add movies',
                 'card_bulk_add_desc'     => 'Register multiple movies/shows at once, including physical copies (opens in a separate tool).',
+                'card_bulk_add_tv_title' => 'Bulk-add TV series',
+                'card_bulk_add_tv_desc'  => 'Register TV series with seasons/episodes and physical copies (opens in a separate tool).',
                 'card_stats_title'       => 'Statistics',
                 'card_stats_desc'        => 'Overview of the collection: totals, decades, genres, formats and groups.',
                 'card_health_check_title' => 'Data quality',

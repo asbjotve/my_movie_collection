@@ -83,7 +83,10 @@ function h(string $s): string
     button, input, select, textarea{ font:inherit; }
     button{ cursor:pointer; }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    a{ color:var(--accent); }
     .page{ max-width:1160px; margin:0 auto; padding:24px 18px 60px; }
+    .backToAdminRow{ margin-bottom:14px; }
+    .backToAdminRow .btn{ text-decoration:none; display:inline-block; }
     .hero{
       margin-bottom:18px;
       padding:18px 20px;
@@ -215,6 +218,10 @@ function h(string $s): string
 </head>
 <body>
 <div class="page">
+
+  <div class="backToAdminRow">
+    <a href="/website_template_example/v19/index.php?panel=administrering" class="btn small">← Til Administrering</a>
+  </div>
 
   <div class="hero">
     <span class="draftTag">v1 - koblet til backend</span>
