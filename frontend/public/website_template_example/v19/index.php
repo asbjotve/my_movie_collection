@@ -661,11 +661,6 @@ $sectionAccess = [
       <a href="login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
     <?php endif; ?>
     <div class="adminGrid">
-      <div class="adminCard card">
-        <?php if (!$isLoggedIn): ?><span class="lockedBadge badge"><?= htmlspecialchars(t('wte.index.administrering.locked_badge')) ?></span><?php endif; ?>
-        <h3><?= htmlspecialchars(t('wte.index.administrering.card_add_movie_title')) ?></h3>
-        <p><?= htmlspecialchars(t('wte.index.administrering.card_add_movie_desc')) ?></p>
-      </div>
       <?php if ($isLoggedIn): ?>
       <div class="adminCard card">
         <a href="/custom_list_manager/v4/index.php" style="color:inherit; text-decoration:none; display:block;">
