@@ -32,6 +32,7 @@ return [
             'submit_singles' => 'Send singles',
             'submit_box_sets' => 'Send box sets',
             'submit_pasted_payload' => 'Send pasted payload',
+            'load_pasted_payload' => 'Load payload into form',
             'save_discs' => 'Save discs',
             'save_items' => 'Save items',
             'close' => 'Close',
@@ -211,6 +212,7 @@ return [
             'search_results_year' => 'Found {n} result(s) for {year}',
             'search_details' => 'Loading details…',
             'ids_applied' => 'IDs were copied to the form.',
+            'load_payload_success' => 'Payload loaded into the form above - keep editing there, preview, and submit.',
         ],
         'text' => [
             'search_no_poster' => 'No poster',
@@ -224,6 +226,8 @@ return [
             'missing_feature_disc' => 'Each single release must contain at least one FEATURE disc. Missing for:',
             'invalid_search_target' => 'Could not find the selected row to update.',
             'invalid_json_payload' => 'Invalid JSON',
+            'load_payload_failed' => 'Could not load payload into the form',
+            'load_payload_unsupported_kind' => 'The payload must have "kind": "singles" or "box_sets_bulk" to be loaded into the form.',
         ],
         'confirm' => [
             'reset' => 'Reset everything? This also removes the saved draft from this browser.',

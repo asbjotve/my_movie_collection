@@ -32,6 +32,7 @@ return [
             'submit_singles' => 'Send enkeltutgivelser',
             'submit_box_sets' => 'Send boks-sett',
             'submit_pasted_payload' => 'Send limt payload',
+            'load_pasted_payload' => 'Last inn payload i skjema',
             'save_discs' => 'Lagre discer',
             'save_items' => 'Lagre bonusposter',
             'close' => 'Lukk',
@@ -211,6 +212,7 @@ return [
             'search_results_year' => 'Fant {n} treff for {year}',
             'search_details' => 'Henter detaljer…',
             'ids_applied' => 'ID-er ble kopiert til skjemaet.',
+            'load_payload_success' => 'Payload lastet inn i skjemaet over - rediger videre der, forhåndsvis og send inn.',
         ],
         'text' => [
             'search_no_poster' => 'Ingen plakat',
@@ -224,6 +226,8 @@ return [
             'missing_feature_disc' => 'Hver enkeltutgivelse må ha minst én disc av typen «feature». Mangler for:',
             'invalid_search_target' => 'Fant ikke raden som skulle oppdateres.',
             'invalid_json_payload' => 'Ugyldig JSON',
+            'load_payload_failed' => 'Klarte ikke å laste payload inn i skjemaet',
+            'load_payload_unsupported_kind' => 'Payloaden må ha "kind": "singles" eller "box_sets_bulk" for å kunne lastes inn i skjemaet.',
         ],
         'confirm' => [
             'reset' => 'Nullstille alt? Dette fjerner også lagret utkast i denne nettleseren.',

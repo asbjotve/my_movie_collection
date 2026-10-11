@@ -556,12 +556,14 @@ function h(string $s): string
                 <p><?= h(tr($t, 'hint.paste_payload')) ?></p>
               </div>
               <div class="btnRow">
+                <button class="btn" type="button" id="btnLoadPastedPayload"><?= h(tr($t, 'btn.load_pasted_payload')) ?></button>
                 <button class="btn btnSuccess" type="button" id="btnSubmitPastedPayload"><?= h(tr($t, 'btn.submit_pasted_payload')) ?></button>
               </div>
             </div>
             <div class="field span-12">
               <label for="pastedPayloadArea"><?= h(tr($t, 'label.pasted_payload')) ?></label>
               <textarea id="pastedPayloadArea" class="mono" rows="16" placeholder="<?= h(tr($t, 'ph.pasted_payload')) ?>"></textarea>
+              <small id="loadPastedPayloadStatus" style="display:none;"></small>
             </div>
           </section>
         </div>

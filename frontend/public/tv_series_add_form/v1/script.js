@@ -1083,6 +1083,7 @@
     setInputValue("boxBarcode", box.box_set_barcode || "");
     setInputValue("storageId", box.storage_id || "");
     setInputValue("copyCount", box.copy_count || 1);
+    setInputValue("ownerName", payload.owner || "");
 
     if (kind === "tv_series_boxset") {
       const series = payload.series || {};

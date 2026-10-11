@@ -1106,6 +1106,104 @@ function restoreState(state) {
   if ((state.boxSets || []).length === 0) boxSetsContainer.appendChild(createBoxSetCard());
 }
 
+/**
+ * Loads a raw backend payload (the exact shape POSTed to
+ * /import/physical-collection, i.e. what btnSubmitPastedPayload sends
+ * as-is) back into the guided form, so it can be inspected/edited via
+ * the UI instead of only as opaque JSON - mirrors the "Last inn
+ * payload i skjema" feature in tv_series_add_form/v1 (see
+ * loadPayloadIntoForm() there). Only "singles" and "box_sets_bulk"
+ * are supported (the two kinds this form itself can produce) -
+ * "tv_series_boxset"/"mixed_boxset" payloads belong in
+ * tv_series_add_form instead.
+ */
+function loadPasteIntoForm(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error(fmt('err.invalid_json_payload'));
+  }
+  if (payload.kind !== 'singles' && payload.kind !== 'box_sets_bulk') {
+    throw new Error(fmt('err.load_payload_unsupported_kind'));
+  }
+
+  if (payload.storage_id) document.getElementById('storageId').value = String(payload.storage_id);
+  if (typeof payload.owner === 'string') document.getElementById('ownerName').value = payload.owner;
+
+  if (payload.kind === 'singles') {
+    if (payload.default_copy_count) {
+      document.getElementById('singleCopyCount').value = String(payload.default_copy_count);
+    }
+
+    singleTbody.innerHTML = '';
+    (payload.rows || []).forEach(row => {
+      addSingleRow({
+        title: row.title,
+        format: row.format,
+        barcode: row.barcode,
+        imdb: row.imdb_id,
+        tmdb: row.tmdb_id,
+        tvdb: row.tvdb_id,
+      });
+      const trEl = singleTbody.lastElementChild;
+      if (trEl) {
+        setJsonAttr(trEl, 'data-discs', Array.isArray(row.discs) ? row.discs : []);
+        updateSingleDiscButtonLabel(trEl);
+      }
+    });
+    if ((payload.rows || []).length === 0) addSingleRow();
+
+    activateTab('singles');
+    return;
+  }
+
+  // kind === 'box_sets_bulk'
+  boxSetsContainer.innerHTML = '';
+  boxSetSeq = 0;
+  (payload.box_sets || []).forEach(bs => {
+    const card = createBoxSetCard();
+    boxSetsContainer.appendChild(card);
+    const root = card;
+
+    root.querySelector('select[name="box_format"]').value = bs.format || 'BD';
+    root.querySelector('input[name="box_barcode"]').value = bs.box_set_barcode || '';
+    root.querySelector('input[name="box_copy_count"]').value = String(bs.copy_count || 1);
+
+    const moviesTbody = root.querySelector('tbody[data-role="movies"]');
+    moviesTbody.innerHTML = '';
+    (bs.movies || []).forEach(movie => addBoxTitleRow(root, {
+      title: movie.title,
+      imdb: movie.imdb_id,
+      tmdb: movie.tmdb_id,
+      tvdb: movie.tvdb_id,
+      inner_ean: movie.inner_case_ean,
+      treat_as_single: !!movie.treat_as_single,
+    }));
+    if ((bs.movies || []).length === 0) addBoxTitleRow(root);
+
+    const discsTbody = root.querySelector('tbody[data-role="discs"]');
+    discsTbody.innerHTML = '';
+    (bs.discs || []).forEach(disc => addBoxDiscRow(root, {
+      typeDisc: disc.type_disc,
+      format: disc.format,
+      label: disc.label ?? '',
+      relatedIndexes: Array.isArray(disc.related_indexes)
+        ? disc.related_indexes
+        : (disc.related_index !== undefined && disc.related_index !== null
+          ? [Number(disc.related_index)]
+          : []),
+      relatedTitle: disc.related_title ?? '',
+      storage_slot_no: disc.storage_slot_no ?? '',
+      add_to_storage: !!disc.add_to_storage,
+      bonus_items: disc.bonus_items ?? [],
+    }));
+
+    refreshBoxRelatedDropdown(root);
+    updateBoxSetSummary(root);
+  });
+  if ((payload.box_sets || []).length === 0) boxSetsContainer.appendChild(createBoxSetCard());
+
+  activateTab('boxsets');
+}
+
 function activateTab(tabName) {
   document.querySelectorAll('.tabBtn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === tabName);
@@ -1494,6 +1592,30 @@ document.getElementById('btnSubmitPastedPayload').addEventListener('click', () =
     return;
   }
   submitPayload(payload, submitButton);
+});
+document.getElementById('btnLoadPastedPayload').addEventListener('click', () => {
+  const statusEl = document.getElementById('loadPastedPayloadStatus');
+  const raw = document.getElementById('pastedPayloadArea').value;
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch (error) {
+    statusEl.style.display = '';
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = `${fmt('err.invalid_json_payload')}: ${error.message}`;
+    return;
+  }
+  try {
+    loadPasteIntoForm(payload);
+    statusEl.style.display = '';
+    statusEl.style.color = 'var(--accent2)';
+    statusEl.textContent = fmt('status.load_payload_success');
+    scheduleSave();
+  } catch (error) {
+    statusEl.style.display = '';
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = `${fmt('err.load_payload_failed')}: ${error.message}`;
+  }
 });
 
 document.getElementById('btnBoxPasteApply').addEventListener('click', () => {
