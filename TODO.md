@@ -188,15 +188,20 @@ backlog to pick from.
       the frontend/admin UI (currently only settable directly in the
       database - see the owner facet added in feature/faceted-search,
       which reads owners but has no way to assign/reassign them).
-- [ ] Ability to add new owners/users via the frontend/admin UI
-      (currently only the `owner` table row itself can be added
-      directly in the database; the owner facet in "Mine filmer" will
-      automatically pick up any new owner once they exist and are
-      linked to physical copies).
-- [ ] Ability to specify owner when adding movies via
-      `bulk_add_movies_form` (doesn't exist today - this is one of
-      the reasons owner_id was NULL on every physical_copy row until
-      it was manually backfilled).
+- [x] Ability to add new owners/users via the frontend/admin UI -
+      the owner field on `bulk_add_movies_form`/`tv_series_add_form`
+      is now an `<input list>` with a datalist of existing owners
+      (via a `list_owners` proxy action), and typing a name that
+      doesn't exist yet simply creates that owner on submit. Still no
+      standalone "manage owners" page for renaming/merging/deleting
+      existing owners, or for reassigning an existing copy's owner
+      (see the item above).
+- [x] Ability to specify owner when adding movies via
+      `bulk_add_movies_form` - added an owner field (create-or-select
+      via datalist) to both `bulk_add_movies_form` and
+      `tv_series_add_form`, included in the payload on submit, in the
+      JSON preview, and restored correctly when loading a pasted
+      payload back into either form.
 - [ ] Ability to "import" a single movie into `bulk_add_movies_form`
       (e.g. from search results elsewhere in the app) instead of only
       manual bulk entry.
@@ -523,7 +528,8 @@ backlog to pick from.
       (`frontend/public/tv_series_add_form/v1`,
       `import_tv_series_boxset_payload` in
       `backend/app/services/add_data/physical_collection_import.py`),
-      not yet merged to `develop`. Status of previously open issues:
+      merged to `develop` and linked from the Administration panel
+      ("Legg til TV-serie(r)" card). Status of previously open issues:
       - [x] `inner_case_ean` display bug fixed: the per-season inner
         case collections were correctly imported, but the detail page
         read path (`_load_physical_copies` in
