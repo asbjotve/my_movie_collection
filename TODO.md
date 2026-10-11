@@ -618,9 +618,32 @@ backlog to pick from.
 
 ## Technical debt / cleanup
 
-- [ ] Consolidate/retire old versioned folders (`v3` ... `v19`, etc.)
+- [x] Consolidate/retire old versioned folders (`v3` ... `v19`, etc.)
       once a given app is confirmed stable on its latest version, to
-      reduce confusion about which one is actually "live".
+      reduce confusion about which one is actually "live". Moved every
+      superseded version into `frontend/public/_legacy/<app>/<version>`
+      (via `git mv`, history preserved), keeping only the live version
+      in place at `frontend/public/<app>/<version>`:
+      `website_template_example` (kept v19, legacy v1-v18),
+      `bulk_add_movies_form` (kept v14, legacy v1-v13),
+      `custom_list_manager` (kept v4, legacy v1-v3),
+      `tvdb_live_search` (kept v4, still used as a backend proxy by
+      `custom_list_manager/v4`, legacy v1-v3),
+      `add_to_wishlist` (kept v4, legacy v1-v3),
+      `tmdb_live_search` (kept v7, legacy v1-v6 - no longer linked
+      from anywhere live; TMDB search is now built directly into
+      `bulk_add_movies_form`/`tv_series_add_form`), and
+      `my_movie_list` (entirely retired to `_legacy/` - superseded by
+      the full catalog browse in `website_template_example`).
+      `wishlist_view` and `temp_add_movie_barcode` were intentionally
+      left untouched (still in active use / no replacement feature in
+      `v19` yet). Updated `frontend/public/index.php` (the dev
+      solutions-overview page) to link to the new `_legacy/...` paths
+      for retired versions, and reproduced the same move on the
+      production webroot. Verified via a PHP-CLI render of the
+      overview page (every link resolves to a real file) and live
+      HTTPS smoke tests of the live site, the admin-linked tools, and
+      a sample legacy URL.
 - [ ] Add automated tests (no `tests/` directory currently exists) -
       even minimal coverage for critical flows (auth, physical
       collection import) would catch regressions early.

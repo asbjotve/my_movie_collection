@@ -1,33 +1,43 @@
 <?php
-// Overview page listing all solutions/prototypes found under frontend/public,
-// with links to each version's entry point.
+// Overview page listing all solutions/prototypes found under frontend/public.
+// Each solution now lists its current (live, in-place) version plus any
+// older versions that have been retired into _legacy/<app>/<version>/ - see
+// TODO.md "Technical debt / cleanup" for the retirement/cleanup pass.
 
 $solutions = [
     'add_to_wishlist' => [
         'title' => 'Add to Wishlist',
         'desc'  => 'Upload a movie cover and add it to the fixed "Wishlist" custom list.',
-        'entries' => [
+        'current' => ['v4', 'v4/bildopp.php'],
+        'legacy' => [
             'v1' => 'v1/bildopp.php',
             'v2' => 'v2/bildopp.php',
             'v3' => 'v3/bildopp.php',
-            'v4' => 'v4/bildopp.php',
         ],
     ],
     'bulk_add_movies_form' => [
         'title' => 'Bulk Add Movies Form',
-        'desc'  => 'Add many movies at once, with TMDB lookup support in later versions.',
-        'entries' => [
+        'desc'  => 'Add many movies at once, with TMDB lookup support and an owner field in later versions.',
+        'current' => ['v14', 'v14/index.php'],
+        'legacy' => [
             'v1' => 'v1/index.php', 'v2' => 'v2/index.php', 'v3' => 'v3/index.php',
             'v4' => 'v4/index.php', 'v5' => 'v5/index.php', 'v6' => 'v6/index.php',
             'v7' => 'v7/index.php', 'v8' => 'v8/index.php', 'v9' => 'v9/index.php',
             'v10' => 'v10/index.php', 'v11' => 'v11/index.php', 'v12' => 'v12/index.php',
-            'v13' => 'v13/index.php', 'v14' => 'v14/index.php',
+            'v13' => 'v13/index.php',
         ],
+    ],
+    'tv_series_add_form' => [
+        'title' => 'TV Series Add Form',
+        'desc'  => 'Register physical TV series box sets (seasons/episodes/discs), including mixed boxes of series + movies.',
+        'current' => ['v1', 'v1/index.php'],
+        'legacy' => [],
     ],
     'custom_list_manager' => [
         'title' => 'Custom List Manager',
         'desc'  => 'Create new custom lists and add items to them via a dropdown (excludes the Wishlist).',
-        'entries' => [
+        'current' => ['v4', 'v4/index.php'],
+        'legacy' => [
             'v1' => 'v1/index.php',
             'v2' => 'v2/index.php',
             'v3' => 'v3/index.php',
@@ -36,46 +46,40 @@ $solutions = [
     'wishlist_view' => [
         'title' => 'Wishlist View',
         'desc'  => 'Mobile-friendly table listing all movies added to the wishlist.',
-        'entries' => [
-            'v1' => 'v1/index.php',
-        ],
-    ],
-    'my_movie_list' => [
-        'title' => 'My Movie List',
-        'desc'  => 'A simple searchable table of movies (title, IMDb/TMDB/TVDB IDs).',
-        'entries' => [
-            'v1' => 'v1/index.php',
-        ],
+        'current' => ['v1', 'v1/index.php'],
+        'legacy' => [],
     ],
     'temp_add_movie_barcode' => [
         'title' => 'Add Movie via Barcode (temp)',
         'desc'  => 'Prototype for adding a movie by scanning/entering a barcode.',
-        'entries' => [
-            'v1' => 'v1/index.html',
-        ],
+        'current' => ['v1', 'v1/index.html'],
+        'legacy' => [],
     ],
     'tmdb_live_search' => [
         'title' => 'TMDB Live Search',
         'desc'  => 'Live search against TMDB while typing a title.',
-        'entries' => [
+        'current' => ['v7', 'v7/live_search.php'],
+        'legacy' => [
             'v1' => 'v1/index.php',
             'v2' => 'v2/live_search.php', 'v3' => 'v3/live_search.php',
             'v4' => 'v4/live_search.php', 'v5' => 'v5/live_search.php',
-            'v6' => 'v6/live_search.php', 'v7' => 'v7/live_search.php',
+            'v6' => 'v6/live_search.php',
         ],
     ],
     'tvdb_live_search' => [
         'title' => 'TVDB Live Search',
-        'desc'  => 'Live search against TheTVDB while typing a title.',
-        'entries' => [
+        'desc'  => 'Live search against TheTVDB while typing a title. Still actively used as a backend proxy by custom_list_manager/v4.',
+        'current' => ['v4', 'v4/tvdb_search.php'],
+        'legacy' => [
             'v1' => 'v1/tvdb_search.php', 'v2' => 'v2/tvdb_search.php',
-            'v3' => 'v3/tvdb_search.php', 'v4' => 'v4/tvdb_search.php',
+            'v3' => 'v3/tvdb_search.php',
         ],
     ],
     'website_template_example' => [
         'title' => 'Website Template Example',
-        'desc'  => 'Design/layout prototypes for the overall site theme.',
-        'entries' => [
+        'desc'  => 'The live site: overall theme/layout, catalog browsing, detail pages, administration panel.',
+        'current' => ['v19', 'v19/index.php'],
+        'legacy' => [
             'v1' => 'v1/index.html', 'v2' => 'v2/index.html', 'v3' => 'v3/index.html',
             'v4' => 'v4/index.html', 'v5' => 'v5/index.html', 'v6' => 'v6/index.html',
             'v7' => 'v7/index.html', 'v8' => 'v8/index.html', 'v9' => 'v9/index.html',
@@ -86,6 +90,7 @@ $solutions = [
     ],
 ];
 ?>
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -142,6 +147,8 @@ $solutions = [
   }
   .versions a:hover { border-color: var(--accent); color: var(--accent); }
   .versions a.latest { border-color: var(--good); color: var(--good); }
+  .versions a.legacy { opacity: 0.6; }
+  .legacyLabel { color: var(--muted); font-size: 0.75rem; margin: 10px 0 4px; }
   footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 20px; }
 </style>
 </head>
@@ -153,24 +160,31 @@ $solutions = [
 <main>
   <div class="grid">
   <?php foreach ($solutions as $folder => $s):
-      $versionKeys = array_keys($s['entries']);
-      $latestKey = end($versionKeys);
+      [$currentVer, $currentPath] = $s['current'];
   ?>
     <div class="card">
       <h2><?= htmlspecialchars($s['title']) ?></h2>
       <p class="desc"><?= htmlspecialchars($s['desc']) ?></p>
       <div class="versions">
-        <?php foreach ($s['entries'] as $ver => $path): ?>
-          <a class="<?= $ver === $latestKey ? 'latest' : '' ?>"
-             href="<?= htmlspecialchars($folder . '/' . $path) ?>">
-             <?= htmlspecialchars($ver) ?><?= $ver === $latestKey ? ' ★' : '' ?>
-          </a>
-        <?php endforeach; ?>
+        <a class="latest" href="<?= htmlspecialchars($folder . '/' . $currentPath) ?>">
+           <?= htmlspecialchars($currentVer) ?> ★
+        </a>
       </div>
+      <?php if (!empty($s['legacy'])): ?>
+        <p class="legacyLabel">Older versions (retired to <code>_legacy/<?= htmlspecialchars($folder) ?>/</code>):</p>
+        <div class="versions">
+          <?php foreach ($s['legacy'] as $ver => $path): ?>
+            <a class="legacy" href="<?= htmlspecialchars('_legacy/' . $folder . '/' . $path) ?>">
+               <?= htmlspecialchars($ver) ?>
+            </a>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
     </div>
   <?php endforeach; ?>
   </div>
 </main>
-<footer>★ = latest version</footer>
+<footer>★ = current/live version · faded links = retired, kept for reference only</footer>
 </body>
 </html>
+
