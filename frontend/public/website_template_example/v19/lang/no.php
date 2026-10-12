@@ -79,7 +79,6 @@ return [
                 'back_to_lists' => 'Tilbake til listene',
                 'fetch_error_prefix' => 'Kunne ikke hente lister: ',
                 'show_cover'  => 'Vis cover',
-                'hide_cover'  => 'Skjul cover',
             ],
 
             'administrering' => [

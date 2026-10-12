@@ -76,7 +76,6 @@ return [
                 'back_to_lists' => 'Back to lists',
                 'fetch_error_prefix' => 'Could not fetch lists: ',
                 'show_cover'  => 'Show cover',
-                'hide_cover'  => 'Hide cover',
             ],
 
             'administrering' => [

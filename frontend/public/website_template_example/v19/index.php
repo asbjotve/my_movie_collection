@@ -667,6 +667,16 @@ $sectionAccess = [
       <h3 id="andreListerDetailTitle" style="margin:14px 0 10px;"></h3>
       <div class="list" id="andreListerItemsList"></div>
     </div>
+
+    <div id="coverPreviewModalOverlay" class="modalOverlay" style="display:none;">
+      <div class="modalBox" style="max-width:360px; text-align:center;">
+        <div class="modalHeader">
+          <h3 id="coverPreviewModalTitle"></h3>
+          <button type="button" id="btnCloseCoverPreviewModal" class="modalCloseBtn">&times;</button>
+        </div>
+        <img id="coverPreviewModalImg" src="" alt="" style="width:100%; max-width:300px; border-radius:10px;">
+      </div>
+    </div>
   <?php endif; ?>
 </section>
 
@@ -1319,6 +1329,24 @@ $sectionAccess = [
     const andreListerDetailTitle = document.getElementById("andreListerDetailTitle");
     const andreListerItemsList = document.getElementById("andreListerItemsList");
     const andreListerBackBtn = document.getElementById("andreListerBackBtn");
+    const coverPreviewModalOverlay = document.getElementById("coverPreviewModalOverlay");
+    const coverPreviewModalTitle = document.getElementById("coverPreviewModalTitle");
+    const coverPreviewModalImg = document.getElementById("coverPreviewModalImg");
+
+    function openCoverPreviewModal(title, coverUrl) {
+      coverPreviewModalTitle.textContent = title;
+      coverPreviewModalImg.src = coverUrl;
+      coverPreviewModalImg.alt = title;
+      coverPreviewModalOverlay.style.display = "flex";
+    }
+    function closeCoverPreviewModal() {
+      coverPreviewModalOverlay.style.display = "none";
+      coverPreviewModalImg.src = "";
+    }
+    document.getElementById("btnCloseCoverPreviewModal")?.addEventListener("click", closeCoverPreviewModal);
+    coverPreviewModalOverlay.addEventListener("click", (e) => {
+      if (e.target === coverPreviewModalOverlay) closeCoverPreviewModal();
+    });
 
     function renderAndreListerGrid(lists) {
       if (!lists.length) {
@@ -1377,30 +1405,23 @@ $sectionAccess = [
           const rows = group.items.map(it => {
             const year = it.first_release_year ? ` (${it.first_release_year})` : "";
             const toggleBtn = it.cover_image
-              ? `<button type="button" class="btn toggleCoverBtn">${WTE_I18N.andre_lister.show_cover}</button>`
+              ? `<button type="button" class="btn toggleCoverBtn" data-title="${it.title.replace(/"/g, "&quot;")}${year}" data-cover="${it.cover_image}">${WTE_I18N.andre_lister.show_cover}</button>`
               : "";
             return `
             <div class="row">
               <strong>${it.title}${year}</strong>
-              <div style="display:flex; align-items:center; gap:10px;">
-                ${toggleBtn}
-                ${it.cover_image ? `<img class="listItemCover" style="display:none;" src="${it.cover_image}" alt="">` : ""}
-              </div>
+              ${toggleBtn}
             </div>`;
           }).join("");
           return header + rows;
         }).join("");
 
-        // Hver rad har en "vis cover"-knapp som viser/skjuler cover-bildet
-        // ved klikk, slik at brukeren kan velge ren tekstliste (standard)
-        // eller sjekke cover-bildet for en spesifikk film uten at hele
-        // visningen må bygges om til et rutenett av postere.
+        // Hver rad har en "vis cover"-knapp som åpner cover-bildet i en
+        // modal (i stedet for å vise det inline i raden, som ble for
+        // lite til å faktisk se noe på).
         andreListerItemsList.querySelectorAll(".toggleCoverBtn").forEach(btn => {
           btn.addEventListener("click", () => {
-            const img = btn.nextElementSibling;
-            const showing = img.style.display !== "none";
-            img.style.display = showing ? "none" : "block";
-            btn.textContent = showing ? WTE_I18N.andre_lister.show_cover : WTE_I18N.andre_lister.hide_cover;
+            openCoverPreviewModal(btn.dataset.title, btn.dataset.cover);
           });
         });
       } catch (err) {
