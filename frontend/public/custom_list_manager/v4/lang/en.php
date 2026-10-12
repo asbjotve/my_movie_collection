@@ -150,6 +150,7 @@ return [
 
             'drag_handle_title' => 'Drag to reorder',
             'group_drag_handle_title' => 'Drag to move the whole group',
+            'group_collapse_toggle_title' => 'Show/hide the movies in this group',
             'drag_hint'          => 'Drag ⠿ to reorder manually',
             'btn_sort_alpha'     => '🔤 Sort alphabetically',
             'btn_sort_alpha_title' => 'Sort the list alphabetically by title (A-Z)',

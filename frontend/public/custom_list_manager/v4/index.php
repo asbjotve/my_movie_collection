@@ -815,6 +815,20 @@ if ($listsResponse === false || $listsCurlError) {
       padding:2px 4px;
     }
     table.items-table .group-drag-handle:hover{ color: var(--text); }
+    /* Small "▾/▸" button inside each group header that hides/shows its
+       item rows (UI-only, see collapsedGroups in items-editor.js) -
+       mainly meant to make dragging an entire group block easier/
+       quicker to aim on long lists. */
+    table.items-table .group-collapse-toggle{
+      appearance:none;
+      border:none;
+      background:transparent;
+      color: var(--muted);
+      font-size:12px;
+      cursor:pointer;
+      padding:2px 6px 2px 0;
+    }
+    table.items-table .group-collapse-toggle:hover{ color: var(--text); }
     /* Gruppe-overskriftsrader (ett per group_label-verdi, inkludert en
        alltid-synlig "ingen gruppe"-seksjon) - kun til visning, ikke
        draggbare selv (ingen .row-drag-handle), men fungerer som gyldige

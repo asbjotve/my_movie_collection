@@ -149,6 +149,7 @@ return [
 
             'drag_handle_title' => 'Dra for å endre rekkefølge',
             'group_drag_handle_title' => 'Dra for å flytte hele gruppen',
+            'group_collapse_toggle_title' => 'Vis/skjul filmene i denne gruppen',
             'drag_hint'          => 'Dra ⠿ for å endre rekkefølgen manuelt',
             'btn_sort_alpha'     => '🔤 Sorter alfabetisk',
             'btn_sort_alpha_title' => 'Sorter listen alfabetisk etter tittel (A-Å)',

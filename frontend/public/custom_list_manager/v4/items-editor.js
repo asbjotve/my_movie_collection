@@ -59,6 +59,13 @@
 
   let initialised = false;
   let currentItems = [];
+  // Group-header labels currently collapsed (hiding their item rows) - UI
+  // only, not persisted server-side. Makes it easier to drag a whole
+  // group block into place on long lists (less to scroll past, and the
+  // collapsed header's own bounding box is all that matters for the
+  // group-drag drop-target snapping, see wireRowDragging()). Reset
+  // whenever a different list is loaded.
+  const collapsedGroups = new Set();
 
   function setStatus(el, text, type) {
     if (!el) return;
@@ -113,6 +120,7 @@
 
   async function loadItems(listId) {
     syncVisibilityToggle(listId);
+    collapsedGroups.clear();
     if (!listId) {
       currentItems = [];
       tableContainer.innerHTML = `<div class="empty-hint">${escapeHtml(tr('select_list_hint'))}</div>`;
@@ -188,6 +196,15 @@
         tbody.appendChild(buildRow(item, listId, false, position));
       });
     });
+    // Freshly-built rows are always visible by default - re-apply
+    // "hidden" to any group that was already collapsed before this
+    // (re-)render (e.g. after a quick-sort action), so the header's
+    // "▸ collapsed" state and its rows' actual visibility stay in sync.
+    tbody.querySelectorAll('tr.row-group-header.collapsed').forEach((headerRow) => {
+      getGroupItemRows(headerRow).forEach((row) => {
+        row.style.display = 'none';
+      });
+    });
     wireRowDragging(tbody, listId);
 
     tableContainer.innerHTML = '';
@@ -221,13 +238,55 @@
     const tr_ = document.createElement('tr');
     tr_.className = 'row-group-header';
     tr_.dataset.groupLabel = label || '';
+    const key = label || '';
+    const isCollapsed = collapsedGroups.has(key);
+    if (isCollapsed) tr_.classList.add('collapsed');
     const text = label ? escapeHtml(label) : escapeHtml(tr('ungrouped_label'));
     tr_.innerHTML = `
       <td class="cell-position"></td>
       <td class="cell-drag"><span class="group-drag-handle" draggable="true" title="${escapeHtml(tr('group_drag_handle_title'))}">⠿</span></td>
-      <td colspan="10">${text}</td>
+      <td colspan="10">
+        <button type="button" class="group-collapse-toggle" title="${escapeHtml(tr('group_collapse_toggle_title'))}">${isCollapsed ? '▸' : '▾'}</button>
+        ${text}
+      </td>
     `;
+    tr_.querySelector('.group-collapse-toggle').addEventListener('click', () => {
+      toggleGroupCollapse(tr_, key);
+    });
     return tr_;
+  }
+
+  // Every item row following headerRow, up to (but excluding) the next
+  // group-header row or the end of the table - shared by the collapse
+  // toggle (hide/show) and the group-drag handle (move as one block).
+  function getGroupItemRows(headerRow) {
+    const rows = [];
+    let sibling = headerRow.nextElementSibling;
+    while (sibling && !sibling.classList.contains('row-group-header')) {
+      rows.push(sibling);
+      sibling = sibling.nextElementSibling;
+    }
+    return rows;
+  }
+
+  // Hides/shows a group's item rows in place (UI-only, see
+  // collapsedGroups) - makes it much easier to drag a whole group block
+  // into position on long lists, since there's far less to scroll past
+  // and the collapsed header's own (smaller) bounding box is what the
+  // group-drag drop-target snapping in wireRowDragging() uses.
+  function toggleGroupCollapse(headerRow, key) {
+    const wasCollapsed = collapsedGroups.has(key);
+    if (wasCollapsed) {
+      collapsedGroups.delete(key);
+    } else {
+      collapsedGroups.add(key);
+    }
+    headerRow.classList.toggle('collapsed', !wasCollapsed);
+    const toggleBtn = headerRow.querySelector('.group-collapse-toggle');
+    if (toggleBtn) toggleBtn.textContent = wasCollapsed ? '▾' : '▸';
+    getGroupItemRows(headerRow).forEach((row) => {
+      row.style.display = wasCollapsed ? '' : 'none';
+    });
   }
 
   // Drag-and-drop row reordering. Only the small "⠿" handle cell is
@@ -247,13 +306,7 @@
   // Collects a group-header row and every item row that follows it, up to
   // (but excluding) the next group-header row or the end of the table.
   function collectGroupBlock(headerRow) {
-    const rows = [headerRow];
-    let sibling = headerRow.nextElementSibling;
-    while (sibling && !sibling.classList.contains('row-group-header')) {
-      rows.push(sibling);
-      sibling = sibling.nextElementSibling;
-    }
-    return rows;
+    return [headerRow, ...getGroupItemRows(headerRow)];
   }
 
   function wireRowDragging(tbody, listId) {
