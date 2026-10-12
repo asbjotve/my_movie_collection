@@ -127,12 +127,46 @@
     `;
 
     const tbody = table.querySelector('tbody');
-    items.forEach((item) => tbody.appendChild(buildRow(item, listId, false)));
+    groupItemsForDisplay(items).forEach((group) => {
+      tbody.appendChild(buildGroupHeaderRow(group.label));
+      group.items.forEach((item) => tbody.appendChild(buildRow(item, listId, false)));
+    });
     wireRowDragging(tbody, listId);
 
     tableContainer.innerHTML = '';
     tableContainer.appendChild(toolbar);
     tableContainer.appendChild(table);
+  }
+
+  // Buckets items by group_label, preserving first-appearance order (same
+  // algorithm as the public "Andre lister" view, so the grouping the user
+  // sees/organises here matches what visitors eventually see) - items
+  // sharing a label are NOT necessarily adjacent in raw sort_order, so a
+  // naive "new header when the label changes from the previous item" rule
+  // would show duplicate headers for interleaved groups.
+  // Always includes a (possibly empty) "ingen gruppe" bucket first, so
+  // there's a permanent drop target for removing an item from any group.
+  function groupItemsForDisplay(items) {
+    const groups = [{ label: null, items: [] }];
+    const indexByLabel = new Map([[null, 0]]);
+    items.forEach((item) => {
+      const label = item.group_label || null;
+      if (!indexByLabel.has(label)) {
+        indexByLabel.set(label, groups.length);
+        groups.push({ label, items: [] });
+      }
+      groups[indexByLabel.get(label)].items.push(item);
+    });
+    return groups;
+  }
+
+  function buildGroupHeaderRow(label) {
+    const tr_ = document.createElement('tr');
+    tr_.className = 'row-group-header';
+    tr_.dataset.groupLabel = label || '';
+    const text = label ? escapeHtml(label) : escapeHtml(tr('ungrouped_label'));
+    tr_.innerHTML = `<td colspan="11">${text}</td>`;
+    return tr_;
   }
 
   // Drag-and-drop row reordering. Only the small "⠿" handle cell is
@@ -181,12 +215,47 @@
       if (!draggedRow) return;
       draggedRow.classList.remove('row-dragging');
       draggedRow = null;
-      await persistOrder(tbody, listId);
+      await persistRowsAfterDrag(tbody, listId);
     });
   }
 
-  async function persistOrder(tbody, listId) {
-    const orderedIds = [...tbody.querySelectorAll('tr')].map((row) => row.dataset.itemId);
+  // Walks the tbody top-to-bottom, tracking which group-header section each
+  // item row currently sits under (reset at every header row encountered;
+  // rows before the first header - which should never happen, since
+  // groupItemsForDisplay() always renders an "ingen gruppe" header first -
+  // fall back to no group). This reflects whatever grouping the drag just
+  // produced, independent of each item's previously-saved group_label.
+  function computeRowsWithGroups(tbody) {
+    let currentLabel = null;
+    const rows = [];
+    [...tbody.children].forEach((row) => {
+      if (row.classList.contains('row-group-header')) {
+        currentLabel = row.dataset.groupLabel || null;
+        return;
+      }
+      if (row.dataset.itemId) rows.push({ itemId: row.dataset.itemId, label: currentLabel, rowEl: row });
+    });
+    return rows;
+  }
+
+  async function persistGroupLabel(listId, itemId, label) {
+    const res = await fetch(ajaxUrl('set_group_label'), {
+      method: 'POST',
+      body: new URLSearchParams({ list_id: listId, list_item_id: itemId, group_label: label || '' }),
+      keepalive: true,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+  }
+
+  // Persists both the row order (unchanged "reorder_items" call) AND, for
+  // any item whose group-header section changed as a result of the drag,
+  // its new group_label (via "set_group_label") - a drag that drops a row
+  // into/out of a group section is how grouping is now organised, instead
+  // of only via the per-row text input.
+  async function persistRowsAfterDrag(tbody, listId) {
+    const rows = computeRowsWithGroups(tbody);
+    const orderedIds = rows.map((r) => r.itemId);
     setStatus(statusEl, tr('sort_saving'), 'info');
     try {
       const res = await fetch(ajaxUrl('reorder_items'), {
@@ -201,11 +270,28 @@
       if (!res.ok) {
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
-      // Keep the in-memory cache in the same order the table now shows,
-      // so switching a row to edit mode and back (which re-renders from
-      // currentItems) doesn't jump back to the old order.
+
       const byId = new Map(currentItems.map((it) => [it.list_item_id, it]));
-      currentItems = orderedIds.map((id) => byId.get(id)).filter(Boolean);
+      const changed = rows.filter((r) => {
+        const item = byId.get(r.itemId);
+        return item && (item.group_label || null) !== r.label;
+      });
+      await Promise.all(changed.map((r) => persistGroupLabel(listId, r.itemId, r.label)));
+
+      // Keep the in-memory cache (order + group_label) and each row's
+      // group-label input in sync with what the table now shows, so
+      // switching a row to edit mode and back - or a later quick-sort -
+      // doesn't jump back to stale data.
+      changed.forEach((r) => {
+        const input = r.rowEl.querySelector('.row-group-label');
+        if (input) input.value = r.label || '';
+      });
+      currentItems = rows.map((r) => {
+        const item = byId.get(r.itemId);
+        if (item) item.group_label = r.label;
+        return item;
+      }).filter(Boolean);
+
       setStatus(statusEl, tr('sort_saved'), 'success');
       setTimeout(() => setStatus(statusEl, '', 'info'), 1500);
     } catch (err) {
@@ -213,11 +299,12 @@
     }
   }
 
-  // "Sorter alfabetisk"/"Sorter etter år" quick actions - sort the current
-  // items client-side, re-render the table in that order, then persist
-  // it exactly like a manual drag would (same persistOrder() call).
+  // "Sorter alfabetisk"/"Sorter etter år" quick actions - sort items WITHIN
+  // each existing group (so grouping boundaries aren't scrambled by a
+  // cross-group sort), re-render in that order, then persist it exactly
+  // like a manual drag would.
   async function sortAndPersist(listId, mode) {
-    const sorted = [...currentItems].sort((a, b) => {
+    const compare = (a, b) => {
       if (mode === 'year') {
         const ay = a.first_release_year;
         const by = b.first_release_year;
@@ -228,11 +315,13 @@
         return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
       }
       return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
-    });
-    currentItems = sorted;
+    };
+    const groups = groupItemsForDisplay(currentItems);
+    groups.forEach((group) => group.items.sort(compare));
+    currentItems = groups.flatMap((group) => group.items);
     renderTable(currentItems, listId);
     const tbody = tableContainer.querySelector('tbody');
-    if (tbody) await persistOrder(tbody, listId);
+    if (tbody) await persistRowsAfterDrag(tbody, listId);
   }
 
   // Builds a single <tr>, either as a read-only display row (editing=false)
@@ -323,10 +412,12 @@
     return tr_;
   }
 
-  // The "Fase/gruppe" input saves itself on blur/Enter, independent of the
+  // The "Gruppe" input saves itself on blur/Enter, independent of the
   // row's own edit/view toggle and "Lagre"/"Rediger" flow - it's a property
   // of the entry's placement in THIS list (custom_list_entries.group_label),
-  // not an editable field of the underlying item itself.
+  // not an editable field of the underlying item itself. Re-renders the
+  // table afterwards so the row visually jumps into its new group's
+  // section right away (same grouped layout a drag-and-drop would produce).
   function wireGroupLabelInput(inputEl, listId, item) {
     if (!inputEl) return;
     const persist = async () => {
@@ -349,6 +440,12 @@
         item.group_label = newValue || null;
         const idx = currentItems.findIndex((it) => it.list_item_id === item.list_item_id);
         if (idx !== -1) currentItems[idx].group_label = item.group_label;
+        // Don't re-render while the row is mid-edit (would discard any
+        // other unsaved field edits in progress) - the row will land in
+        // its new group's section next time the table re-renders anyway.
+        if (!inputEl.closest('tr')?.classList.contains('row-editing')) {
+          renderTable(currentItems, listId);
+        }
       } catch (err) {
         setStatus(statusEl, tr('save_error_prefix', err.message || err), 'error');
         inputEl.value = item.group_label || '';

@@ -123,9 +123,10 @@ return [
             'col_tvdb'           => 'TVDB',
             'col_season'         => 'Sesong',
             'col_actions'        => 'Handlinger',
-            'col_group_label'    => 'Fase/gruppe',
-            'group_label_placeholder' => 'F.eks. Fase 1',
-            'group_label_title'  => 'Valgfri gruppe-/fasemerking (f.eks. "Fase 1") for å dele listen inn i seksjoner',
+            'col_group_label'    => 'Gruppe',
+            'group_label_placeholder' => 'F.eks. Gruppe 1',
+            'group_label_title'  => 'Valgfri gruppemerking for å dele listen inn i seksjoner',
+            'ungrouped_label'    => 'Ingen gruppe',
 
             'btn_edit'           => 'Rediger',
             'btn_save'           => 'Lagre',

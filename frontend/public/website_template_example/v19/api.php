@@ -316,7 +316,7 @@ if (($_GET['action'] ?? '') === 'list_custom_lists') {
 
 // GET ?action=list_custom_list_items&list_id=<uuid>
 // Brukes av "Andre lister"-panelet for å vise innholdet i én valgt
-// liste (tittel, år, cover, fase/gruppe) - se
+// liste (tittel, år, cover, gruppe) - se
 // GET /lists/{list_id}/items i
 // backend/app/routes/add_data/custom_list_manager_route.py.
 if (($_GET['action'] ?? '') === 'list_custom_list_items') {

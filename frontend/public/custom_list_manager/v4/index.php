@@ -738,6 +738,20 @@ if ($listsResponse === false || $listsCurlError) {
     }
     table.items-table .row-drag-handle:hover{ color: var(--text); }
     table.items-table tr.row-dragging{ opacity:.4; }
+    /* Gruppe-overskriftsrader (ett per group_label-verdi, inkludert en
+       alltid-synlig "ingen gruppe"-seksjon) - kun til visning, ikke
+       draggbare selv (ingen .row-drag-handle), men fungerer som gyldige
+       drop-mål: en rad sluppet rett under en overskrift får automatisk
+       den gruppens etikett (se items-editor.js handleRowsDropped()). */
+    table.items-table tr.row-group-header td{
+      background: rgba(122,162,255,.08);
+      font-weight:700;
+      color: var(--text);
+      padding:8px;
+    }
+    table.items-table tr.row-group-header.drag-target td{
+      background: rgba(122,222,162,.18);
+    }
 
     /* Quick "sort by X" actions above the items table - persist the same
        way a manual drag does (see items-editor.js sortAndPersist()). */

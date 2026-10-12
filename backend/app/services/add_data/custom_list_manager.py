@@ -457,8 +457,8 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
 def set_list_item_group_label(
     db: Session, list_id: str, list_item_id: str, group_label: str | None
 ) -> dict[str, str | None]:
-    """Sets (or clears, if group_label is empty) the "phase"/group label of
-    a single entry within a list - e.g. "Fase 1" for Marvel-style ordered
+    """Sets (or clears, if group_label is empty) the group label of
+    a single entry within a list - e.g. for Marvel-style ordered
     lists. Stored on custom_list_entries, not list_items, since it's a
     property of the item's placement within this specific list."""
     parsed_list_id = _parse_list_id(list_id)

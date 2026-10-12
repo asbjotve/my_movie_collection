@@ -124,9 +124,10 @@ return [
             'col_tvdb'           => 'TVDB',
             'col_season'         => 'Season',
             'col_actions'        => 'Actions',
-            'col_group_label'    => 'Phase/group',
-            'group_label_placeholder' => 'E.g. Phase 1',
-            'group_label_title'  => 'Optional group/phase label (e.g. "Phase 1") to split the list into sections',
+            'col_group_label'    => 'Group',
+            'group_label_placeholder' => 'E.g. Group 1',
+            'group_label_title'  => 'Optional group label to split the list into sections',
+            'ungrouped_label'    => 'No group',
 
             'btn_edit'           => 'Edit',
             'btn_save'           => 'Save',

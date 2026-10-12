@@ -20,8 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema.
 
-    Adds a nullable, free-text "phase"/group label per list entry (e.g.
-    "Fase 1", "Fase 2" for a Marvel-style ordered list) - see
+    Adds a nullable, free-text group label per list entry (e.g. for a
+    Marvel-style ordered list) - see
     custom_list_manager.py. Deliberately on custom_list_entries (the
     list<->item link), not on list_items itself, since the same
     list_item could in theory belong to more than one list with a

@@ -1385,9 +1385,9 @@ $sectionAccess = [
         }
         // Samler alle elementer under samme group_label i én bolk, selv
         // om de ikke ligger ved siden av hverandre i sort_order (f.eks.
-        // hvis filmer er lagt til i Fase 1/Fase 2/Fase 1-rekkefølge) -
+        // hvis filmer er lagt til i Gruppe 1/Gruppe 2/Gruppe 1-rekkefølge) -
         // en ren "header når verdien endrer seg fra forrige rad"-logikk
-        // ga duplikate fase-overskrifter i praksis, se tilbakemelding fra
+        // ga duplikate gruppe-overskrifter i praksis, se tilbakemelding fra
         // bruker.
         const groups = [];
         const groupIndexByLabel = new Map();
