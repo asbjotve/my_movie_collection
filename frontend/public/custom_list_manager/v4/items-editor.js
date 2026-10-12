@@ -284,9 +284,19 @@
     tbody.addEventListener('dragover', (e) => {
       if (draggedGroupRows) {
         e.preventDefault();
-        const rows = [...tbody.children].filter((r) => !draggedGroupRows.includes(r));
+        // Only ever re-insert the dragged block right before another
+        // group's header row (or at the very end) - never in the middle
+        // of another group's items. Picking a target among ALL rows
+        // (like the single-row drag below) let a short/imprecise drag
+        // drop the block mid-way through a different group: the items
+        // AFTER that drop point then kept reading the dragged group's
+        // label as their own in computeRowsWithGroups() (which just
+        // tracks "last header seen" top-to-bottom), silently merging
+        // part of one group into another on save.
+        const headerRows = [...tbody.querySelectorAll('tr.row-group-header')]
+          .filter((r) => !draggedGroupRows.includes(r));
         let target = null;
-        for (const row of rows) {
+        for (const row of headerRows) {
           const box = row.getBoundingClientRect();
           const midY = box.top + box.height / 2;
           if (e.clientY < midY) {
