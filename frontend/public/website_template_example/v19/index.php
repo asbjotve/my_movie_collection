@@ -646,8 +646,14 @@ $sectionAccess = [
     <p class="pageHint"><?= htmlspecialchars(t('wte.locked_hint')) ?></p>
     <a href="login.php" class="loginCta btn"><?= htmlspecialchars(t('wte.nav.login_cta')) ?></a>
   <?php else: ?>
-    <p class="pageHint"><?= htmlspecialchars(t('wte.index.andre_lister.placeholder')) ?></p>
+    <p class="pageHint" id="andreListerStatus"><?= htmlspecialchars(t('wte.index.andre_lister.loading')) ?></p>
     <div class="grid" id="andreListerGrid"></div>
+
+    <div id="andreListerDetail" style="display:none;">
+      <button type="button" class="btn" id="andreListerBackBtn">&larr; <?= htmlspecialchars(t('wte.index.andre_lister.back_to_lists')) ?></button>
+      <h3 id="andreListerDetailTitle" style="margin:14px 0 10px;"></h3>
+      <div class="list" id="andreListerItemsList"></div>
+    </div>
   <?php endif; ?>
 </section>
 
@@ -756,12 +762,6 @@ $sectionAccess = [
   const demoWishlist = [
     { title: WTE_I18N.onskeliste.demo_items?.[0] ?? "Oppenheimer", addedAt:"2026-05-01" },
     { title: WTE_I18N.onskeliste.demo_items?.[1] ?? "Poor Things", addedAt:"2026-04-18" },
-  ];
-
-  const demoLists = [
-    { name: WTE_I18N.andre_lister.demo_items?.[0] ?? "Julefilmer", itemCount:7 },
-    { name: WTE_I18N.andre_lister.demo_items?.[1] ?? "Barnefilmer", itemCount:12 },
-    { name: WTE_I18N.andre_lister.demo_items?.[2] ?? "Skal ses med kompiser", itemCount:3 },
   ];
 
   // ---- Mine filmer: live data fra databasen (api.php), som v15 ----
@@ -1293,17 +1293,92 @@ $sectionAccess = [
   }
 
   // ---- Render: Andre lister ----
+  // Henter faktiske egendefinerte lister (navn + antall) fra
+  // api.php?action=list_custom_lists (som igjen proxyer GET /lists),
+  // og viser elementene i en valgt liste via
+  // api.php?action=list_custom_list_items&list_id=... - se
+  // backend/app/services/add_data/custom_list_manager.py.
   const andreListerLocked = <?= $sectionAccess['andre_lister'] ? 'true' : 'false' ?>;
   if (!andreListerLocked) {
+    const andreListerStatus = document.getElementById("andreListerStatus");
     const andreListerGrid = document.getElementById("andreListerGrid");
-    andreListerGrid.innerHTML = demoLists.map(l => `
-      <div class="card">
-        <div class="meta">
-          <div class="title">${l.name}</div>
-          <div class="sub"><span class="tag badge">${wteFormat(WTE_I18N.andre_lister.item_count, l.itemCount)}</span></div>
+    const andreListerDetail = document.getElementById("andreListerDetail");
+    const andreListerDetailTitle = document.getElementById("andreListerDetailTitle");
+    const andreListerItemsList = document.getElementById("andreListerItemsList");
+    const andreListerBackBtn = document.getElementById("andreListerBackBtn");
+
+    function renderAndreListerGrid(lists) {
+      if (!lists.length) {
+        andreListerStatus.textContent = WTE_I18N.andre_lister.empty;
+        andreListerGrid.innerHTML = "";
+        return;
+      }
+      andreListerStatus.textContent = "";
+      andreListerGrid.innerHTML = lists.map(l => `
+        <div class="card" data-list-id="${l.list_id}" style="cursor:pointer;">
+          <div class="meta">
+            <div class="title">${l.list_name}</div>
+            <div class="sub"><span class="tag badge">${wteFormat(WTE_I18N.andre_lister.item_count, l.item_count)}</span></div>
+          </div>
         </div>
-      </div>
-    `).join("");
+      `).join("");
+      andreListerGrid.querySelectorAll(".card").forEach(el => {
+        el.onclick = () => openAndreListerDetail(el.dataset.listId, el.querySelector(".title").textContent);
+      });
+    }
+
+    async function openAndreListerDetail(listId, listName) {
+      andreListerGrid.style.display = "none";
+      andreListerStatus.style.display = "none";
+      andreListerDetail.style.display = "block";
+      andreListerDetailTitle.textContent = listName;
+      andreListerItemsList.innerHTML = `<div class="row">${WTE_I18N.andre_lister.loading}</div>`;
+      try {
+        const res = await fetch("api.php?action=list_custom_list_items&list_id=" + encodeURIComponent(listId));
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || res.statusText);
+        const items = Array.isArray(json) ? json : [];
+        if (!items.length) {
+          andreListerItemsList.innerHTML = `<div class="row">${WTE_I18N.andre_lister.empty}</div>`;
+          return;
+        }
+        let lastGroupLabel = undefined;
+        andreListerItemsList.innerHTML = items.map(it => {
+          let groupHeader = "";
+          if (it.group_label !== lastGroupLabel) {
+            lastGroupLabel = it.group_label;
+            if (it.group_label) {
+              groupHeader = `<h4 style="margin:16px 0 4px;">${it.group_label}</h4>`;
+            }
+          }
+          const year = it.first_release_year ? ` (${it.first_release_year})` : "";
+          return `${groupHeader}
+            <div class="row" style="display:flex; align-items:center; gap:10px;">
+              ${it.cover_image ? `<img src="${it.cover_image}" alt="" style="width:36px; height:54px; object-fit:cover; border-radius:4px;">` : ""}
+              <strong>${it.title}${year}</strong>
+            </div>`;
+        }).join("");
+      } catch (err) {
+        andreListerItemsList.innerHTML = `<div class="row" style="color: var(--danger, #e85d5d);">${WTE_I18N.andre_lister.fetch_error_prefix}${err.message}</div>`;
+      }
+    }
+
+    andreListerBackBtn.onclick = () => {
+      andreListerDetail.style.display = "none";
+      andreListerGrid.style.display = "";
+      andreListerStatus.style.display = "";
+    };
+
+    (async () => {
+      try {
+        const res = await fetch("api.php?action=list_custom_lists");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || res.statusText);
+        renderAndreListerGrid(Array.isArray(json) ? json : []);
+      } catch (err) {
+        andreListerStatus.textContent = WTE_I18N.andre_lister.fetch_error_prefix + err.message;
+      }
+    })();
   }
 
   // ---- Toppmeny: bytt synlig panel ----

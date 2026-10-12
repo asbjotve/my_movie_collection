@@ -73,9 +73,11 @@ return [
 
             'andre_lister' => [
                 'title'       => 'Andre lister',
-                'placeholder' => 'Plassholder-data – ingen databasekobling i denne versjonen.',
+                'loading'     => 'Laster lister…',
+                'empty'       => 'Ingen lister enda.',
                 'item_count'  => '%d elementer',
-                'demo_items'  => ['Julefilmer', 'Barnefilmer', 'Skal ses med kompiser'],
+                'back_to_lists' => 'Tilbake til listene',
+                'fetch_error_prefix' => 'Kunne ikke hente lister: ',
             ],
 
             'administrering' => [

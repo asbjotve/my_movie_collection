@@ -70,9 +70,11 @@ return [
 
             'andre_lister' => [
                 'title'       => 'Other lists',
-                'placeholder' => 'Placeholder data – no database connection in this version.',
+                'loading'     => 'Loading lists…',
+                'empty'       => 'No lists yet.',
                 'item_count'  => '%d items',
-                'demo_items'  => ['Christmas movies', 'Kids movies', 'To watch with friends'],
+                'back_to_lists' => 'Back to lists',
+                'fetch_error_prefix' => 'Could not fetch lists: ',
             ],
 
             'administrering' => [

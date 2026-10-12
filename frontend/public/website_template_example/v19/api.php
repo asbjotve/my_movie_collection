@@ -24,7 +24,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/_shared/auth.php';
 
-$sectionRequiresLogin = fetch_section_access(['mine_filmer' => false]);
+$sectionRequiresLogin = fetch_section_access(['mine_filmer' => false, 'andre_lister' => true]);
 if ($sectionRequiresLogin['mine_filmer'] && !is_logged_in()) {
     require_login_or_json_401();
 }
@@ -278,7 +278,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'search_
     exit;
 }
 
-// GET ?action=list_groups
+// GET ?action=list_custom_lists
+// Brukes av "Andre lister"-panelet for å vise de faktiske
+// egendefinerte listene (navn + antall elementer) i stedet for
+// plassholder-data - se GET /lists i
+// backend/app/routes/add_data/custom_list_manager_route.py.
+// Krever innlogging hvis "andre_lister" er satt til å kreve det (se
+// $sectionRequiresLogin over) - panelet er selv skjult for ikke-
+// innloggede, men endepunktet skal ikke lekke listenavn/antall likevel.
+if (($_GET['action'] ?? '') === 'list_custom_lists') {
+    if ($sectionRequiresLogin['andre_lister'] && !is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $listsUrl = MEDIA_API_BASE_URL . '/lists';
+
+    $ch = curl_init($listsUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
+// GET ?action=list_custom_list_items&list_id=<uuid>
+// Brukes av "Andre lister"-panelet for å vise innholdet i én valgt
+// liste (tittel, år, cover, fase/gruppe) - se
+// GET /lists/{list_id}/items i
+// backend/app/routes/add_data/custom_list_manager_route.py.
+if (($_GET['action'] ?? '') === 'list_custom_list_items') {
+    if ($sectionRequiresLogin['andre_lister'] && !is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $listId = (string)($_GET['list_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F-]{32,36}$/', $listId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig list_id-parameter']);
+        exit;
+    }
+
+    $itemsUrl = MEDIA_API_BASE_URL . '/lists/' . rawurlencode($listId) . '/items';
+
+    $ch = curl_init($itemsUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Brukes til autofullføring i redigerings-popupen for "group"-feltet på
 // detail.php: lister alle eksisterende filmgrupper (movie_group), slik
 // at brukeren kan velge en eksisterende gruppe fremfor å skrive inn

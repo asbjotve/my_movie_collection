@@ -48,19 +48,27 @@ def _normalize_group_label(group_label: str | None) -> str | None:
 
 def list_custom_lists(
     db: Session, exclude_names: list[str] | None = None
-) -> list[dict[str, str]]:
+) -> list[dict[str, str | int]]:
     exclude_names = exclude_names or []
 
-    query = "SELECT list_id, list_name FROM custom_lists"
+    # item_count telles med en LEFT JOIN (ikke en subquery per rad), slik
+    # at tomme lister fortsatt vises (med item_count=0) - brukes bl.a. av
+    # "Andre lister"-panelet i website_template_example for å vise antall
+    # elementer uten å måtte gjøre ett ekstra kall pr. liste.
+    query = """
+        SELECT cl.list_id, cl.list_name, COUNT(cle.list_item_id) AS item_count
+        FROM custom_lists cl
+        LEFT JOIN custom_list_entries cle ON cle.list_id = cl.list_id
+    """
     params: dict[str, object] = {}
 
     if exclude_names:
         placeholders = ", ".join(f":exclude_{i}" for i in range(len(exclude_names)))
-        query += f" WHERE list_name NOT IN ({placeholders})"
+        query += f" WHERE cl.list_name NOT IN ({placeholders})"
         for i, name in enumerate(exclude_names):
             params[f"exclude_{i}"] = name
 
-    query += " ORDER BY list_name ASC"
+    query += " GROUP BY cl.list_id, cl.list_name ORDER BY cl.list_name ASC"
 
     rows = db.execute(text(query), params).fetchall()
 
@@ -68,6 +76,7 @@ def list_custom_lists(
         {
             "list_id": str(uuid.UUID(bytes=row.list_id)),
             "list_name": row.list_name,
+            "item_count": int(row.item_count),
         }
         for row in rows
     ]
