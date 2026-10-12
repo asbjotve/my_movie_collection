@@ -414,6 +414,12 @@ $sectionAccess = [
     .row > *{ width:auto; max-width:none; flex-shrink:1; }
     .row strong{ font-size:14px; }
     .row small{ color: var(--muted); }
+    .listItemCover{
+      width:48px; height:72px; min-width:48px;
+      flex:0 0 auto;
+      object-fit:cover;
+      border-radius:6px;
+    }
 
     .adminGrid{
       display:grid;
@@ -1368,20 +1374,35 @@ $sectionAccess = [
 
         andreListerItemsList.innerHTML = groups.map(group => {
           const header = group.label ? `<h4 style="margin:16px 0 4px;">${group.label}</h4>` : "";
-          const cards = `<div class="grid">` + group.items.map(it => {
+          const rows = group.items.map(it => {
             const year = it.first_release_year ? ` (${it.first_release_year})` : "";
+            const toggleBtn = it.cover_image
+              ? `<button type="button" class="btn toggleCoverBtn">${WTE_I18N.andre_lister.show_cover}</button>`
+              : "";
             return `
-            <div class="card">
-              <div class="cover">
-                ${it.cover_image ? `<img class="coverImg" loading="lazy" decoding="async" src="${it.cover_image}" alt="">` : ""}
-              </div>
-              <div class="meta">
-                <div class="title">${it.title}${year}</div>
+            <div class="row">
+              <strong>${it.title}${year}</strong>
+              <div style="display:flex; align-items:center; gap:10px;">
+                ${toggleBtn}
+                ${it.cover_image ? `<img class="listItemCover" style="display:none;" src="${it.cover_image}" alt="">` : ""}
               </div>
             </div>`;
-          }).join("") + `</div>`;
-          return header + cards;
+          }).join("");
+          return header + rows;
         }).join("");
+
+        // Hver rad har en "vis cover"-knapp som viser/skjuler cover-bildet
+        // ved klikk, slik at brukeren kan velge ren tekstliste (standard)
+        // eller sjekke cover-bildet for en spesifikk film uten at hele
+        // visningen må bygges om til et rutenett av postere.
+        andreListerItemsList.querySelectorAll(".toggleCoverBtn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const img = btn.nextElementSibling;
+            const showing = img.style.display !== "none";
+            img.style.display = showing ? "none" : "block";
+            btn.textContent = showing ? WTE_I18N.andre_lister.show_cover : WTE_I18N.andre_lister.hide_cover;
+          });
+        });
       } catch (err) {
         andreListerItemsList.innerHTML = `<div class="row" style="color: var(--danger, #e85d5d);">${WTE_I18N.andre_lister.fetch_error_prefix}${err.message}</div>`;
       }
