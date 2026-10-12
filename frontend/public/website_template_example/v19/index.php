@@ -414,12 +414,6 @@ $sectionAccess = [
     .row > *{ width:auto; max-width:none; flex-shrink:1; }
     .row strong{ font-size:14px; }
     .row small{ color: var(--muted); }
-    .listItemCover{
-      width:48px; height:72px; min-width:48px;
-      flex:0 0 auto;
-      object-fit:cover;
-      border-radius:6px;
-    }
 
     .adminGrid{
       display:grid;
@@ -1374,15 +1368,19 @@ $sectionAccess = [
 
         andreListerItemsList.innerHTML = groups.map(group => {
           const header = group.label ? `<h4 style="margin:16px 0 4px;">${group.label}</h4>` : "";
-          const rows = group.items.map(it => {
+          const cards = `<div class="grid">` + group.items.map(it => {
             const year = it.first_release_year ? ` (${it.first_release_year})` : "";
             return `
-            <div class="row" style="display:flex; align-items:center; gap:10px;">
-              ${it.cover_image ? `<img class="listItemCover" src="${it.cover_image}" alt="">` : ""}
-              <strong>${it.title}${year}</strong>
+            <div class="card">
+              <div class="cover">
+                ${it.cover_image ? `<img class="coverImg" loading="lazy" decoding="async" src="${it.cover_image}" alt="">` : ""}
+              </div>
+              <div class="meta">
+                <div class="title">${it.title}${year}</div>
+              </div>
             </div>`;
-          }).join("");
-          return header + rows;
+          }).join("") + `</div>`;
+          return header + cards;
         }).join("");
       } catch (err) {
         andreListerItemsList.innerHTML = `<div class="row" style="color: var(--danger, #e85d5d);">${WTE_I18N.andre_lister.fetch_error_prefix}${err.message}</div>`;
