@@ -1365,7 +1365,7 @@ $sectionAccess = [
             const year = it.first_release_year ? ` (${it.first_release_year})` : "";
             return `
             <div class="row" style="display:flex; align-items:center; gap:10px;">
-              ${it.cover_image ? `<img src="${it.cover_image}" alt="" style="width:36px; height:54px; object-fit:cover; border-radius:4px;">` : ""}
+              ${it.cover_image ? `<img src="${it.cover_image}" alt="" style="width:36px; height:54px; min-width:36px; flex:0 0 auto; object-fit:cover; border-radius:4px;">` : ""}
               <strong>${it.title}${year}</strong>
             </div>`;
           }).join("");
