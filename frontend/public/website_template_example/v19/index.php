@@ -1342,21 +1342,34 @@ $sectionAccess = [
           andreListerItemsList.innerHTML = `<div class="row">${WTE_I18N.andre_lister.empty}</div>`;
           return;
         }
-        let lastGroupLabel = undefined;
-        andreListerItemsList.innerHTML = items.map(it => {
-          let groupHeader = "";
-          if (it.group_label !== lastGroupLabel) {
-            lastGroupLabel = it.group_label;
-            if (it.group_label) {
-              groupHeader = `<h4 style="margin:16px 0 4px;">${it.group_label}</h4>`;
-            }
+        // Samler alle elementer under samme group_label i én bolk, selv
+        // om de ikke ligger ved siden av hverandre i sort_order (f.eks.
+        // hvis filmer er lagt til i Fase 1/Fase 2/Fase 1-rekkefølge) -
+        // en ren "header når verdien endrer seg fra forrige rad"-logikk
+        // ga duplikate fase-overskrifter i praksis, se tilbakemelding fra
+        // bruker.
+        const groups = [];
+        const groupIndexByLabel = new Map();
+        items.forEach(it => {
+          const label = it.group_label || null;
+          if (!groupIndexByLabel.has(label)) {
+            groupIndexByLabel.set(label, groups.length);
+            groups.push({ label, items: [] });
           }
-          const year = it.first_release_year ? ` (${it.first_release_year})` : "";
-          return `${groupHeader}
+          groups[groupIndexByLabel.get(label)].items.push(it);
+        });
+
+        andreListerItemsList.innerHTML = groups.map(group => {
+          const header = group.label ? `<h4 style="margin:16px 0 4px;">${group.label}</h4>` : "";
+          const rows = group.items.map(it => {
+            const year = it.first_release_year ? ` (${it.first_release_year})` : "";
+            return `
             <div class="row" style="display:flex; align-items:center; gap:10px;">
               ${it.cover_image ? `<img src="${it.cover_image}" alt="" style="width:36px; height:54px; object-fit:cover; border-radius:4px;">` : ""}
               <strong>${it.title}${year}</strong>
             </div>`;
+          }).join("");
+          return header + rows;
         }).join("");
       } catch (err) {
         andreListerItemsList.innerHTML = `<div class="row" style="color: var(--danger, #e85d5d);">${WTE_I18N.andre_lister.fetch_error_prefix}${err.message}</div>`;
