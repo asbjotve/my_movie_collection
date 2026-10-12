@@ -216,6 +216,25 @@ if (($_GET['ajax'] ?? '') !== '') {
         $forwardResult($rawResponse, $curlError, $httpCode);
     }
 
+    if ($ajaxAction === 'set_list_visibility' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $listId = trim((string) ($_POST['list_id'] ?? ''));
+        $showOnFrontend = (string) ($_POST['show_on_frontend'] ?? '') === '1';
+
+        if ($listId === '') {
+            $respond(400, ['error' => t('clm.messages.list_required')]);
+        }
+
+        $body = json_encode(['show_on_frontend' => $showOnFrontend], JSON_UNESCAPED_UNICODE);
+        [$rawResponse, $curlError, $httpCode] = apiCall(
+            'PATCH',
+            "$listsBaseEndpoint/" . rawurlencode($listId) . '/visibility',
+            [],
+            false,
+            $body
+        );
+        $forwardResult($rawResponse, $curlError, $httpCode);
+    }
+
     if ($ajaxAction === 'add_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $listId = trim((string) ($_POST['list_id'] ?? ''));
         $title = trim((string) ($_POST['title'] ?? ''));
@@ -597,6 +616,17 @@ if ($listsResponse === false || $listsCurlError) {
     form{ display:grid; gap:14px; }
 
     label{ display:grid; gap:6px; font-size:13px; font-weight:600; color:var(--muted); }
+
+    /* Per-list "show on frontend" toggle next to the edit-tab list select -
+       a simple checkbox row, not the grid-stacked field layout the
+       generic label{} rule above is meant for. */
+    label.visibility-toggle{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:-6px;
+    }
+    label.visibility-toggle input[type="checkbox"]{ width:auto; }
 
     input, select{
       width:100%;
@@ -1075,11 +1105,17 @@ if ($listsResponse === false || $listsCurlError) {
           <select id="editListSelect">
             <option value=""><?= h(t('clm.add_tab.list_placeholder')) ?></option>
             <?php foreach ($availableLists as $list): ?>
-              <option value="<?= h((string) ($list['list_id'] ?? '')) ?>">
+              <option value="<?= h((string) ($list['list_id'] ?? '')) ?>" data-show-on-frontend="<?= !empty($list['show_on_frontend']) ? '1' : '0' ?>">
                 <?= h((string) ($list['list_name'] ?? '')) ?>
               </option>
             <?php endforeach; ?>
           </select>
+        </label>
+
+        <label class="visibility-toggle" id="editListVisibilityWrap" style="display:none;">
+          <input type="checkbox" id="editListVisibilityToggle" title="<?= h(t('clm.edit_tab.visibility_title')) ?>">
+          <?= h(t('clm.edit_tab.visibility_label')) ?>
+          <span id="editListVisibilityStatus" class="row-status"></span>
         </label>
 
         <div id="editItemsStatus"></div>

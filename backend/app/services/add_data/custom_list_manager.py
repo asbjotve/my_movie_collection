@@ -47,8 +47,10 @@ def _normalize_group_label(group_label: str | None) -> str | None:
 
 
 def list_custom_lists(
-    db: Session, exclude_names: list[str] | None = None
-) -> list[dict[str, str | int]]:
+    db: Session,
+    exclude_names: list[str] | None = None,
+    only_visible: bool = False,
+) -> list[dict[str, str | int | bool]]:
     exclude_names = exclude_names or []
 
     # item_count telles med en LEFT JOIN (ikke en subquery per rad), slik
@@ -56,19 +58,30 @@ def list_custom_lists(
     # "Andre lister"-panelet i website_template_example for å vise antall
     # elementer uten å måtte gjøre ett ekstra kall pr. liste.
     query = """
-        SELECT cl.list_id, cl.list_name, COUNT(cle.list_item_id) AS item_count
+        SELECT cl.list_id, cl.list_name, cl.show_on_frontend,
+               COUNT(cle.list_item_id) AS item_count
         FROM custom_lists cl
         LEFT JOIN custom_list_entries cle ON cle.list_id = cl.list_id
     """
     params: dict[str, object] = {}
+    conditions: list[str] = []
 
     if exclude_names:
         placeholders = ", ".join(f":exclude_{i}" for i in range(len(exclude_names)))
-        query += f" WHERE cl.list_name NOT IN ({placeholders})"
+        conditions.append(f"cl.list_name NOT IN ({placeholders})")
         for i, name in enumerate(exclude_names):
             params[f"exclude_{i}"] = name
 
-    query += " GROUP BY cl.list_id, cl.list_name ORDER BY cl.list_name ASC"
+    # Used by the public "Andre lister" panel (website_template_example/v19)
+    # to only ever see lists an admin has explicitly opted in - see
+    # set_list_visibility() below.
+    if only_visible:
+        conditions.append("cl.show_on_frontend = 1")
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += " GROUP BY cl.list_id, cl.list_name, cl.show_on_frontend ORDER BY cl.list_name ASC"
 
     rows = db.execute(text(query), params).fetchall()
 
@@ -77,6 +90,7 @@ def list_custom_lists(
             "list_id": str(uuid.UUID(bytes=row.list_id)),
             "list_name": row.list_name,
             "item_count": int(row.item_count),
+            "show_on_frontend": bool(row.show_on_frontend),
         }
         for row in rows
     ]
@@ -114,6 +128,29 @@ def create_custom_list(db: Session, list_name: str) -> dict[str, str]:
         "list_id": str(uuid.UUID(bytes=list_id)),
         "list_name": normalized_name,
     }
+
+
+def set_list_visibility(db: Session, list_id: str, show_on_frontend: bool) -> dict[str, str | bool]:
+    """Toggle whether a list appears in the public "Andre lister" panel -
+    see list_custom_lists()'s only_visible filter."""
+    list_id_bytes = _parse_list_id(list_id)
+
+    result = db.execute(
+        text(
+            """
+            UPDATE custom_lists
+            SET show_on_frontend = :show_on_frontend
+            WHERE list_id = :list_id
+            """
+        ),
+        {"list_id": list_id_bytes, "show_on_frontend": 1 if show_on_frontend else 0},
+    )
+    if result.rowcount == 0:
+        db.rollback()
+        raise ListItemUploadError("Listen finnes ikke.", status_code=404)
+    db.commit()
+
+    return {"list_id": list_id, "show_on_frontend": show_on_frontend}
 
 
 def add_item_to_custom_list(

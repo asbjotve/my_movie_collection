@@ -14,6 +14,7 @@ from app.services.add_data.custom_list_manager import (
     list_custom_lists,
     reorder_list_items,
     set_list_item_group_label,
+    set_list_visibility,
     update_list_item,
 )
 from app.services.add_data.list_item_shared import ListItemUploadError
@@ -28,10 +29,11 @@ router = APIRouter(
 @router.get("", dependencies=[Depends(require_api_key)])
 async def get_custom_lists(
     include_wishlist: bool = False,
+    only_visible: bool = False,
     db: Session = Depends(get_media_db),
 ):
     exclude_names = [] if include_wishlist else [WISHLIST_LIST_NAME]
-    return list_custom_lists(db, exclude_names=exclude_names)
+    return list_custom_lists(db, exclude_names=exclude_names, only_visible=only_visible)
 
 
 @router.post("")
@@ -111,6 +113,19 @@ async def get_list_items_route(
 ):
     try:
         return get_list_items(db, list_id=list_id)
+    except ListItemUploadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/{list_id}/visibility")
+async def patch_list_visibility(
+    list_id: str,
+    show_on_frontend: bool = Body(..., embed=True),
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return set_list_visibility(db, list_id=list_id, show_on_frontend=show_on_frontend)
     except ListItemUploadError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

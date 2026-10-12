@@ -107,6 +107,11 @@ return [
             'lead'               => 'Velg en liste for å se og redigere elementene i den direkte. Du kan også legge til nye elementer nederst - bruk gjerne TMDB- eller TVDB-søket for å fylle ut feltene automatisk.',
             'empty_hint'         => 'Det finnes ingen lister enda. Opprett en liste under fanen "Opprett liste" for å komme i gang.',
             'list_label'         => 'Liste',
+            'visibility_label'   => 'Vis i "Andre lister" på forsiden',
+            'visibility_title'   => 'Når denne er på, vises listen i "Andre lister"-panelet på nettsiden for besøkende',
+            'visibility_saving'  => 'Lagrer…',
+            'visibility_saved'   => 'Lagret',
+            'visibility_error_prefix' => 'Kunne ikke lagre synlighet: %s',
             'add_new_heading'    => '+ Nytt element',
 
             'loading'            => 'Laster elementer…',

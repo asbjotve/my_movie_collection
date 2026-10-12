@@ -286,12 +286,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'search_
 // Krever innlogging hvis "andre_lister" er satt til å kreve det (se
 // $sectionRequiresLogin over) - panelet er selv skjult for ikke-
 // innloggede, men endepunktet skal ikke lekke listenavn/antall likevel.
+// only_visible=true filtrerer til kun lister en admin har slått PÅ i
+// custom_list_manager (show_on_frontend) - se set_list_visibility() i
+// custom_list_manager.py.
 if (($_GET['action'] ?? '') === 'list_custom_lists') {
     if ($sectionRequiresLogin['andre_lister'] && !is_logged_in()) {
         require_login_or_json_401();
     }
 
-    $listsUrl = MEDIA_API_BASE_URL . '/lists';
+    $listsUrl = MEDIA_API_BASE_URL . '/lists?only_visible=true';
 
     $ch = curl_init($listsUrl);
     curl_setopt_array($ch, [

@@ -222,6 +222,11 @@ class CustomList(MediaBase):
 
     list_id = Column(BINARY(16), primary_key=True)
     list_name = Column(String(255), nullable=False)
+    # Opt-in flag: whether this list should appear in the public
+    # "Andre lister" panel (website_template_example/v19). Defaults to
+    # off so a newly created list stays admin-only until explicitly
+    # switched on - see set_list_visibility() in custom_list_manager.py.
+    show_on_frontend = Column(TINYINT(1), nullable=False, server_default="0")
 
     __table_args__ = (UniqueConstraint("list_name", name="uk_list_name"),)
 

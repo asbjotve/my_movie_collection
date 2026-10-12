@@ -1400,16 +1400,25 @@ $sectionAccess = [
           groups[groupIndexByLabel.get(label)].items.push(it);
         });
 
+        // Fortløpende rekkefølgenummer (uavhengig av gruppe-seksjon) -
+        // samme idé/badge som i custom_list_manager sin redigeringstabell,
+        // slik at rekkefølgen der matches 1-til-1 mot det besøkende ser her.
+        let andreListerPosition = 0;
+
         andreListerItemsList.innerHTML = groups.map(group => {
           const header = group.label ? `<h4 style="margin:16px 0 4px;">${group.label}</h4>` : "";
           const rows = group.items.map(it => {
+            andreListerPosition += 1;
             const year = it.first_release_year ? ` (${it.first_release_year})` : "";
             const toggleBtn = it.cover_image
               ? `<button type="button" class="btn toggleCoverBtn" data-title="${it.title.replace(/"/g, "&quot;")}${year}" data-cover="${it.cover_image}">${WTE_I18N.andre_lister.show_cover}</button>`
               : "";
             return `
             <div class="row">
-              <strong>${it.title}${year}</strong>
+              <span style="display:flex;align-items:center;gap:10px;">
+                <span class="tag">${andreListerPosition}</span>
+                <strong>${it.title}${year}</strong>
+              </span>
               ${toggleBtn}
             </div>`;
           }).join("");

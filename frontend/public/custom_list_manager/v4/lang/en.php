@@ -108,6 +108,11 @@ return [
             'lead'               => 'Select a list to view and edit its items directly. You can also add new items at the bottom - feel free to use the TMDB or TVDB search to auto-fill the fields.',
             'empty_hint'         => 'No lists exist yet. Create a list under the "Create list" tab to get started.',
             'list_label'         => 'List',
+            'visibility_label'   => 'Show in "Andre lister" on the front page',
+            'visibility_title'   => 'When on, this list appears in the "Andre lister" panel on the public site',
+            'visibility_saving'  => 'Saving…',
+            'visibility_saved'   => 'Saved',
+            'visibility_error_prefix' => 'Could not save visibility: %s',
             'add_new_heading'    => '+ New item',
 
             'loading'            => 'Loading items…',

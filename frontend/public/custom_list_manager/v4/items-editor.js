@@ -40,6 +40,9 @@
   const tableContainer = document.getElementById('editItemsTable');
   const addStatusEl = document.getElementById('addItemStatus');
   const btnAddItem = document.getElementById('btnAddItem');
+  const visibilityWrap = document.getElementById('editListVisibilityWrap');
+  const visibilityToggle = document.getElementById('editListVisibilityToggle');
+  const visibilityStatusEl = document.getElementById('editListVisibilityStatus');
 
   // window.clmActiveEditRow tells script.js/tvdb-search.js which row's
   // inputs a TMDB/TVDB search result should be applied to (set right
@@ -63,7 +66,53 @@
     el.className = text ? `notice ${type || 'info'}` : '';
   }
 
+  // Shows/hides the "vis på forsiden" checkbox alongside the list select,
+  // and syncs its checked state from the selected <option>'s cached
+  // data-show-on-frontend attribute (set server-side from the initial
+  // /lists fetch - see index.php) - no extra round-trip needed just to
+  // populate the toggle.
+  function syncVisibilityToggle(listId) {
+    if (!visibilityWrap || !visibilityToggle) return;
+    if (!listId) {
+      visibilityWrap.style.display = 'none';
+      return;
+    }
+    const option = listSelect?.querySelector(`option[value="${CSS.escape(listId)}"]`);
+    visibilityToggle.checked = option?.dataset.showOnFrontend === '1';
+    visibilityWrap.style.display = '';
+    setStatus(visibilityStatusEl, '', 'info');
+  }
+
+  visibilityToggle?.addEventListener('change', async () => {
+    const listId = listSelect?.value;
+    if (!listId) return;
+    const showOnFrontend = visibilityToggle.checked;
+    visibilityToggle.disabled = true;
+    setStatus(visibilityStatusEl, tr('visibility_saving'), 'info');
+    try {
+      const res = await fetch(ajaxUrl('set_list_visibility'), {
+        method: 'POST',
+        body: new URLSearchParams({ list_id: listId, show_on_frontend: showOnFrontend ? '1' : '0' }),
+        keepalive: true,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+      const option = listSelect?.querySelector(`option[value="${CSS.escape(listId)}"]`);
+      if (option) option.dataset.showOnFrontend = showOnFrontend ? '1' : '0';
+
+      setStatus(visibilityStatusEl, tr('visibility_saved'), 'success');
+      setTimeout(() => setStatus(visibilityStatusEl, '', 'info'), 1500);
+    } catch (err) {
+      visibilityToggle.checked = !showOnFrontend;
+      setStatus(visibilityStatusEl, tr('visibility_error_prefix', err.message || err), 'error');
+    } finally {
+      visibilityToggle.disabled = false;
+    }
+  });
+
   async function loadItems(listId) {
+    syncVisibilityToggle(listId);
     if (!listId) {
       currentItems = [];
       tableContainer.innerHTML = `<div class="empty-hint">${escapeHtml(tr('select_list_hint'))}</div>`;
