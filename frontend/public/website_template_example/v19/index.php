@@ -405,6 +405,13 @@ $sectionAccess = [
       border-radius: 12px;
       padding:12px 14px;
     }
+    /* Nøytraliserer Bootstrap 5 sin ".row > *"-grid-regel (width:100%,
+       max-width:100%, flex-shrink:0), som ellers tvinger ALLE direkte
+       barn av ".row" (f.eks. cover-bilde + tittel her) til full bredde
+       og dermed pakkes under hverandre i stedet for å stå ved siden av
+       hverandre - samme spesifisitet som Bootstraps regel, men denne
+       kommer senere i stilarket og vinner derfor cascade-konflikten. */
+    .row > *{ width:auto; max-width:none; flex-shrink:1; }
     .row strong{ font-size:14px; }
     .row small{ color: var(--muted); }
     .listItemCover{
