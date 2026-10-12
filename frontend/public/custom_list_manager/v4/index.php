@@ -802,6 +802,19 @@ if ($listsResponse === false || $listsCurlError) {
     }
     table.items-table .row-drag-handle:hover{ color: var(--text); }
     table.items-table tr.row-dragging{ opacity:.4; }
+    /* Same handle style, but on a group-header row - lets the whole
+       block (header + its item rows, see collectGroupBlock() in
+       items-editor.js) be dragged as one unit to reorder entire groups
+       relative to each other, not just individual items within one. */
+    table.items-table .group-drag-handle{
+      cursor: grab;
+      user-select: none;
+      color: var(--muted);
+      font-size:16px;
+      display:inline-block;
+      padding:2px 4px;
+    }
+    table.items-table .group-drag-handle:hover{ color: var(--text); }
     /* Gruppe-overskriftsrader (ett per group_label-verdi, inkludert en
        alltid-synlig "ingen gruppe"-seksjon) - kun til visning, ikke
        draggbare selv (ingen .row-drag-handle), men fungerer som gyldige

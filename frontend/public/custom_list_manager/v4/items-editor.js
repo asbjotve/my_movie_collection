@@ -222,7 +222,11 @@
     tr_.className = 'row-group-header';
     tr_.dataset.groupLabel = label || '';
     const text = label ? escapeHtml(label) : escapeHtml(tr('ungrouped_label'));
-    tr_.innerHTML = `<td colspan="12">${text}</td>`;
+    tr_.innerHTML = `
+      <td class="cell-position"></td>
+      <td class="cell-drag"><span class="group-drag-handle" draggable="true" title="${escapeHtml(tr('group_drag_handle_title'))}">⠿</span></td>
+      <td colspan="10">${text}</td>
+    `;
     return tr_;
   }
 
@@ -234,9 +238,38 @@
   // same idea as the group reorder drag-and-drop on the movie detail
   // page), then the new order is persisted once on drop/dragend.
   let draggedRow = null;
+  // Set to an array of <tr> elements (the header + all its item rows) when
+  // dragging a whole group's "⠿" handle instead of a single item's - lets
+  // the user reposition an entire grouped block (e.g. "Phase One" before
+  // "Phase Two") without having to drag every row inside it individually.
+  let draggedGroupRows = null;
+
+  // Collects a group-header row and every item row that follows it, up to
+  // (but excluding) the next group-header row or the end of the table.
+  function collectGroupBlock(headerRow) {
+    const rows = [headerRow];
+    let sibling = headerRow.nextElementSibling;
+    while (sibling && !sibling.classList.contains('row-group-header')) {
+      rows.push(sibling);
+      sibling = sibling.nextElementSibling;
+    }
+    return rows;
+  }
 
   function wireRowDragging(tbody, listId) {
     tbody.addEventListener('dragstart', (e) => {
+      const groupHandle = e.target.closest('.group-drag-handle');
+      if (groupHandle) {
+        const headerRow = groupHandle.closest('tr.row-group-header');
+        if (!headerRow) {
+          e.preventDefault();
+          return;
+        }
+        draggedGroupRows = collectGroupBlock(headerRow);
+        draggedGroupRows.forEach((r) => r.classList.add('row-dragging'));
+        e.dataTransfer.effectAllowed = 'move';
+        return;
+      }
       const handle = e.target.closest('.row-drag-handle');
       if (!handle) {
         e.preventDefault();
@@ -249,6 +282,28 @@
     });
 
     tbody.addEventListener('dragover', (e) => {
+      if (draggedGroupRows) {
+        e.preventDefault();
+        const rows = [...tbody.children].filter((r) => !draggedGroupRows.includes(r));
+        let target = null;
+        for (const row of rows) {
+          const box = row.getBoundingClientRect();
+          const midY = box.top + box.height / 2;
+          if (e.clientY < midY) {
+            target = row;
+            break;
+          }
+        }
+        const frag = document.createDocumentFragment();
+        draggedGroupRows.forEach((r) => frag.appendChild(r));
+        if (target) {
+          tbody.insertBefore(frag, target);
+        } else {
+          tbody.appendChild(frag);
+        }
+        return;
+      }
+
       if (!draggedRow) return;
       e.preventDefault();
       const rows = [...tbody.querySelectorAll('tr:not(.row-dragging)')];
@@ -269,6 +324,12 @@
     });
 
     tbody.addEventListener('dragend', async () => {
+      if (draggedGroupRows) {
+        draggedGroupRows.forEach((r) => r.classList.remove('row-dragging'));
+        draggedGroupRows = null;
+        await persistRowsAfterDrag(tbody, listId);
+        return;
+      }
       if (!draggedRow) return;
       draggedRow.classList.remove('row-dragging');
       draggedRow = null;

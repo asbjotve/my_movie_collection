@@ -149,6 +149,7 @@ return [
             'btn_search_tvdb_title' => 'Search TVDB to fill in this row',
 
             'drag_handle_title' => 'Drag to reorder',
+            'group_drag_handle_title' => 'Drag to move the whole group',
             'drag_hint'          => 'Drag ⠿ to reorder manually',
             'btn_sort_alpha'     => '🔤 Sort alphabetically',
             'btn_sort_alpha_title' => 'Sort the list alphabetically by title (A-Z)',

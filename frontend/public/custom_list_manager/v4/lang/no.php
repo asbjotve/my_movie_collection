@@ -148,6 +148,7 @@ return [
             'btn_search_tvdb_title' => 'Søk i TVDB for å fylle ut denne raden',
 
             'drag_handle_title' => 'Dra for å endre rekkefølge',
+            'group_drag_handle_title' => 'Dra for å flytte hele gruppen',
             'drag_hint'          => 'Dra ⠿ for å endre rekkefølgen manuelt',
             'btn_sort_alpha'     => '🔤 Sorter alfabetisk',
             'btn_sort_alpha_title' => 'Sorter listen alfabetisk etter tittel (A-Å)',
