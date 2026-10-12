@@ -455,6 +455,12 @@ class CustomListEntry(MediaBase):
         BINARY(16), ForeignKey("list_items.list_item_id"), primary_key=True
     )
     sort_order = Column(Integer, nullable=True)
+    # Free-text "phase"/group label (e.g. "Fase 1") for grouping entries
+    # within a list, such as Marvel-style phases - see
+    # custom_list_manager.py. Independent of sort_order, which still
+    # governs the actual ordering; same-group entries are expected to be
+    # kept adjacent via manual reordering.
+    group_label = Column(String(100), nullable=True)
 
     __table_args__ = (Index("idx_list_sort", "list_id", "sort_order"),)
 

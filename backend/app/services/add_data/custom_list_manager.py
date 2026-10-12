@@ -32,6 +32,20 @@ def _parse_list_item_id(list_item_id: str) -> bytes:
         raise ListItemUploadError("Ugyldig list_item_id.")
 
 
+def _parse_content_id(content_id: str) -> bytes:
+    try:
+        return uuid.UUID(content_id).bytes
+    except (ValueError, AttributeError, TypeError):
+        raise ListItemUploadError("Ugyldig content_id.")
+
+
+def _normalize_group_label(group_label: str | None) -> str | None:
+    if group_label is None:
+        return None
+    normalized = group_label.strip()
+    return normalized or None
+
+
 def list_custom_lists(
     db: Session, exclude_names: list[str] | None = None
 ) -> list[dict[str, str]]:
@@ -105,6 +119,7 @@ def add_item_to_custom_list(
     tmdb_id: str | None = None,
     tvdb_id: str | None = None,
     season: str | None = None,
+    group_label: str | None = None,
 ) -> dict[str, str | int | bool | None]:
     parsed_list_id = _parse_list_id(list_id)
 
@@ -123,6 +138,7 @@ def add_item_to_custom_list(
     normalized_tmdb_id = normalize_external_id(tmdb_id)
     normalized_tvdb_id = normalize_external_id(tvdb_id)
     normalized_season = normalize_season(season)
+    normalized_group_label = _normalize_group_label(group_label)
 
     # Cover image is optional for custom lists (unlike the wishlist upload flow).
     has_cover = cover_bytes is not None and len(cover_bytes) > 0
@@ -190,17 +206,20 @@ def add_item_to_custom_list(
                 """
                 INSERT INTO custom_list_entries (
                     list_id,
-                    list_item_id
+                    list_item_id,
+                    group_label
                 )
                 VALUES (
                     :list_id,
-                    :list_item_id
+                    :list_item_id,
+                    :group_label
                 )
                 """
             ),
             {
                 "list_id": parsed_list_id,
                 "list_item_id": list_item_id,
+                "group_label": normalized_group_label,
             },
         )
         db.commit()
@@ -220,6 +239,152 @@ def add_item_to_custom_list(
         "tvdb_id": normalized_tvdb_id,
         "season": normalized_season,
         "cover_image": public_path,
+        "stored_in": list_row.list_name,
+    }
+
+
+def add_content_to_custom_list(
+    db: Session,
+    list_id: str,
+    content_id: str,
+    group_label: str | None = None,
+) -> dict[str, str | int | bool | None]:
+    """Adds a movie/series already owned in the main collection
+    ("content") to a custom list, without going through the TMDB search
+    modal - pulls title/original_title/year/imdb_id/cover_image straight
+    from the content row (and tmdb_id/tvdb_id from content_external_source)
+    into a brand new, independent list_items row.
+
+    content.cover_image is already a full, directly-usable URL (the TMDB
+    CDN URL set by set_content_cover_image() in media_catalog.py), so it
+    can be copied over as-is - no re-upload/re-hosting needed, unlike the
+    normal "paste a TMDB result + manually upload a cover" add-item flow.
+    """
+    parsed_list_id = _parse_list_id(list_id)
+    parsed_content_id = _parse_content_id(content_id)
+    normalized_group_label = _normalize_group_label(group_label)
+
+    list_row = db.execute(
+        text("SELECT list_id, list_name FROM custom_lists WHERE list_id = :list_id"),
+        {"list_id": parsed_list_id},
+    ).fetchone()
+
+    if list_row is None:
+        raise ListItemUploadError("Fant ikke listen. Velg en gyldig liste.", status_code=404)
+
+    content_row = db.execute(
+        text(
+            """
+            SELECT content_id, title, original_title, first_release, imdb_id, cover_image
+            FROM content
+            WHERE content_id = :content_id
+            """
+        ),
+        {"content_id": parsed_content_id},
+    ).fetchone()
+
+    if content_row is None:
+        raise ListItemUploadError("Fant ikke filmen/serien i samlingen.", status_code=404)
+
+    external_rows = db.execute(
+        text(
+            """
+            SELECT source, external_id
+            FROM content_external_source
+            WHERE content_id = :content_id AND source IN ('tmdb', 'tvdb')
+            """
+        ),
+        {"content_id": parsed_content_id},
+    ).fetchall()
+    external_ids = {row.source: row.external_id for row in external_rows}
+
+    normalized_title = normalize_title(content_row.title)
+    normalized_original_title = normalize_original_title(content_row.original_title)
+    normalized_first_release_year = (
+        content_row.first_release.year if content_row.first_release else None
+    )
+    normalized_imdb_id = normalize_external_id(content_row.imdb_id)
+    normalized_tmdb_id = normalize_external_id(external_ids.get("tmdb"))
+    normalized_tvdb_id = normalize_external_id(external_ids.get("tvdb"))
+    cover_image = content_row.cover_image
+
+    list_item_id = uuid.uuid4().bytes
+
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO list_items (
+                    list_item_id,
+                    title,
+                    original_title,
+                    first_release_year,
+                    imdb_id,
+                    tmdb_id,
+                    tvdb_id,
+                    cover_image
+                )
+                VALUES (
+                    :list_item_id,
+                    :title,
+                    :original_title,
+                    :first_release_year,
+                    :imdb_id,
+                    :tmdb_id,
+                    :tvdb_id,
+                    :cover_image
+                )
+                """
+            ),
+            {
+                "list_item_id": list_item_id,
+                "title": normalized_title,
+                "original_title": normalized_original_title,
+                "first_release_year": normalized_first_release_year,
+                "imdb_id": normalized_imdb_id,
+                "tmdb_id": normalized_tmdb_id,
+                "tvdb_id": normalized_tvdb_id,
+                "cover_image": cover_image,
+            },
+        )
+
+        db.execute(
+            text(
+                """
+                INSERT INTO custom_list_entries (
+                    list_id,
+                    list_item_id,
+                    group_label
+                )
+                VALUES (
+                    :list_id,
+                    :list_item_id,
+                    :group_label
+                )
+                """
+            ),
+            {
+                "list_id": parsed_list_id,
+                "list_item_id": list_item_id,
+                "group_label": normalized_group_label,
+            },
+        )
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
+    return {
+        "list_item_id": str(uuid.UUID(bytes=list_item_id)),
+        "title": normalized_title,
+        "original_title": normalized_original_title,
+        "first_release_year": normalized_first_release_year,
+        "imdb_id": normalized_imdb_id,
+        "tmdb_id": normalized_tmdb_id,
+        "tvdb_id": normalized_tvdb_id,
+        "season": None,
+        "cover_image": cover_image,
+        "group_label": normalized_group_label,
         "stored_in": list_row.list_name,
     }
 
@@ -251,7 +416,8 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
                 li.tvdb_id,
                 li.season,
                 li.cover_image,
-                cle.sort_order
+                cle.sort_order,
+                cle.group_label
             FROM custom_list_entries cle
             JOIN list_items li ON li.list_item_id = cle.list_item_id
             WHERE cle.list_id = :list_id
@@ -273,9 +439,54 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
             "season": row.season,
             "cover_image": row.cover_image,
             "sort_order": row.sort_order,
+            "group_label": row.group_label,
         }
         for row in rows
     ]
+
+
+def set_list_item_group_label(
+    db: Session, list_id: str, list_item_id: str, group_label: str | None
+) -> dict[str, str | None]:
+    """Sets (or clears, if group_label is empty) the "phase"/group label of
+    a single entry within a list - e.g. "Fase 1" for Marvel-style ordered
+    lists. Stored on custom_list_entries, not list_items, since it's a
+    property of the item's placement within this specific list."""
+    parsed_list_id = _parse_list_id(list_id)
+    parsed_item_id = _parse_list_item_id(list_item_id)
+    normalized_group_label = _normalize_group_label(group_label)
+
+    entry_row = db.execute(
+        text(
+            "SELECT 1 FROM custom_list_entries WHERE list_id = :list_id AND list_item_id = :list_item_id"
+        ),
+        {"list_id": parsed_list_id, "list_item_id": parsed_item_id},
+    ).fetchone()
+
+    if entry_row is None:
+        raise ListItemUploadError("Fant ikke elementet i denne listen.", status_code=404)
+
+    try:
+        db.execute(
+            text(
+                """
+                UPDATE custom_list_entries
+                SET group_label = :group_label
+                WHERE list_id = :list_id AND list_item_id = :list_item_id
+                """
+            ),
+            {
+                "group_label": normalized_group_label,
+                "list_id": parsed_list_id,
+                "list_item_id": parsed_item_id,
+            },
+        )
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
+    return {"list_item_id": list_item_id, "group_label": normalized_group_label}
 
 
 def reorder_list_items(db: Session, list_id: str, list_item_ids: list[str]) -> dict[str, bool | int]:

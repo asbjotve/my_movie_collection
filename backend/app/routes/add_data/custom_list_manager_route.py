@@ -6,12 +6,14 @@ from app.db import User
 from app.media_db import get_media_db
 from app.security import get_current_user
 from app.services.add_data.custom_list_manager import (
+    add_content_to_custom_list,
     add_item_to_custom_list,
     create_custom_list,
     delete_list_item,
     get_list_items,
     list_custom_lists,
     reorder_list_items,
+    set_list_item_group_label,
     update_list_item,
 )
 from app.services.add_data.list_item_shared import ListItemUploadError
@@ -54,6 +56,7 @@ async def post_custom_list_item(
     tmdb_id: str | None = Form(None),
     tvdb_id: str | None = Form(None),
     season: str | None = Form(None),
+    group_label: str | None = Form(None),
     cover_image: UploadFile | None = File(None),
     db: Session = Depends(get_media_db),
     current_user: User = Depends(get_current_user),
@@ -71,8 +74,31 @@ async def post_custom_list_item(
             tmdb_id=tmdb_id,
             tvdb_id=tvdb_id,
             season=season,
+            group_label=group_label,
             cover_bytes=cover_bytes,
             cover_content_type=cover_content_type,
+        )
+    except ListItemUploadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/items/from-content")
+async def post_custom_list_item_from_content(
+    list_id: str = Form(...),
+    content_id: str = Form(...),
+    group_label: str | None = Form(None),
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Adds a movie/series already in the main collection to a custom
+    list directly by content_id, without the TMDB search modal - see
+    add_content_to_custom_list()."""
+    try:
+        return add_content_to_custom_list(
+            db=db,
+            list_id=list_id,
+            content_id=content_id,
+            group_label=group_label,
         )
     except ListItemUploadError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
@@ -98,6 +124,22 @@ async def patch_reorder_list_items(
 ):
     try:
         return reorder_list_items(db, list_id=list_id, list_item_ids=list_item_ids)
+    except ListItemUploadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/{list_id}/items/{list_item_id}/group-label")
+async def patch_list_item_group_label(
+    list_id: str,
+    list_item_id: str,
+    group_label: str | None = Body(None, embed=True),
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return set_list_item_group_label(
+            db, list_id=list_id, list_item_id=list_item_id, group_label=group_label
+        )
     except ListItemUploadError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

@@ -46,6 +46,7 @@ return [
             'lists_fetch_failed'   => 'Could not fetch the lists: %s',
             'lists_fetch_http_err' => 'The API returned HTTP %d while fetching lists.',
             'item_id_required'     => 'Could not find the item ID.',
+            'content_id_required'  => 'Could not find the movie/series ID.',
         ],
 
         'create_tab' => [
@@ -123,6 +124,9 @@ return [
             'col_tvdb'           => 'TVDB',
             'col_season'         => 'Season',
             'col_actions'        => 'Actions',
+            'col_group_label'    => 'Phase/group',
+            'group_label_placeholder' => 'E.g. Phase 1',
+            'group_label_title'  => 'Optional group/phase label (e.g. "Phase 1") to split the list into sections',
 
             'btn_edit'           => 'Edit',
             'btn_save'           => 'Save',
@@ -156,6 +160,16 @@ return [
             'add_title_required' => 'You must enter a title.',
             'add_saving'         => 'Adding…',
             'add_error_prefix'   => 'Could not add: %s',
+
+            'btn_from_collection' => '📚 Add from collection',
+            'from_collection_title' => '📚 Add from collection',
+            'from_collection_search_placeholder' => 'Search the collection by title...',
+            'from_collection_loading' => 'Loading the collection…',
+            'from_collection_empty' => 'No matches found in the collection.',
+            'from_collection_fetch_error_prefix' => 'Could not fetch the collection: %s',
+            'from_collection_add_error_prefix' => 'Could not add from the collection: %s',
+            'from_collection_added' => 'Added from the collection ✓',
+            'from_collection_close_label' => 'Close',
         ],
 
         'modal_tmdb' => [

@@ -13,6 +13,10 @@ $listItemsEndpoint = 'http://172.19.0.1:9500/lists/items';
 // Base for the v4 inline "edit list" endpoints (GET .../{list_id}/items,
 // PATCH .../items/{id}, DELETE .../{list_id}/items/{id}).
 $listsBaseEndpoint = 'http://172.19.0.1:9500/lists';
+// Used by the "legg til fra samlingen" picker (search_collection ajax
+// action below) - same read-only collection endpoint the main
+// website_template_example page uses, see media_catalog_route.py.
+$mediaContentEndpoint = 'http://172.19.0.1:9500/media/content';
 
 $createMessage = null;
 $createMessageType = 'info';
@@ -221,6 +225,7 @@ if (($_GET['ajax'] ?? '') !== '') {
         $tmdbId = trim((string) ($_POST['tmdb_id'] ?? ''));
         $tvdbId = trim((string) ($_POST['tvdb_id'] ?? ''));
         $season = trim((string) ($_POST['season'] ?? ''));
+        $groupLabel = trim((string) ($_POST['group_label'] ?? ''));
         $coverImage = $_FILES['cover_image'] ?? null;
 
         if ($listId === '') {
@@ -245,8 +250,59 @@ if (($_GET['ajax'] ?? '') !== '') {
         if ($tmdbId !== '') $postFields['tmdb_id'] = $tmdbId;
         if ($tvdbId !== '') $postFields['tvdb_id'] = $tvdbId;
         if ($season !== '') $postFields['season'] = $season;
+        if ($groupLabel !== '') $postFields['group_label'] = $groupLabel;
 
         [$rawResponse, $curlError, $httpCode] = apiRequest($listItemsEndpoint, $postFields);
+        $forwardResult($rawResponse, $curlError, $httpCode);
+    }
+
+    if ($ajaxAction === 'search_collection') {
+        // Forwards the whole (read-only) collection so the "Legg til fra
+        // samlingen" picker can filter by title client-side - same
+        // "load once, filter in JS" approach website_template_example
+        // itself uses for its own search (see list_content()'s docstring
+        // in media_catalog.py), so no new backend search endpoint is
+        // needed just for this picker.
+        [$rawResponse, $curlError, $httpCode] = apiCall('GET', $mediaContentEndpoint, [], true);
+        $forwardResult($rawResponse, $curlError, $httpCode);
+    }
+
+    if ($ajaxAction === 'add_item_from_content' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $listId = trim((string) ($_POST['list_id'] ?? ''));
+        $contentId = trim((string) ($_POST['content_id'] ?? ''));
+        $groupLabel = trim((string) ($_POST['group_label'] ?? ''));
+
+        if ($listId === '') {
+            $respond(400, ['error' => t('clm.messages.list_required')]);
+        }
+        if ($contentId === '') {
+            $respond(400, ['error' => t('clm.messages.content_id_required')]);
+        }
+
+        $postFields = ['list_id' => $listId, 'content_id' => $contentId];
+        if ($groupLabel !== '') $postFields['group_label'] = $groupLabel;
+
+        [$rawResponse, $curlError, $httpCode] = apiRequest("$listsBaseEndpoint/items/from-content", $postFields);
+        $forwardResult($rawResponse, $curlError, $httpCode);
+    }
+
+    if ($ajaxAction === 'set_group_label' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $listId = trim((string) ($_POST['list_id'] ?? ''));
+        $listItemId = trim((string) ($_POST['list_item_id'] ?? ''));
+        $groupLabel = trim((string) ($_POST['group_label'] ?? ''));
+
+        if ($listId === '' || $listItemId === '') {
+            $respond(400, ['error' => t('clm.messages.item_id_required')]);
+        }
+
+        $body = json_encode(['group_label' => $groupLabel !== '' ? $groupLabel : null], JSON_UNESCAPED_UNICODE);
+        [$rawResponse, $curlError, $httpCode] = apiCall(
+            'PATCH',
+            "$listsBaseEndpoint/" . rawurlencode($listId) . '/items/' . rawurlencode($listItemId) . '/group-label',
+            [],
+            false,
+            $body
+        );
         $forwardResult($rawResponse, $curlError, $httpCode);
     }
 
@@ -828,41 +884,73 @@ if ($listsResponse === false || $listsCurlError) {
     }
     .btn-tvdb:hover{ background: rgba(255,193,102,.2); }
 
+    .btn-from-collection{
+      appearance:none;
+      border:1px solid rgba(122,222,162,.5);
+      background: rgba(122,222,162,.12);
+      color: #7ade9f;
+      font: inherit; font-weight:700; font-size:13px;
+      border-radius:12px;
+      padding:10px 14px;
+      cursor:pointer;
+      white-space:nowrap;
+      margin-bottom:12px;
+    }
+    .btn-from-collection:hover{ background: rgba(122,222,162,.2); }
+
+    .row-group-label{
+      width:100%;
+      min-width:90px;
+      background: rgba(15,23,48,.7);
+      border:1px solid rgba(37,48,87,.9);
+      color: var(--text);
+      border-radius:8px;
+      padding:6px 8px;
+      font: inherit; font-size:13px;
+    }
+
     #searchModal .modal-content,
-    #tvdbSearchModal .modal-content{
+    #tvdbSearchModal .modal-content,
+    #fromCollectionModal .modal-content{
       background: var(--panel);
       color: var(--text);
       border:1px solid rgba(37,48,87,.9);
       border-radius:16px;
     }
     #searchModal .modal-header,
-    #tvdbSearchModal .modal-header{
+    #tvdbSearchModal .modal-header,
+    #fromCollectionModal .modal-header{
       background: var(--panel2) !important;
       border-bottom:1px solid rgba(37,48,87,.8);
     }
     #searchModal .modal-title,
-    #tvdbSearchModal .modal-title{ color: var(--text); }
+    #tvdbSearchModal .modal-title,
+    #fromCollectionModal .modal-title{ color: var(--text); }
     #searchModal .form-control,
-    #tvdbSearchModal .form-control{
+    #tvdbSearchModal .form-control,
+    #fromCollectionModal .form-control{
       background: rgba(15,23,48,.7);
       border:1px solid rgba(37,48,87,.9);
       color: var(--text);
     }
     #searchModal .form-control:focus,
-    #tvdbSearchModal .form-control:focus{
+    #tvdbSearchModal .form-control:focus,
+    #fromCollectionModal .form-control:focus{
       background: rgba(15,23,48,.7);
       color: var(--text);
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(122,162,255,.18);
     }
     #searchModal .input-group-text,
-    #tvdbSearchModal .input-group-text{
+    #tvdbSearchModal .input-group-text,
+    #fromCollectionModal .input-group-text{
       background: rgba(15,23,48,.7);
       border:1px solid rgba(37,48,87,.9);
       color: var(--muted);
     }
     #searchModal .form-text,
-    #tvdbSearchModal .form-text{ color: var(--muted); }
+    #tvdbSearchModal .form-text,
+    #fromCollectionModal .form-text{ color: var(--muted); }
 
     .dropdown-results{
       border:1px solid rgba(37,48,87,.8);
@@ -973,6 +1061,8 @@ if ($listsResponse === false || $listsCurlError) {
 
         <div id="addItemStatus"></div>
 
+        <button type="button" class="btn-from-collection" data-bs-toggle="modal" data-bs-target="#fromCollectionModal"><?= h(t('clm.edit_tab.btn_from_collection')) ?></button>
+
         <div class="title-row">
           <label>
             <?= h(t('clm.add_tab.title_label')) ?>
@@ -1016,6 +1106,11 @@ if ($listsResponse === false || $listsCurlError) {
           <input type="text" id="season" placeholder="<?= h(t('clm.add_tab.season_placeholder')) ?>">
         </label>
         <div class="hint"><?= h(t('clm.add_tab.season_hint')) ?></div>
+
+        <label>
+          <?= h(t('clm.edit_tab.col_group_label')) ?>
+          <input type="text" id="group_label" placeholder="<?= h(t('clm.edit_tab.group_label_placeholder')) ?>" title="<?= h(t('clm.edit_tab.group_label_title')) ?>">
+        </label>
 
         <label>
           <?= h(t('clm.add_tab.cover_label')) ?>
@@ -1120,6 +1215,37 @@ if ($listsResponse === false || $listsCurlError) {
 
         <div id="tvdbSearchStatus" class="text-center mt-2 text-muted" style="min-height: 24px;"></div>
         <div id="tvdbSelectedItem" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- "Legg til fra samlingen" modal - lets you pick an already-owned
+     movie/series straight from the main collection ("content") instead
+     of re-searching TMDB/TVDB for something you already have. See
+     items-editor.js (initFromCollectionModal()) and
+     add_content_to_custom_list() in the backend. -->
+<div class="modal fade" id="fromCollectionModal" tabindex="-1" aria-labelledby="fromCollectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="fromCollectionModalLabel"><?= h(t('clm.edit_tab.from_collection_title')) ?></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="<?= h(t('clm.edit_tab.from_collection_close_label')) ?>"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="search-wrapper">
+          <div class="input-group input-group-lg">
+            <span class="input-group-text">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              </svg>
+            </span>
+            <input type="text" id="fromCollectionSearchInput" class="form-control" placeholder="<?= h(t('clm.edit_tab.from_collection_search_placeholder')) ?>" autocomplete="off">
+          </div>
+          <div id="fromCollectionResults" class="dropdown-results mt-2"></div>
+        </div>
+        <div id="fromCollectionStatus" class="text-center mt-2 text-muted" style="min-height: 24px;"></div>
       </div>
     </div>
   </div>

@@ -45,6 +45,7 @@ return [
             'lists_fetch_failed'   => 'Kunne ikke hente listene: %s',
             'lists_fetch_http_err' => 'API-et returnerte HTTP %d ved henting av lister.',
             'item_id_required'     => 'Fant ikke elementets ID.',
+            'content_id_required'  => 'Fant ikke filmens/seriens ID.',
         ],
 
         'create_tab' => [
@@ -122,6 +123,9 @@ return [
             'col_tvdb'           => 'TVDB',
             'col_season'         => 'Sesong',
             'col_actions'        => 'Handlinger',
+            'col_group_label'    => 'Fase/gruppe',
+            'group_label_placeholder' => 'F.eks. Fase 1',
+            'group_label_title'  => 'Valgfri gruppe-/fasemerking (f.eks. "Fase 1") for å dele listen inn i seksjoner',
 
             'btn_edit'           => 'Rediger',
             'btn_save'           => 'Lagre',
@@ -154,6 +158,16 @@ return [
             'add_title_required' => 'Du må skrive inn en tittel.',
             'add_saving'         => 'Legger til…',
             'add_error_prefix'   => 'Kunne ikke legge til: %s',
+
+            'btn_from_collection' => '📚 Legg til fra samlingen',
+            'from_collection_title' => '📚 Legg til fra samlingen',
+            'from_collection_search_placeholder' => 'Søk i samlingen etter tittel...',
+            'from_collection_loading' => 'Laster samlingen…',
+            'from_collection_empty' => 'Fant ingen treff i samlingen.',
+            'from_collection_fetch_error_prefix' => 'Kunne ikke hente samlingen: %s',
+            'from_collection_add_error_prefix' => 'Kunne ikke legge til fra samlingen: %s',
+            'from_collection_added' => 'Lagt til fra samlingen ✓',
+            'from_collection_close_label' => 'Lukk',
         ],
 
         'modal_tmdb' => [

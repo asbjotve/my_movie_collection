@@ -119,6 +119,7 @@
           <th>${escapeHtml(tr('col_tmdb'))}</th>
           <th>${escapeHtml(tr('col_tvdb'))}</th>
           <th>${escapeHtml(tr('col_season'))}</th>
+          <th>${escapeHtml(tr('col_group_label'))}</th>
           <th>${escapeHtml(tr('col_actions'))}</th>
         </tr>
       </thead>
@@ -266,6 +267,9 @@
         <td data-label="${label('col_tmdb')}"><input type="text" class="row-tmdb" value="${escapeHtml(item.tmdb_id)}"></td>
         <td data-label="${label('col_tvdb')}"><input type="text" class="row-tvdb" value="${escapeHtml(item.tvdb_id)}"></td>
         <td data-label="${label('col_season')}"><input type="text" class="row-season" value="${escapeHtml(item.season)}"></td>
+        <td class="cell-group-label" data-label="${label('col_group_label')}">
+          <input type="text" class="row-group-label" value="${escapeHtml(item.group_label)}" placeholder="${label('group_label_placeholder')}" title="${label('group_label_title')}">
+        </td>
         <td class="cell-actions" data-label="${label('col_actions')}">
           <button type="button" class="btn-row-save">${label('btn_save')}</button>
           <button type="button" class="btn-row-cancel">${label('btn_cancel')}</button>
@@ -286,6 +290,7 @@
       tr_.querySelector('.btn-row-tvdb').addEventListener('click', () => {
         window.clmActiveEditRow = tr_;
       });
+      wireGroupLabelInput(tr_.querySelector('.row-group-label'), listId, item);
     } else {
       tr_.innerHTML = `
         <td class="cell-drag"><span class="row-drag-handle" draggable="true" title="${label('drag_handle_title')}">⠿</span></td>
@@ -299,6 +304,9 @@
         <td data-label="${label('col_tmdb')}"><span class="row-text">${val(item.tmdb_id)}</span></td>
         <td data-label="${label('col_tvdb')}"><span class="row-text">${val(item.tvdb_id)}</span></td>
         <td data-label="${label('col_season')}"><span class="row-text">${val(item.season)}</span></td>
+        <td class="cell-group-label" data-label="${label('col_group_label')}">
+          <input type="text" class="row-group-label" value="${escapeHtml(item.group_label)}" placeholder="${label('group_label_placeholder')}" title="${label('group_label_title')}">
+        </td>
         <td class="cell-actions" data-label="${label('col_actions')}">
           <button type="button" class="btn-row-edit">${label('btn_edit')}</button>
           <button type="button" class="btn-row-delete">${label('btn_delete')}</button>
@@ -309,9 +317,50 @@
         tr_.replaceWith(buildRow(item, listId, true));
       });
       tr_.querySelector('.btn-row-delete').addEventListener('click', () => deleteRow(tr_, listId, item.title));
+      wireGroupLabelInput(tr_.querySelector('.row-group-label'), listId, item);
     }
 
     return tr_;
+  }
+
+  // The "Fase/gruppe" input saves itself on blur/Enter, independent of the
+  // row's own edit/view toggle and "Lagre"/"Rediger" flow - it's a property
+  // of the entry's placement in THIS list (custom_list_entries.group_label),
+  // not an editable field of the underlying item itself.
+  function wireGroupLabelInput(inputEl, listId, item) {
+    if (!inputEl) return;
+    const persist = async () => {
+      const newValue = inputEl.value.trim();
+      if (newValue === (item.group_label || '')) return;
+      try {
+        const res = await fetch(ajaxUrl('set_group_label'), {
+          method: 'POST',
+          body: new URLSearchParams({
+            list_id: listId,
+            list_item_id: item.list_item_id,
+            group_label: newValue,
+          }),
+          keepalive: true,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || `HTTP ${res.status}`);
+        }
+        item.group_label = newValue || null;
+        const idx = currentItems.findIndex((it) => it.list_item_id === item.list_item_id);
+        if (idx !== -1) currentItems[idx].group_label = item.group_label;
+      } catch (err) {
+        setStatus(statusEl, tr('save_error_prefix', err.message || err), 'error');
+        inputEl.value = item.group_label || '';
+      }
+    };
+    inputEl.addEventListener('blur', persist);
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        inputEl.blur();
+      }
+    });
   }
 
   async function saveRow(rowEl, listId, item) {
@@ -440,6 +489,7 @@
     formData.append('tmdb_id', document.getElementById('tmdb_id')?.value.trim() || '');
     formData.append('tvdb_id', document.getElementById('tvdb_id')?.value.trim() || '');
     formData.append('season', document.getElementById('season')?.value.trim() || '');
+    formData.append('group_label', document.getElementById('group_label')?.value.trim() || '');
 
     const coverFile = document.getElementById('cover_image')?.files?.[0];
     if (coverFile) {
@@ -458,7 +508,7 @@
 
       // Clear the add-item fields and reload the table so the new item
       // shows up immediately.
-      ['title', 'original_title', 'first_release_year', 'imdb_id', 'tmdb_id', 'tvdb_id', 'season'].forEach((id) => {
+      ['title', 'original_title', 'first_release_year', 'imdb_id', 'tmdb_id', 'tvdb_id', 'season', 'group_label'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
@@ -478,6 +528,126 @@
 
   listSelect?.addEventListener('change', () => loadItems(listSelect.value));
   btnAddItem?.addEventListener('click', addNewItem);
+
+  // --- "Legg til fra samlingen" picker ---------------------------------
+  // Loads the whole (read-only) collection once and filters it client-side
+  // as the user types - same "load once, filter in JS" approach the main
+  // collection page itself uses (see search_collection's comment in
+  // index.php), so no dedicated backend search endpoint is needed.
+  const fromCollectionModalEl = document.getElementById('fromCollectionModal');
+  const fromCollectionSearchInput = document.getElementById('fromCollectionSearchInput');
+  const fromCollectionResults = document.getElementById('fromCollectionResults');
+  const fromCollectionStatus = document.getElementById('fromCollectionStatus');
+
+  let collectionCache = null;
+  let collectionLoadPromise = null;
+
+  async function loadCollectionOnce() {
+    if (collectionCache) return collectionCache;
+    if (collectionLoadPromise) return collectionLoadPromise;
+
+    collectionLoadPromise = (async () => {
+      setStatus(fromCollectionStatus, tr('from_collection_loading'), 'info');
+      try {
+        const res = await fetch(ajaxUrl('search_collection'));
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || `HTTP ${res.status}`);
+        }
+        collectionCache = Array.isArray(data) ? data : [];
+        setStatus(fromCollectionStatus, '', 'info');
+        return collectionCache;
+      } catch (err) {
+        setStatus(fromCollectionStatus, tr('from_collection_fetch_error_prefix', err.message || err), 'error');
+        collectionCache = [];
+        return collectionCache;
+      } finally {
+        collectionLoadPromise = null;
+      }
+    })();
+
+    return collectionLoadPromise;
+  }
+
+  function renderCollectionResults(items) {
+    fromCollectionResults.innerHTML = '';
+    fromCollectionResults.classList.add('show');
+
+    if (items.length === 0) {
+      fromCollectionResults.innerHTML = `<div class="empty-hint">${escapeHtml(tr('from_collection_empty'))}</div>`;
+      return;
+    }
+
+    items.slice(0, 50).forEach((contentItem) => {
+      const div = document.createElement('div');
+      div.className = 'dropdown-item-custom';
+      const year = contentItem.release_year ?? (contentItem.first_release ? contentItem.first_release.slice(0, 4) : '');
+      div.innerHTML = `
+        ${
+          contentItem.cover_image
+            ? `<img src="${escapeHtml(contentItem.cover_image)}" class="dropdown-poster" alt="${escapeHtml(contentItem.title || '')}">`
+            : `<div class="dropdown-no-poster"></div>`
+        }
+        <div class="dropdown-info">
+          <div class="dropdown-title">${escapeHtml(contentItem.title || '')}</div>
+          <div class="dropdown-meta">${escapeHtml(year ? String(year) : '')}</div>
+        </div>
+      `;
+      div.addEventListener('click', () => addFromContent(contentItem));
+      fromCollectionResults.appendChild(div);
+    });
+  }
+
+  async function addFromContent(contentItem) {
+    const listId = listSelect?.value;
+    if (!listId) {
+      setStatus(fromCollectionStatus, tr('select_list_hint'), 'error');
+      return;
+    }
+
+    setStatus(fromCollectionStatus, tr('add_saving'), 'info');
+
+    try {
+      const res = await fetch(ajaxUrl('add_item_from_content'), {
+        method: 'POST',
+        body: new URLSearchParams({ list_id: listId, content_id: contentItem.content_id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      setStatus(fromCollectionStatus, tr('from_collection_added'), 'success');
+      await loadItems(listId);
+
+      const modalInstance = bootstrap.Modal.getInstance(fromCollectionModalEl);
+      if (modalInstance) modalInstance.hide();
+    } catch (err) {
+      setStatus(fromCollectionStatus, tr('from_collection_add_error_prefix', err.message || err), 'error');
+    }
+  }
+
+  function filterAndRenderCollection() {
+    const query = fromCollectionSearchInput.value.trim().toLowerCase();
+    const source = collectionCache || [];
+    const filtered = query === ''
+      ? source
+      : source.filter((contentItem) => (contentItem.title || '').toLowerCase().includes(query)
+          || (contentItem.original_title || '').toLowerCase().includes(query));
+    renderCollectionResults(filtered);
+  }
+
+  fromCollectionModalEl?.addEventListener('show.bs.modal', async () => {
+    fromCollectionSearchInput.value = '';
+    fromCollectionResults.innerHTML = '';
+    fromCollectionResults.classList.remove('show');
+    await loadCollectionOnce();
+    filterAndRenderCollection();
+  });
+  fromCollectionModalEl?.addEventListener('hidden.bs.modal', () => {
+    fromCollectionResults.classList.remove('show');
+  });
+  fromCollectionSearchInput?.addEventListener('input', filterAndRenderCollection);
 
   // Called from index.php's tab-switch handler the first time the "edit"
   // tab is opened (lazy init - no point loading anything before the user
