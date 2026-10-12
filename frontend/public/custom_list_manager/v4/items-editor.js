@@ -110,6 +110,7 @@
     table.innerHTML = `
       <thead>
         <tr>
+          <th class="col-position">#</th>
           <th class="col-drag"></th>
           <th>${escapeHtml(tr('col_cover'))}</th>
           <th>${escapeHtml(tr('col_title'))}</th>
@@ -127,9 +128,16 @@
     `;
 
     const tbody = table.querySelector('tbody');
+    // Sequential position badge counts item rows only (header rows are
+    // skipped), so it reflects the saved sort_order independent of which
+    // group section an item currently falls under.
+    let position = 0;
     groupItemsForDisplay(items).forEach((group) => {
       tbody.appendChild(buildGroupHeaderRow(group.label));
-      group.items.forEach((item) => tbody.appendChild(buildRow(item, listId, false)));
+      group.items.forEach((item) => {
+        position += 1;
+        tbody.appendChild(buildRow(item, listId, false, position));
+      });
     });
     wireRowDragging(tbody, listId);
 
@@ -165,7 +173,7 @@
     tr_.className = 'row-group-header';
     tr_.dataset.groupLabel = label || '';
     const text = label ? escapeHtml(label) : escapeHtml(tr('ungrouped_label'));
-    tr_.innerHTML = `<td colspan="11">${text}</td>`;
+    tr_.innerHTML = `<td colspan="12">${text}</td>`;
     return tr_;
   }
 
@@ -328,9 +336,14 @@
   // or as an inline-editable row with inputs (editing=true). Each row
   // starts read-only; clicking "Rediger" swaps it to edit mode in place,
   // "Avbryt"/"Lagre" swap it back.
-  function buildRow(item, listId, editing) {
+  // `position` is the row's fixed sequential badge number (1-based, skips
+  // header rows) - callers that just swap a row's mode in place (cancel,
+  // edit, save) reuse the row's own cached dataset.position rather than
+  // recomputing it, since those swaps never change the overall order.
+  function buildRow(item, listId, editing, position) {
     const tr_ = document.createElement('tr');
     tr_.dataset.itemId = item.list_item_id;
+    tr_.dataset.position = position;
     tr_.className = editing ? 'row-editing' : '';
 
     const label = (key) => escapeHtml(tr(key));
@@ -338,6 +351,7 @@
 
     if (editing) {
       tr_.innerHTML = `
+        <td class="cell-position"><span class="row-position-badge">${position}</span></td>
         <td class="cell-drag"><span class="row-drag-handle" draggable="true" title="${label('drag_handle_title')}">⠿</span></td>
         <td class="cell-cover" data-label="${label('col_cover')}">
           ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : ''}
@@ -367,7 +381,7 @@
       `;
       tr_.querySelector('.btn-row-save').addEventListener('click', () => saveRow(tr_, listId, item));
       tr_.querySelector('.btn-row-cancel').addEventListener('click', () => {
-        tr_.replaceWith(buildRow(item, listId, false));
+        tr_.replaceWith(buildRow(item, listId, false, position));
       });
       // Let script.js / tvdb-search.js know that a search result should be
       // applied to THIS row's inputs instead of the "+ Nytt element" panel's
@@ -382,6 +396,7 @@
       wireGroupLabelInput(tr_.querySelector('.row-group-label'), listId, item);
     } else {
       tr_.innerHTML = `
+        <td class="cell-position"><span class="row-position-badge">${position}</span></td>
         <td class="cell-drag"><span class="row-drag-handle" draggable="true" title="${label('drag_handle_title')}">⠿</span></td>
         <td class="cell-cover" data-label="${label('col_cover')}">
           ${item.cover_image ? `<img src="${escapeHtml(item.cover_image)}" class="row-cover-preview" alt="">` : '\u2014'}
@@ -403,7 +418,7 @@
         </td>
       `;
       tr_.querySelector('.btn-row-edit').addEventListener('click', () => {
-        tr_.replaceWith(buildRow(item, listId, true));
+        tr_.replaceWith(buildRow(item, listId, true, position));
       });
       tr_.querySelector('.btn-row-delete').addEventListener('click', () => deleteRow(tr_, listId, item.title));
       wireGroupLabelInput(tr_.querySelector('.row-group-label'), listId, item);
@@ -520,7 +535,7 @@
       const idx = currentItems.findIndex((it) => it.list_item_id === updated.list_item_id);
       if (idx !== -1) currentItems[idx] = updated;
 
-      rowEl.replaceWith(buildRow(updated, listId, false));
+      rowEl.replaceWith(buildRow(updated, listId, false, Number(rowEl.dataset.position)));
       setStatus(statusEl, tr('saved'), 'success');
       setTimeout(() => setStatus(statusEl, '', 'info'), 2000);
     } catch (err) {

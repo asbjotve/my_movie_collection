@@ -728,6 +728,21 @@ if ($listsResponse === false || $listsCurlError) {
     }
     table.items-table .cell-cover{ width:64px; }
     table.items-table .cell-drag{ width:28px; text-align:center; }
+    table.items-table .cell-position{ width:28px; text-align:center; }
+    /* Fixed sequential number (position in the saved sort_order), shown
+       regardless of how items are currently grouped - lets the user map a
+       row back to "item N" independent of group boundaries. */
+    table.items-table .row-position-badge{
+      display:inline-block;
+      min-width:20px;
+      padding:2px 6px;
+      border-radius:999px;
+      background: rgba(122,162,255,.16);
+      color: var(--muted);
+      font-size:12px;
+      font-weight:700;
+      text-align:center;
+    }
     table.items-table .row-drag-handle{
       cursor: grab;
       user-select: none;
@@ -866,6 +881,7 @@ if ($listsResponse === false || $listsCurlError) {
       }
       table.items-table .cell-cover{ width:auto; }
       table.items-table .cell-drag{ width:auto; text-align:left; }
+      table.items-table .cell-position{ width:auto; text-align:left; }
       table.items-table .cell-title, table.items-table .cell-original-title{ max-width:none; }
     }
 
