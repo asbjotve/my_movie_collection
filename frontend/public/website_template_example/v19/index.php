@@ -1410,14 +1410,25 @@ $sectionAccess = [
           const rows = group.items.map(it => {
             andreListerPosition += 1;
             const year = it.first_release_year ? ` (${it.first_release_year})` : "";
-            const toggleBtn = it.cover_image
-              ? `<button type="button" class="btn toggleCoverBtn" data-title="${it.title.replace(/"/g, "&quot;")}${year}" data-cover="${it.cover_image}">${WTE_I18N.andre_lister.show_cover}</button>`
+            // Vis knappen for alle elementer som KAN vise et cover - enten
+            // fra lagret cover_image, eller (lazy, ved klikk) et midlertidig
+            // TMDB-hentet bilde via tmdb_id - se
+            // get_list_item_cover_preview() i custom_list_manager.py. Kun
+            // elementer uten BÅDE cover_image og tmdb_id mangler knappen,
+            // siden det da ikke finnes noe å hente.
+            const canShowCover = Boolean(it.cover_image || it.tmdb_id);
+            const toggleBtn = canShowCover
+              ? `<button type="button" class="btn toggleCoverBtn" data-list-item-id="${it.list_item_id}" data-title="${it.title.replace(/"/g, "&quot;")}${year}" data-cover="${it.cover_image || ""}">${WTE_I18N.andre_lister.show_cover}</button>`
+              : "";
+            const ownedBadge = it.owned
+              ? `<span class="tag badge" title="${WTE_I18N.andre_lister.owned_badge}">✔ ${WTE_I18N.andre_lister.owned_badge}</span>`
               : "";
             return `
             <div class="row">
               <span style="display:flex;align-items:center;gap:10px;">
                 <span class="tag">${andreListerPosition}</span>
                 <strong>${it.title}${year}</strong>
+                ${ownedBadge}
               </span>
               ${toggleBtn}
             </div>`;
@@ -1427,10 +1438,32 @@ $sectionAccess = [
 
         // Hver rad har en "vis cover"-knapp som åpner cover-bildet i en
         // modal (i stedet for å vise det inline i raden, som ble for
-        // lite til å faktisk se noe på).
+        // lite til å faktisk se noe på). Elementer uten lagret
+        // cover_image henter et midlertidig bilde fra TMDB først - se
+        // list_custom_list_item_cover_preview-proxyen over.
         andreListerItemsList.querySelectorAll(".toggleCoverBtn").forEach(btn => {
-          btn.addEventListener("click", () => {
-            openCoverPreviewModal(btn.dataset.title, btn.dataset.cover);
+          btn.addEventListener("click", async () => {
+            if (btn.dataset.cover) {
+              openCoverPreviewModal(btn.dataset.title, btn.dataset.cover);
+              return;
+            }
+            const originalLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = WTE_I18N.andre_lister.show_cover_loading;
+            try {
+              const res = await fetch(
+                "api.php?action=list_custom_list_item_cover_preview&list_item_id=" + encodeURIComponent(btn.dataset.listItemId)
+              );
+              const json = await res.json();
+              if (!res.ok || !json.cover_image) throw new Error(json.error || res.statusText);
+              btn.dataset.cover = json.cover_image;
+              openCoverPreviewModal(btn.dataset.title, json.cover_image);
+              btn.textContent = originalLabel;
+            } catch (err) {
+              btn.textContent = WTE_I18N.andre_lister.show_cover_error;
+            } finally {
+              btn.disabled = false;
+            }
           });
         });
       } catch (err) {

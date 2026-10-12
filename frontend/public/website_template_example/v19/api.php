@@ -357,6 +357,47 @@ if (($_GET['action'] ?? '') === 'list_custom_list_items') {
     exit;
 }
 
+// GET ?action=list_custom_list_item_cover_preview&list_item_id=<uuid>
+// Brukes av "Vis cover"-knappen i "Andre lister" for elementer som
+// ikke har sitt eget lagrede cover_image - henter da et midlertidig
+// (ikke lagret) cover-bilde live fra TMDB via list-item'ets tmdb_id -
+// se GET /lists/items/{list_item_id}/cover-preview i
+// backend/app/routes/add_data/custom_list_manager_route.py.
+if (($_GET['action'] ?? '') === 'list_custom_list_item_cover_preview') {
+    if ($sectionRequiresLogin['andre_lister'] && !is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    $listItemId = (string)($_GET['list_item_id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F-]{32,36}$/', $listItemId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig list_item_id-parameter']);
+        exit;
+    }
+
+    $coverUrl = MEDIA_API_BASE_URL . '/lists/items/' . rawurlencode($listItemId) . '/cover-preview';
+
+    $ch = curl_init($coverUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // Brukes til autofullføring i redigerings-popupen for "group"-feltet på
 // detail.php: lister alle eksisterende filmgrupper (movie_group), slik
 // at brukeren kan velge en eksisterende gruppe fremfor å skrive inn

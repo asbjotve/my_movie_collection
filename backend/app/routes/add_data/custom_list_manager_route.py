@@ -10,6 +10,7 @@ from app.services.add_data.custom_list_manager import (
     add_item_to_custom_list,
     create_custom_list,
     delete_list_item,
+    get_list_item_cover_preview,
     get_list_items,
     list_custom_lists,
     reorder_list_items,
@@ -19,6 +20,7 @@ from app.services.add_data.custom_list_manager import (
 )
 from app.services.add_data.list_item_shared import ListItemUploadError
 from app.services.add_data.wishlist_movie_cover import WISHLIST_LIST_NAME
+from app.services.external_apis import ExternalApiError
 
 router = APIRouter(
     prefix="/lists",
@@ -114,6 +116,22 @@ async def get_list_items_route(
     try:
         return get_list_items(db, list_id=list_id)
     except ListItemUploadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.get("/items/{list_item_id}/cover-preview", dependencies=[Depends(require_api_key)])
+async def get_list_item_cover_preview_route(
+    list_item_id: str,
+    db: Session = Depends(get_media_db),
+):
+    """Returns a cover image for one list item - its own stored
+    cover_image, or (if it doesn't have one) a temporary poster fetched
+    live from TMDB - see get_list_item_cover_preview()."""
+    try:
+        return get_list_item_cover_preview(db, list_item_id=list_item_id)
+    except ListItemUploadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except ExternalApiError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
 

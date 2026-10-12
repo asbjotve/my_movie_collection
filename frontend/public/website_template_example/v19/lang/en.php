@@ -76,6 +76,9 @@ return [
                 'back_to_lists' => 'Back to lists',
                 'fetch_error_prefix' => 'Could not fetch lists: ',
                 'show_cover'  => 'Show cover',
+                'show_cover_loading' => 'Fetching cover…',
+                'show_cover_error' => 'No cover found',
+                'owned_badge' => 'Owned',
             ],
 
             'administrering' => [

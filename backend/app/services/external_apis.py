@@ -169,6 +169,42 @@ def fetch_tmdb_details(external_id: str, content_type: str, language: str = "nb-
     return response.json()
 
 
+def fetch_tmdb_poster_url(external_id: str, content_type: str) -> str | None:
+    """Lightweight TMDB lookup that only needs poster_path - used to show
+    a temporary (not persisted) cover preview for custom-list items that
+    don't have their own cover_image yet, see get_list_item_cover_preview()
+    in custom_list_manager.py. Deliberately skips fetch_tmdb_details()'s
+    heavy append_to_response (credits/images/translations/etc), which
+    isn't needed just to grab one poster path."""
+
+    if not settings.TMDB_API_KEY:
+        raise ExternalApiError(
+            "TMDB_API_KEY er ikke satt i backend/config/.env", status_code=500
+        )
+
+    media_type = "movie" if content_type == "movie" else "tv"
+    url = f"{TMDB_BASE_URL}/{media_type}/{external_id}"
+
+    try:
+        response = requests.get(
+            url,
+            params={"api_key": settings.TMDB_API_KEY},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as e:
+        raise ExternalApiError(f"Kunne ikke nå TMDB: {e}") from e
+
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise ExternalApiError(
+            f"TMDB svarte med feilkode {response.status_code}: {response.text[:300]}"
+        )
+
+    poster_path = response.json().get("poster_path")
+    return f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+
+
 def _get_tvdb_token() -> str:
     if not settings.TVDB_API_KEY or not settings.TVDB_PIN:
         raise ExternalApiError(

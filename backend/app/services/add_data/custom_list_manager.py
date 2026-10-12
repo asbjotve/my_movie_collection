@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.services.external_apis import fetch_tmdb_poster_url
 from app.services.add_data.list_item_shared import (
     DEFAULT_PUBLIC_BASE_URL,
     DEFAULT_UPLOAD_DIR,
@@ -463,7 +464,19 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
                 li.season,
                 li.cover_image,
                 cle.sort_order,
-                cle.group_label
+                cle.group_label,
+                (
+                    EXISTS (
+                        SELECT 1 FROM content c
+                        WHERE li.imdb_id IS NOT NULL AND li.imdb_id <> ''
+                          AND c.imdb_id = li.imdb_id
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM content_external_source ces
+                        WHERE li.tmdb_id IS NOT NULL AND li.tmdb_id <> ''
+                          AND ces.source = 'tmdb' AND ces.external_id = li.tmdb_id
+                    )
+                ) AS owned
             FROM custom_list_entries cle
             JOIN list_items li ON li.list_item_id = cle.list_item_id
             WHERE cle.list_id = :list_id
@@ -486,9 +499,45 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
             "cover_image": row.cover_image,
             "sort_order": row.sort_order,
             "group_label": row.group_label,
+            "owned": bool(row.owned),
         }
         for row in rows
     ]
+
+
+def get_list_item_cover_preview(db: Session, list_item_id: str) -> dict[str, str | bool | None]:
+    """Returns a cover image to show for a single list item - its own
+    stored cover_image if it has one, otherwise a temporary (not
+    persisted) poster fetched live from TMDB via tmdb_id, used by the
+    "Vis cover" button in website_template_example/v19's "Andre lister"
+    panel for items that were added without ever getting a cover_image
+    (e.g. picked straight from a TMDB search instead of copied from the
+    collection)."""
+    parsed_item_id = _parse_list_item_id(list_item_id)
+
+    row = db.execute(
+        text(
+            "SELECT cover_image, tmdb_id, season FROM list_items WHERE list_item_id = :list_item_id"
+        ),
+        {"list_item_id": parsed_item_id},
+    ).fetchone()
+
+    if row is None:
+        raise ListItemUploadError("Fant ikke elementet.", status_code=404)
+
+    if row.cover_image:
+        return {"cover_image": row.cover_image, "temporary": False}
+
+    if not row.tmdb_id:
+        raise ListItemUploadError("Ingen cover tilgjengelig for dette elementet.", status_code=404)
+
+    content_type = "tv" if row.season else "movie"
+    poster_url = fetch_tmdb_poster_url(row.tmdb_id, content_type)
+
+    if not poster_url:
+        raise ListItemUploadError("Fant ingen cover på TMDB for dette elementet.", status_code=404)
+
+    return {"cover_image": poster_url, "temporary": True}
 
 
 def set_list_item_group_label(

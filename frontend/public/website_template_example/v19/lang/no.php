@@ -79,6 +79,9 @@ return [
                 'back_to_lists' => 'Tilbake til listene',
                 'fetch_error_prefix' => 'Kunne ikke hente lister: ',
                 'show_cover'  => 'Vis cover',
+                'show_cover_loading' => 'Henter cover…',
+                'show_cover_error' => 'Fant ikke cover',
+                'owned_badge' => 'Eid',
             ],
 
             'administrering' => [
