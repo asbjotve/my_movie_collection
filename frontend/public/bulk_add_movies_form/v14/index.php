@@ -415,9 +415,14 @@ function h(string $s): string
       tilbake herfra. Se det tilsvarende "Rediger lister"-kortet på
       Administrering-siden (website_template_example/v19/index.php)
       som lenker hit.
+
+      Bruker BASE_PATH (se _shared/auth.php) - URL-stien til den
+      gjeldende website_template_example-versjonen - i stedet for en
+      hardkodet sti, slik at lenken fortsatt er riktig selv om den
+      appen flyttes/omdøpes uten kodeendring her.
     -->
     <div class="backToAdminRow">
-      <a href="/website_template_example/v19/index.php?panel=administrering" class="btn btnTiny"><?= h(tr($t, 'nav.back_to_admin')) ?></a>
+      <a href="<?= h(BASE_PATH . '/index.php?panel=administrering') ?>" class="btn btnTiny"><?= h(tr($t, 'nav.back_to_admin')) ?></a>
     </div>
     <section class="hero">
       <div>

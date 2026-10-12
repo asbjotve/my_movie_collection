@@ -220,7 +220,11 @@ function h(string $s): string
 <div class="page">
 
   <div class="backToAdminRow">
-    <a href="/website_template_example/v19/index.php?panel=administrering" class="btn small">← Til Administrering</a>
+    <!-- BASE_PATH (see _shared/auth.php) is the URL path prefix of the
+         currently-live website_template_example version, so this link
+         stays correct if that app is ever moved/renamed without any
+         code change here. -->
+    <a href="<?= h(BASE_PATH . '/index.php?panel=administrering') ?>" class="btn small">← Til Administrering</a>
   </div>
 
   <div class="hero">
