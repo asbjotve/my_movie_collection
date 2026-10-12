@@ -18,6 +18,10 @@ return [
             'tag'   => 'Opprett liste &amp; rediger elementer',
         ],
 
+        'nav' => [
+            'back_to_admin' => '← Til Administrering',
+        ],
+
         'tabs' => [
             'create' => 'Opprett liste',
             'edit'   => 'Rediger liste',

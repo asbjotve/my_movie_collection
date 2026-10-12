@@ -561,6 +561,25 @@ if ($listsResponse === false || $listsCurlError) {
       padding:24px 18px 48px;
     }
 
+    /* Back-to-administration link, same pattern as bulk_add_movies_form
+       and tv_series_add_form's ".backToAdminRow"/".btn.btnTiny" - this
+       page isn't built into website_template_example itself, so this is
+       the only way back from here. */
+    .backToAdminRow{ margin-bottom:14px; }
+    .backToAdminRow .btn{
+      appearance:none;
+      display:inline-block;
+      border:1px solid var(--line);
+      background:var(--panel2);
+      color:var(--text);
+      border-radius:10px;
+      padding:6px 10px;
+      font-size:12px;
+      font-weight:600;
+      text-decoration:none;
+    }
+    .backToAdminRow .btn:hover{ border-color: rgba(122,162,255,.55); }
+
     .card{
       width:100%;
       background: rgba(18,26,51,.65);
@@ -1062,6 +1081,18 @@ if ($listsResponse === false || $listsCurlError) {
 </header>
 
 <main>
+  <!--
+    Link back to website_template_example's Administrering page - this
+    tool isn't built into website_template_example itself, so this is
+    the only way back from here (same pattern as bulk_add_movies_form
+    and tv_series_add_form). Uses BASE_PATH (see _shared/auth.php)
+    instead of a hardcoded path, so the link stays correct even if that
+    app is moved/renamed.
+  -->
+  <div class="backToAdminRow">
+    <a href="<?= h(BASE_PATH . '/index.php?panel=administrering') ?>" class="btn"><?= h(t('clm.nav.back_to_admin')) ?></a>
+  </div>
+
   <section class="card">
     <div class="tabs">
       <button type="button" class="tab-btn <?= $activeTab === 'create' ? 'active' : '' ?>" data-tab="create"><?= h(t('clm.tabs.create')) ?></button>

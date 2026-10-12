@@ -19,6 +19,10 @@ return [
             'tag'   => 'Create list &amp; edit items',
         ],
 
+        'nav' => [
+            'back_to_admin' => '← Back to Administration',
+        ],
+
         'tabs' => [
             'create' => 'Create list',
             'edit'   => 'Edit list',
