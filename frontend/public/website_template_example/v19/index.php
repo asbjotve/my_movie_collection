@@ -659,6 +659,9 @@ $sectionAccess = [
           <input id="watchedDatesModalNewDate" type="date" style="flex:1; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
           <button type="button" class="btn" id="btnAddWatchedDate"><?= htmlspecialchars(t('wte.index.mine_filmer.watched_dates_add_btn')) ?></button>
         </div>
+        <div style="margin-top:8px;">
+          <button type="button" class="btn" id="btnWatchedToday" style="width:100%;"><?= htmlspecialchars(t('wte.index.mine_filmer.watched_dates_today_btn')) ?></button>
+        </div>
       </div>
     </div>
     <?php endif; ?>
@@ -1033,22 +1036,31 @@ $sectionAccess = [
     renderMineFilmer(false);
   }
 
-  async function addWatchedDate(){
-    if (!watchedDatesModalContentId) return;
+  async function addWatchedDate(dateOverride){
+    if (!watchedDatesModalContentId) return false;
     watchedDatesModalStatus.textContent = "";
     watchedDatesModalStatus.classList.remove("error");
     try {
       const res = await fetch("api.php?action=add_content_watched_date&id=" + encodeURIComponent(watchedDatesModalContentId), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrfHeader() },
-        body: JSON.stringify({ watched_date: watchedDatesModalNewDate.value || null }),
+        body: JSON.stringify({ watched_date: dateOverride || watchedDatesModalNewDate.value || null }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       applyWatchedDatesResult(await res.json());
+      return true;
     } catch (err) {
       watchedDatesModalStatus.textContent = WTE_I18N.mine_filmer.watched_dates_error;
       watchedDatesModalStatus.classList.add("error");
+      return false;
     }
+  }
+
+  // "Sett i dag"-snarvei: lagrer dagens dato direkte og lukker modalen
+  // automatisk ved suksess (i stedet for å kreve "velg dato" + "legg til").
+  async function addWatchedDateToday(){
+    const ok = await addWatchedDate(new Date().toISOString().slice(0, 10));
+    if (ok) closeWatchedDatesModal();
   }
 
   async function updateWatchedDate(watchedId, newDate){
@@ -1091,7 +1103,9 @@ $sectionAccess = [
     watchedDatesModalOverlay.addEventListener("click", (e) => {
       if (e.target === watchedDatesModalOverlay) closeWatchedDatesModal();
     });
-    btnAddWatchedDate.addEventListener("click", addWatchedDate);
+    btnAddWatchedDate.addEventListener("click", () => addWatchedDate());
+    const btnWatchedToday = document.getElementById("btnWatchedToday");
+    if (btnWatchedToday) btnWatchedToday.addEventListener("click", addWatchedDateToday);
   }
 
   // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----
