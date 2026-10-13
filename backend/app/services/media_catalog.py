@@ -714,7 +714,7 @@ def _parse_facet_genres(raw_value) -> list[str]:
     return parsed if isinstance(parsed, list) else []
 
 
-def list_content(db: Session) -> list[dict]:
+def list_content(db: Session, current_user_id: int | None = None) -> list[dict]:
     """Henter alle content-rader, med tilhørende fysiske utgaver og
     eksterne kilder gruppert inn i hvert content-objekt.
 
@@ -727,6 +727,13 @@ def list_content(db: Session) -> list[dict]:
     index.php i dag. Disse kolonnene leses her i stedet for å parse
     den fulle (ofte >100KB) TMDB data_json-blobben på nytt ved hvert
     kall - se migrasjon 740c10b9db7b for bakgrunnen/målingene.
+
+    current_user_id: hvis satt (innlogget bruker kjent for kallet, se
+    GET /media/content sin username-parameter), markeres
+    watched_flag=True kun for titler DENNE brukeren har markert som
+    sett (via content_watched, se set_content_watched()). Er None
+    (ukjent/anonym besøkende) er watched_flag alltid False - det
+    finnes ingen "global" sett-status lenger.
     """
 
     content_rows = db.execute(
@@ -739,7 +746,6 @@ def list_content(db: Session) -> list[dict]:
                 first_release,
                 runtime,
                 age_restriction,
-                watched_flag,
                 temporary_flag,
                 content_type,
                 imdb_id,
@@ -749,6 +755,16 @@ def list_content(db: Session) -> list[dict]:
             """
         )
     ).fetchall()
+
+    watched_content_ids: set[str] = set()
+    if current_user_id is not None:
+        watched_content_ids = {
+            _hex_id(row.content_id)
+            for row in db.execute(
+                text("SELECT content_id FROM content_watched WHERE user_id = :user_id"),
+                {"user_id": current_user_id},
+            ).fetchall()
+        }
 
     collection_rows = db.execute(
         text(
@@ -880,7 +896,7 @@ def list_content(db: Session) -> list[dict]:
                 ),
                 "runtime": row.runtime,
                 "age_restriction": row.age_restriction,
-                "watched_flag": bool(row.watched_flag),
+                "watched_flag": content_id in watched_content_ids,
                 "temporary_flag": bool(row.temporary_flag),
                 "content_type": row.content_type,
                 "imdb_id": row.imdb_id,
@@ -899,13 +915,22 @@ def list_content(db: Session) -> list[dict]:
     return result
 
 
-def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK") -> dict | None:
+def get_content_by_id(
+    db: Session,
+    content_id: str,
+    default_currency: str = "NOK",
+    current_user_id: int | None = None,
+) -> dict | None:
     """Henter én content-rad (med samme struktur som list_content sine
     elementer), for detaljsiden i website_template_example v18.
 
     NB: production_company/produksjonsselskap finnes ikke som eget felt
     i content-tabellen ennå - kan legges til her senere hvis kolonnen
     opprettes i databasen.
+
+    current_user_id: se list_content() sin docstring - watched_flag i
+    svaret gjelder kun denne brukeren, og er False hvis None (ukjent/
+    anonym besøkende).
     """
 
     try:
@@ -923,7 +948,6 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
                 c.first_release,
                 c.runtime,
                 c.age_restriction,
-                c.watched_flag,
                 c.temporary_flag,
                 c.content_type,
                 c.imdb_id,
@@ -941,6 +965,18 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
 
     if row is None:
         return None
+
+    watched_flag = False
+    if current_user_id is not None:
+        watched_flag = (
+            db.execute(
+                text(
+                    "SELECT 1 FROM content_watched WHERE user_id = :user_id AND content_id = :content_id"
+                ),
+                {"user_id": current_user_id, "content_id": raw_id},
+            ).fetchone()
+            is not None
+        )
 
     collection_rows = db.execute(
         text(
@@ -997,7 +1033,7 @@ def get_content_by_id(db: Session, content_id: str, default_currency: str = "NOK
         ),
         "runtime": row.runtime,
         "age_restriction": row.age_restriction,
-        "watched_flag": bool(row.watched_flag),
+        "watched_flag": watched_flag,
         "temporary_flag": bool(row.temporary_flag),
         "content_type": row.content_type,
         "imdb_id": row.imdb_id,
@@ -1696,6 +1732,54 @@ def set_content_field_lock(db: Session, content_id: str, field: str, locked: boo
         "locked": locked,
         "locked_fields": sorted(locked_fields),
     }
+
+
+def set_content_watched(db: Session, content_id: str, user_id: int, watched: bool) -> dict:
+    """Markerer (eller fjerner markeringen av) en film/serie som "sett"
+    for ÉN bestemt bruker - se content_watched (migrasjon c6ef33fd4560)
+    og ContentWatched i media_models.py.
+
+    watched=True setter inn en rad (INSERT ... ON DUPLICATE KEY UPDATE,
+    siden brukeren kan trykke knappen flere ganger uten feil).
+    watched=False sletter raden (ingen "watched_flag=0"-rad finnes -
+    fravær av rad ER "ikke sett").
+
+    Kaster ContentExternalSourceError (404) hvis content ikke finnes.
+    """
+
+    try:
+        raw_id = _parse_hex_id(content_id)
+    except (ValueError, AttributeError):
+        raise ContentExternalSourceError("Ugyldig content_id", status_code=404)
+
+    content_row = db.execute(
+        text("SELECT content_id FROM content WHERE content_id = :content_id"),
+        {"content_id": raw_id},
+    ).fetchone()
+    if content_row is None:
+        raise ContentExternalSourceError(
+            "Fant ikke content med denne IDen", status_code=404
+        )
+
+    if watched:
+        db.execute(
+            text(
+                """
+                INSERT INTO content_watched (user_id, content_id, watched_at)
+                VALUES (:user_id, :content_id, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE watched_at = watched_at
+                """
+            ),
+            {"user_id": user_id, "content_id": raw_id},
+        )
+    else:
+        db.execute(
+            text("DELETE FROM content_watched WHERE user_id = :user_id AND content_id = :content_id"),
+            {"user_id": user_id, "content_id": raw_id},
+        )
+    db.commit()
+
+    return {"status": "ok", "content_id": content_id, "watched_flag": watched}
 
 
 def update_physical_copy_fields(

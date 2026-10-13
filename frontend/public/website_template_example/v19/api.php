@@ -1018,6 +1018,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_co
     exit;
 }
 
+// PATCH ?action=set_content_watched&id=<hex content_id>
+// (body: {"watched": true|false})
+// Brukes av "merk som sett/ikke sett"-knappen (per innlogget bruker,
+// ikke et globalt flagg) i "Mine filmer" - se
+// PATCH /media/content/{id}/watched i
+// backend/app/routes/media_catalog_route.py.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'set_content_watched') {
+    if (!is_logged_in()) {
+        require_login_or_json_401();
+    }
+
+    // Krever et gyldig CSRF-token (header X-CSRF-Token, se csrfHeader()
+    // i index.php/detail.php) FØR noen tilstandsendring skjer.
+    require_csrf_or_json_403();
+
+    $contentId = (string)($_GET['id'] ?? '');
+    if (!preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ugyldig id-parameter']);
+        exit;
+    }
+
+    $body = file_get_contents('php://input');
+
+    $watchedUrl = MEDIA_API_BASE_URL . '/media/content/' . $contentId . '/watched';
+
+    [$response, $httpCode, $curlError] = backend_curl_with_retry($watchedUrl, [
+        CURLOPT_CUSTOMREQUEST => 'PATCH',
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_TIMEOUT => 10,
+    ], ['Content-Type: application/json']);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // PATCH ?action=update_physical_copy_field&collection_id=<hex>&copy_id=<int>
 // (body: kun feltet(ene) som redigeres, f.eks. {"price": 179})
 // Brukes av penne-ikon-redigering for eier-/kjøpsinformasjon på ett
@@ -1669,6 +1712,20 @@ if ($contentId !== null && !preg_match('/^[0-9a-fA-F]{32}$/', $contentId)) {
 $url = $contentId !== null
     ? MEDIA_API_BASE_URL . '/media/content/' . $contentId
     : MEDIA_API_BASE_URL . '/media/content';
+
+// Sender med innlogget brukers brukernavn (server-side, fra en allerede
+// validert sesjon - ALDRI noe klienten selv kan sette her) slik at
+// backend kan slå opp DENNE brukerens egen sett/ikke sett-status
+// (content_watched, per-bruker) i stedet for et gammelt globalt flagg
+// - se username-parameteren på GET /media/content i
+// backend/app/routes/media_catalog_route.py. Anonyme/utloggede
+// besøkende sender ingen username og får watched_flag=false for alt.
+if (is_logged_in()) {
+    $username = current_username();
+    if ($username !== null && $username !== '') {
+        $url .= (strpos($url, '?') === false ? '?' : '&') . 'username=' . rawurlencode($username);
+    }
+}
 
 $ch = curl_init($url);
 curl_setopt_array($ch, [

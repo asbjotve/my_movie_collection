@@ -140,7 +140,6 @@ class Content(MediaBase):
     age_restriction = Column(Text, nullable=True)
     runtime = Column(Integer, nullable=True)
     runtime_txt = Column(Text, nullable=True)
-    watched_flag = Column(TINYINT(1), nullable=True)
     temporary_flag = Column(TINYINT(1), nullable=True)
     content_type = Column(String(59), nullable=True)
     group_id = Column(
@@ -161,6 +160,32 @@ class Content(MediaBase):
             name="content_chk_1",
         ),
     )
+
+
+class ContentWatched(MediaBase):
+    """Per-user "watched it" marker for a content row. Presence of a row
+    means that user has marked this title as watched - there is no
+    watched_flag=0 state, toggling "unwatched" just deletes the row.
+
+    Replaces the old single global content.watched_flag column (see
+    migration c6ef33fd4560) so that each user tracks their own seen
+    status independently.
+
+    user_id intentionally has NO foreign key - the users table lives in
+    a separate database/connection (mmc_userdb, see app/db.py) from the
+    media catalog this table belongs to, so a real FK isn't possible.
+    It is only ever set from an already-authenticated user.id (see
+    app/security.py's get_current_user())."""
+
+    __tablename__ = "content_watched"
+
+    user_id = Column(Integer, primary_key=True)
+    content_id = Column(
+        BINARY(16),
+        ForeignKey("content.content_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    watched_at = Column(TIMESTAMP, nullable=False)
 
 
 class PhysicalCopy(MediaBase):

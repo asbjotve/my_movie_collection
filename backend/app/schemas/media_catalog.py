@@ -65,6 +65,17 @@ class ContentFieldLockRequest(BaseModel):
     locked: bool
 
 
+class ContentWatchedUpdateRequest(BaseModel):
+    """Body for PATCH /media/content/{content_id}/watched.
+
+    Markerer/fjerner markeringen av at DENNE innloggede brukeren har
+    sett filmen/serien - se set_content_watched() i media_catalog.py.
+    Per-bruker (ikke et globalt flagg) - se content_watched-tabellen.
+    """
+
+    watched: bool
+
+
 class SetContentExternalIdRequest(BaseModel):
     """Body for POST /media/content/{content_id}/external-source/{source}.
 

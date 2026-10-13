@@ -191,11 +191,11 @@ def _match_or_create_content(
             """
             INSERT INTO content (
                 content_id, title, content_type, overview,
-                first_release, watched_flag, temporary_flag
+                first_release, temporary_flag
             )
             VALUES (
                 :content_id, :title, 'movie', '',
-                :first_release, 0, 0
+                :first_release, 0
             )
             """
         ),
@@ -314,11 +314,11 @@ def _match_or_create_series_content(
             """
             INSERT INTO content (
                 content_id, title, content_type, overview,
-                first_release, watched_flag, temporary_flag
+                first_release, temporary_flag
             )
             VALUES (
                 :content_id, :title, 'series', '',
-                :first_release, 0, 0
+                :first_release, 0
             )
             """
         ),

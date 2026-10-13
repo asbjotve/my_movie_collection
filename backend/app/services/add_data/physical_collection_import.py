@@ -135,7 +135,6 @@ def _create_content(
                 content_type,
                 imdb_id,
                 overview,
-                watched_flag,
                 temporary_flag
             )
             VALUES (
@@ -144,7 +143,6 @@ def _create_content(
                 :content_type,
                 :imdb_id,
                 :overview,
-                :watched_flag,
                 :temporary_flag
             )
         """),
@@ -154,7 +152,6 @@ def _create_content(
             "content_type": content_type,
             "imdb_id": imdb_id,
             "overview": "",
-            "watched_flag": 0,
             "temporary_flag": temporary_flag,
         },
     )

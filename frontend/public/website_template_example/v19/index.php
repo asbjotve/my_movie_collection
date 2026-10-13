@@ -591,6 +591,7 @@ $sectionAccess = [
           <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_original_title')) ?></th>
           <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_year')) ?></th>
           <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_imdb_id')) ?></th>
+          <th><?= htmlspecialchars(t('wte.index.mine_filmer.col_watched')) ?></th>
         </tr>
       </thead>
       <tbody id="mineFilmerTableBody"></tbody>
@@ -773,6 +774,22 @@ $sectionAccess = [
       'andre_lister' => wte_translations_branch('wte.index.andre_lister'),
   ], JSON_UNESCAPED_UNICODE) ?>;
 
+  // Brukt til å avgjøre om "merk som sett/ikke sett"-knappen i "Mine
+  // filmer" skal være klikkbar - watched_flag er nå per-bruker
+  // (content_watched), så bare en innlogget bruker kan endre den (se
+  // PATCH /media/content/{id}/watched). Samme mønster som IS_LOGGED_IN
+  // i detail.php.
+  const IS_LOGGED_IN = <?= $isLoggedIn ? 'true' : 'false' ?>;
+
+  // CSRF-token lest fra <meta name="csrf-token"> (satt server-side av
+  // csrf_meta_tag() i _shared/auth.php) - sendes som header på alle
+  // state-endrende fetch()-kall mot api.php (se require_csrf_or_json_403()
+  // der). Returnerer et objekt klar til å spres inn i fetch()'s headers.
+  function csrfHeader(){
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    return { "X-CSRF-Token": token };
+  }
+
   // Simple sprintf-style formatter, supports %s and %d placeholders
   // (same helper as clmFormat() in custom_list_manager/v3/script.js).
   function wteFormat(template, ...args) {
@@ -825,15 +842,6 @@ $sectionAccess = [
     }[c]));
   }
 
-  // CSRF-token lest fra <meta name="csrf-token"> (satt server-side av
-  // csrf_meta_tag() i _shared/auth.php) - sendes som header på alle
-  // state-endrende fetch()-kall mot api.php (se require_csrf_or_json_403()
-  // der). Returnerer et objekt klar til å spres inn i fetch()'s headers.
-  function csrfHeader(){
-    const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
-    return { "X-CSRF-Token": token };
-  }
-
   // Generisk debounce: utsetter kallet til fn til det har gått `delay`
   // ms siden siste kall - brukes på søkefeltet nedenfor slik at
   // renderMineFilmer() (filtrering + DOM-bygging over hele katalogen)
@@ -859,7 +867,7 @@ $sectionAccess = [
           <div class="title">${escapeHtml(item.title)}</div>
           <div class="sub">
             <span>${escapeHtml(item.first_release || "-")}</span>
-            <span class="tag badge ${item.watched_flag ? "good" : ""}">${item.watched_flag ? escapeHtml(WTE_I18N.mine_filmer.watched) : escapeHtml(WTE_I18N.mine_filmer.unwatched)}</span>
+            <span class="tag badge watchedToggleBtn ${item.watched_flag ? "good" : ""}" data-id="${escapeHtml(item.content_id)}" ${IS_LOGGED_IN ? "style=\"cursor:pointer;\" title=\"" + escapeHtml(WTE_I18N.mine_filmer.toggle_watched_title) + "\"" : ""}>${item.watched_flag ? escapeHtml(WTE_I18N.mine_filmer.watched) : escapeHtml(WTE_I18N.mine_filmer.unwatched)}</span>
           </div>
         </div>
       </div>
@@ -868,6 +876,14 @@ $sectionAccess = [
       cb.addEventListener("click", (e) => e.stopPropagation());
       cb.addEventListener("change", () => toggleMineFilmerSelection(cb.dataset.id, cb.checked));
     });
+    if (IS_LOGGED_IN) {
+      mineFilmerGrid.querySelectorAll(".watchedToggleBtn").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleContentWatched(el.dataset.id, el);
+        });
+      });
+    }
     mineFilmerGrid.querySelectorAll(".card").forEach(el => {
       el.addEventListener("click", (e) => {
         if (selectModeActive) {
@@ -887,6 +903,7 @@ $sectionAccess = [
       const imdbCell = item.imdb_id
         ? `<a href="https://www.imdb.com/title/${escapeHtml(item.imdb_id)}/" target="_blank" rel="noopener" class="imdbLink">${escapeHtml(item.imdb_id)}</a>`
         : "-";
+      const watchedCell = `<span class="tag badge watchedToggleBtn ${item.watched_flag ? "good" : ""}" data-id="${escapeHtml(item.content_id)}" ${IS_LOGGED_IN ? "style=\"cursor:pointer;\" title=\"" + escapeHtml(WTE_I18N.mine_filmer.toggle_watched_title) + "\"" : ""}>${item.watched_flag ? escapeHtml(WTE_I18N.mine_filmer.watched) : escapeHtml(WTE_I18N.mine_filmer.unwatched)}</span>`;
       return `
         <tr data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
           <td><input type="checkbox" class="rowSelectCheckbox" data-id="${escapeHtml(item.content_id)}" ${selectedMineFilmerIds.has(item.content_id) ? "checked" : ""} /></td>
@@ -894,6 +911,7 @@ $sectionAccess = [
           <td>${escapeHtml(item.original_title || "-")}</td>
           <td>${year}</td>
           <td>${imdbCell}</td>
+          <td>${watchedCell}</td>
         </tr>
       `;
     }).join("");
@@ -901,6 +919,14 @@ $sectionAccess = [
       cb.addEventListener("click", (e) => e.stopPropagation());
       cb.addEventListener("change", () => toggleMineFilmerSelection(cb.dataset.id, cb.checked));
     });
+    if (IS_LOGGED_IN) {
+      mineFilmerTableBody.querySelectorAll(".watchedToggleBtn").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleContentWatched(el.dataset.id, el);
+        });
+      });
+    }
     mineFilmerTableBody.querySelectorAll("tr").forEach(el => {
       el.addEventListener("click", (e) => {
         if (e.target.closest(".imdbLink")) return; // ikke naviger hvis man klikket IMDb-lenken
@@ -913,6 +939,31 @@ $sectionAccess = [
         window.location.href = "detail.php?id=" + encodeURIComponent(el.dataset.id);
       });
     });
+  }
+
+  // Slår av/på "sett"-status for DENNE innloggede brukeren (per-bruker,
+  // se content_watched/PATCH /media/content/{id}/watched) - kalt fra
+  // badge-klikk i både grid- og listevisning. Oppdaterer lokal state
+  // (mineFilmerData) og re-rendrer med en gang (optimistisk), ruller
+  // tilbake badge-teksten/klassen hvis kallet feiler.
+  async function toggleContentWatched(contentId, triggerEl){
+    const item = mineFilmerData.find(i => i.content_id === contentId);
+    if (!item) return;
+    const newWatched = !item.watched_flag;
+    const previousWatched = item.watched_flag;
+    item.watched_flag = newWatched;
+    renderMineFilmer(false);
+    try {
+      const res = await fetch("api.php?action=set_content_watched&id=" + encodeURIComponent(contentId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ watched: newWatched }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+    } catch (err) {
+      item.watched_flag = previousWatched;
+      renderMineFilmer(false);
+    }
   }
 
   // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from app.schemas.media_catalog import (
     BulkGroupAssignRequest,
     ContentFieldLockRequest,
     ContentFieldUpdateRequest,
+    ContentWatchedUpdateRequest,
     EpisodeCreateRequest,
     EpisodeDiscAssignRequest,
     EpisodeUpdateRequest,
@@ -20,7 +21,7 @@ from app.schemas.media_catalog import (
     SeasonWatchedRequest,
     SetContentExternalIdRequest,
 )
-from app.security import get_current_user
+from app.security import get_current_user, get_user_by_username
 from app.services.external_apis import ExternalApiError, search_tmdb, search_tvdb
 from app.services.media_catalog import (
     ContentExternalSourceConflict,
@@ -52,6 +53,7 @@ from app.services.media_catalog import (
     set_content_cover_image,
     set_content_external_id,
     set_content_field_lock,
+    set_content_watched,
     update_content_external_source,
     update_content_fields,
     update_episode,
@@ -72,7 +74,20 @@ router = APIRouter(
 
 
 @router.get("/content", dependencies=[Depends(require_api_key)])
-def get_content(db: Session = Depends(get_media_db)):
+def get_content(
+    db: Session = Depends(get_media_db),
+    userdb: Session = Depends(get_db),
+    username: str | None = Query(
+        default=None,
+        description=(
+            "Innlogget brukers brukernavn (sendt av api.php server-side, "
+            "basert på en allerede validert sesjon - se current_username() "
+            "i _shared/auth.php), brukt til å slå opp denne brukerens "
+            "watched_flag i content_watched. Utelates/ignoreres for "
+            "anonyme besøkende, som alltid får watched_flag=False."
+        ),
+    ),
+):
     """Alle content-rader (media-katalogen), med fysiske utgaver og
     eksterne kilder gruppert inn per rad.
 
@@ -80,7 +95,8 @@ def get_content(db: Session = Depends(get_media_db)):
     starten - ingen paginering/filtrering ennå, det kommer etter hvert
     som mer av frontend flyttes over til dette API-et.
     """
-    return list_content(db)
+    current_user = get_user_by_username(userdb, username) if username else None
+    return list_content(db, current_user_id=current_user.id if current_user else None)
 
 
 @router.get("/groups", dependencies=[Depends(require_api_key)])
@@ -127,6 +143,10 @@ def get_content_detail(
     content_id: str,
     db: Session = Depends(get_media_db),
     userdb: Session = Depends(get_db),
+    username: str | None = Query(
+        default=None,
+        description="Se GET /media/content sin username-parameter - samme bruk her.",
+    ),
 ):
     """Én content-rad (detaljvisning), med fysiske utgaver og eksterne
     kilder. content_id er 32-tegns hex (samme form som feltet i
@@ -138,7 +158,13 @@ def get_content_detail(
     setting = userdb.query(AppSetting).filter(AppSetting.setting_key == "default_currency").first()
     default_currency = (setting.setting_value if setting else None) or "NOK"
 
-    item = get_content_by_id(db, content_id, default_currency=default_currency)
+    current_user = get_user_by_username(userdb, username) if username else None
+    item = get_content_by_id(
+        db,
+        content_id,
+        default_currency=default_currency,
+        current_user_id=current_user.id if current_user else None,
+    )
     if item is None:
         raise HTTPException(status_code=404, detail="Fant ikke content med denne IDen")
     return item
@@ -264,6 +290,25 @@ def patch_content_field_lock(
     """
     try:
         return set_content_field_lock(db, content_id, payload.field, payload.locked)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/content/{content_id}/watched")
+def patch_content_watched(
+    content_id: str,
+    payload: ContentWatchedUpdateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Markerer/fjerner markeringen av at DEN INNLOGGEDE brukeren har
+    sett denne filmen/serien - per-bruker (content_watched), ikke et
+    globalt flagg. Krever innlogging (get_current_user), som også gir
+    oss user_id-en uten noen ekstra oppslag. Se set_content_watched()
+    for detaljer.
+    """
+    try:
+        return set_content_watched(db, content_id, current_user.id, payload.watched)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
