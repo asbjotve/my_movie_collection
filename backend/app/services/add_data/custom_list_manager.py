@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -436,10 +436,23 @@ def add_content_to_custom_list(
     }
 
 
-def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None]]:
+def get_list_items(
+    db: Session, list_id: str, current_user_id: int | None = None
+) -> list[dict[str, str | int | None]]:
     """Returns all items in a custom list (used by the inline "edit list" view
     in custom_list_manager v4 - v3's separate "add item" form/tab did not
-    have a way to see or edit items already in a list)."""
+    have a way to see or edit items already in a list).
+
+    current_user_id: hvis satt (innlogget bruker kjent for kallet, se
+    GET /lists/{list_id}/items sin username-parameter - samme mønster
+    som list_content() i media_catalog.py), fylles watched_flag ut med
+    DENNE brukerens sett-status (via content_watched) for elementer som
+    matcher en rad i content (imdb_id/tmdb_id, se matched_content_id
+    under - samme matching som owned-feltet bruker). Er
+    current_user_id None, eller matcher ikke elementet noen content-rad,
+    er watched_flag alltid False - det finnes ingen enkel måte å
+    registrere/redigere sett-datoer herfra (kun en visningsbadge), for
+    det må man inn på selve filmens detaljside/Mine filmer."""
     parsed_list_id = _parse_list_id(list_id)
 
     list_row = db.execute(
@@ -466,17 +479,18 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
                 cle.sort_order,
                 cle.group_label,
                 (
-                    EXISTS (
-                        SELECT 1 FROM content c
-                        WHERE li.imdb_id IS NOT NULL AND li.imdb_id <> ''
-                          AND c.imdb_id = li.imdb_id
-                    )
-                    OR EXISTS (
-                        SELECT 1 FROM content_external_source ces
-                        WHERE li.tmdb_id IS NOT NULL AND li.tmdb_id <> ''
-                          AND ces.source = 'tmdb' AND ces.external_id = li.tmdb_id
-                    )
-                ) AS owned
+                    SELECT c.content_id FROM content c
+                    WHERE li.imdb_id IS NOT NULL AND li.imdb_id <> ''
+                      AND c.imdb_id = li.imdb_id
+                    LIMIT 1
+                ) AS matched_content_id_by_imdb,
+                (
+                    SELECT c.content_id FROM content c
+                    JOIN content_external_source ces ON ces.content_id = c.content_id
+                    WHERE li.tmdb_id IS NOT NULL AND li.tmdb_id <> ''
+                      AND ces.source = 'tmdb' AND ces.external_id = li.tmdb_id
+                    LIMIT 1
+                ) AS matched_content_id_by_tmdb
             FROM custom_list_entries cle
             JOIN list_items li ON li.list_item_id = cle.list_item_id
             WHERE cle.list_id = :list_id
@@ -486,23 +500,53 @@ def get_list_items(db: Session, list_id: str) -> list[dict[str, str | int | None
         {"list_id": parsed_list_id},
     ).fetchall()
 
-    return [
-        {
-            "list_item_id": str(uuid.UUID(bytes=row.list_item_id)),
-            "title": row.title,
-            "original_title": row.original_title,
-            "first_release_year": row.first_release_year,
-            "imdb_id": row.imdb_id,
-            "tmdb_id": row.tmdb_id,
-            "tvdb_id": row.tvdb_id,
-            "season": row.season,
-            "cover_image": row.cover_image,
-            "sort_order": row.sort_order,
-            "group_label": row.group_label,
-            "owned": bool(row.owned),
+    # Matchede content_id-er for DENNE brukerens sett-status slås opp i
+    # én samlet spørring (i stedet for én spørring pr. rad) - samme
+    # "hent alt i ett kall, bygg et dict"-mønster som watched_dates_by_content
+    # i list_content() (media_catalog.py).
+    watched_content_ids: set[bytes] = set()
+    if current_user_id is not None:
+        matched_ids = {
+            row.matched_content_id_by_imdb or row.matched_content_id_by_tmdb
+            for row in rows
+            if (row.matched_content_id_by_imdb or row.matched_content_id_by_tmdb) is not None
         }
-        for row in rows
-    ]
+        if matched_ids:
+            watched_content_ids = {
+                row.content_id
+                for row in db.execute(
+                    text(
+                        """
+                        SELECT DISTINCT content_id FROM content_watched
+                        WHERE user_id = :user_id AND content_id IN :content_ids
+                        """
+                    ).bindparams(bindparam("content_ids", expanding=True)),
+                    {"user_id": current_user_id, "content_ids": list(matched_ids)},
+                ).fetchall()
+            }
+
+    result = []
+    for row in rows:
+        matched_content_id = row.matched_content_id_by_imdb or row.matched_content_id_by_tmdb
+        result.append(
+            {
+                "list_item_id": str(uuid.UUID(bytes=row.list_item_id)),
+                "title": row.title,
+                "original_title": row.original_title,
+                "first_release_year": row.first_release_year,
+                "imdb_id": row.imdb_id,
+                "tmdb_id": row.tmdb_id,
+                "tvdb_id": row.tvdb_id,
+                "season": row.season,
+                "cover_image": row.cover_image,
+                "sort_order": row.sort_order,
+                "group_label": row.group_label,
+                "owned": matched_content_id is not None,
+                "watched_flag": matched_content_id is not None and matched_content_id in watched_content_ids,
+            }
+        )
+    return result
+
 
 
 def get_list_item_cover_preview(db: Session, list_item_id: str) -> dict[str, str | bool | None]:

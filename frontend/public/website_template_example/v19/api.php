@@ -336,6 +336,19 @@ if (($_GET['action'] ?? '') === 'list_custom_list_items') {
 
     $itemsUrl = MEDIA_API_BASE_URL . '/lists/' . rawurlencode($listId) . '/items';
 
+    // Sender med innlogget brukers brukernavn (samme mønster som på
+    // GET /media/content - se kommentaren lenger ned i denne filen)
+    // slik at backend kan fylle ut watched_flag for elementer som
+    // matcher en film i samlingen (owned=true), basert på DENNE
+    // brukerens egen sett-historikk (content_watched) - se
+    // get_list_items() i custom_list_manager.py.
+    if (is_logged_in()) {
+        $username = current_username();
+        if ($username !== null && $username !== '') {
+            $itemsUrl .= '?username=' . rawurlencode($username);
+        }
+    }
+
     $ch = curl_init($itemsUrl);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,

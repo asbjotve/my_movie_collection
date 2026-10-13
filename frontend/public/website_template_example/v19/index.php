@@ -1602,12 +1602,23 @@ $sectionAccess = [
             const ownedBadge = it.owned
               ? `<span class="tag badge" title="${WTE_I18N.andre_lister.owned_badge}">✔ ${WTE_I18N.andre_lister.owned_badge}</span>`
               : "";
+            // Vises kun for elementer som faktisk matcher en film i
+            // samlingen (owned=true) OG når innlogget - watched_flag er
+            // alltid false for anonyme besøkende (se username-parameteren
+            // på list_custom_list_items-proxyen over og get_list_items()
+            // i custom_list_manager.py). Kun en visningsbadge her (ikke
+            // klikkbar) - datoer administreres fra filmens detaljside/
+            // Mine filmer.
+            const watchedBadge = (IS_LOGGED_IN && it.owned)
+              ? `<span class="tag badge ${it.watched_flag ? "good" : ""}">${it.watched_flag ? escapeHtml(WTE_I18N.andre_lister.watched_badge) : escapeHtml(WTE_I18N.andre_lister.unwatched_badge)}</span>`
+              : "";
             return `
             <div class="row">
               <span style="display:flex;align-items:center;gap:10px;">
                 <span class="tag">${andreListerPosition}</span>
                 <strong>${it.title}${year}</strong>
                 ${ownedBadge}
+                ${watchedBadge}
               </span>
               ${toggleBtn}
             </div>`;

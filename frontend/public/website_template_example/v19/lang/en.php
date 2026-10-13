@@ -85,6 +85,8 @@ return [
                 'show_cover_loading' => 'Fetching cover…',
                 'show_cover_error' => 'No cover found',
                 'owned_badge' => 'Owned',
+                'watched_badge' => 'Watched',
+                'unwatched_badge' => 'Unwatched',
             ],
 
             'administrering' => [

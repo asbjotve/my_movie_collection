@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api_key import require_api_key
-from app.db import User
+from app.db import User, get_db
 from app.media_db import get_media_db
-from app.security import get_current_user
+from app.security import get_current_user, get_user_by_username
 from app.services.add_data.custom_list_manager import (
     add_content_to_custom_list,
     add_item_to_custom_list,
@@ -112,9 +112,24 @@ async def post_custom_list_item_from_content(
 async def get_list_items_route(
     list_id: str,
     db: Session = Depends(get_media_db),
+    userdb: Session = Depends(get_db),
+    username: str | None = Query(
+        default=None,
+        description=(
+            "Innlogget brukers brukernavn (sendt av api.php server-side, "
+            "samme mønster som username-parameteren på GET /media/content "
+            "- se current_username() i _shared/auth.php), brukt til å "
+            "slå opp denne brukerens watched_flag for elementer som "
+            "matcher en content-rad. Utelates/ignoreres for anonyme "
+            "besøkende, som alltid får watched_flag=False."
+        ),
+    ),
 ):
+    current_user = get_user_by_username(userdb, username) if username else None
     try:
-        return get_list_items(db, list_id=list_id)
+        return get_list_items(
+            db, list_id=list_id, current_user_id=current_user.id if current_user else None
+        )
     except ListItemUploadError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

@@ -88,6 +88,8 @@ return [
                 'show_cover_loading' => 'Henter cover…',
                 'show_cover_error' => 'Fant ikke cover',
                 'owned_badge' => 'Eid',
+                'watched_badge' => 'Sett',
+                'unwatched_badge' => 'Ikke sett',
             ],
 
             'administrering' => [
