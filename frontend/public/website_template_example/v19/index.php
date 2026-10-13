@@ -491,6 +491,10 @@ $sectionAccess = [
       .lang-switch{ justify-content:flex-start; }
       .authState{ width:100%; justify-content:center; }
     }
+    /* Native date-picker calendar icon is near-invisible on the dark
+       theme by default - force it to render light so it's visible. */
+    input[type="date"]{ color-scheme: dark; }
+    input[type="date"]::-webkit-calendar-picker-indicator{ filter: invert(1); cursor:pointer; }
   </style>
 </head>
 <body>

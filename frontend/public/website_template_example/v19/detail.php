@@ -406,6 +406,10 @@ $sectionAccess = [
     .boxSetTable tr.currentItem td{ color: var(--accent2); font-weight:700; }
 
     #detailStatus{ color: var(--muted); font-size:13px; }
+    /* Native date-picker calendar icon is near-invisible on the dark
+       theme by default - force it to render light so it's visible. */
+    input[type="date"]{ color-scheme: dark; }
+    input[type="date"]::-webkit-calendar-picker-indicator{ filter: invert(1); cursor:pointer; }
   </style>
 </head>
 <body>
