@@ -2835,6 +2835,12 @@ $sectionAccess = [
   document.addEventListener("click", (e) => {
     const btn = e.target.closest(".editPencilBtn");
     if (!btn || !currentItem) return;
+    // btnManageWatchedDates (se renderWatchedCard()) gjenbruker
+    // .editPencilBtn kun for samme visuelle stil/edit-mode-synlighet,
+    // men har sin egen klikk-handler og mangler data-field - uten
+    // denne guarden ville denne delegerte handleren også kjørt og
+    // åpnet "Rediger undefined"-modalen ved siden av.
+    if (!btn.dataset.field) return;
 
     const field = btn.dataset.field;
     const type = btn.dataset.type;
