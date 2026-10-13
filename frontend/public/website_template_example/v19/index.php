@@ -495,6 +495,18 @@ $sectionAccess = [
        theme by default - force it to render light so it's visible. */
     input[type="date"]{ color-scheme: dark; }
     input[type="date"]::-webkit-calendar-picker-indicator{ filter: invert(1); cursor:pointer; }
+    /* Fallback/extra calendar icon overlay: the native icon above is
+       unreliable across browsers (some don't expose it via CSS at
+       all), so this visible emoji button opens the same native date
+       picker via showPicker() and is always visible regardless of
+       browser/theme. */
+    .datePickerWrap{ position:relative; display:flex; flex:1; min-width:0; }
+    .datePickerWrap input[type="date"]{ padding-right:32px !important; }
+    .datePickerIcon{
+      position:absolute; right:4px; top:50%; transform:translateY(-50%);
+      background:none; border:none; font-size:16px; line-height:1;
+      cursor:pointer; padding:2px; color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -660,7 +672,10 @@ $sectionAccess = [
         <div id="watchedDatesModalStatus" class="refreshStatus"></div>
         <ul id="watchedDatesModalList" style="list-style:none; margin:10px 0; padding:0; max-height:220px; overflow-y:auto;"></ul>
         <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
-          <input id="watchedDatesModalNewDate" type="date" style="flex:1; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+          <div class="datePickerWrap">
+            <input id="watchedDatesModalNewDate" type="date" style="width:100%; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+            <button type="button" class="datePickerIcon">📅</button>
+          </div>
           <button type="button" class="btn" id="btnAddWatchedDate"><?= htmlspecialchars(t('wte.index.mine_filmer.watched_dates_add_btn')) ?></button>
         </div>
         <div style="margin-top:8px;">
@@ -1019,7 +1034,10 @@ $sectionAccess = [
     }
     watchedDatesModalList.innerHTML = dates.map(d => `
       <li style="display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--line,#262b38);">
-        <input type="date" class="watchedDateEditInput" data-watched-id="${d.watched_id}" value="${escapeHtml(d.date)}" style="flex:1; padding:6px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+        <div class="datePickerWrap">
+          <input type="date" class="watchedDateEditInput" data-watched-id="${d.watched_id}" value="${escapeHtml(d.date)}" style="width:100%; padding:6px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+          <button type="button" class="datePickerIcon">📅</button>
+        </div>
         <button type="button" class="btn watchedDateDeleteBtn" data-watched-id="${d.watched_id}">&times;</button>
       </li>
     `).join("");
@@ -1110,6 +1128,21 @@ $sectionAccess = [
     btnAddWatchedDate.addEventListener("click", () => addWatchedDate());
     const btnWatchedToday = document.getElementById("btnWatchedToday");
     if (btnWatchedToday) btnWatchedToday.addEventListener("click", addWatchedDateToday);
+    // Delegated: the 📅 icon button next to any date input (static or
+    // re-rendered per watched-date row) opens the native date picker
+    // via showPicker() - a visible, browser-independent stand-in for
+    // the native calendar icon, which is unreliable to recolor via CSS.
+    watchedDatesModalOverlay.addEventListener("click", (e) => {
+      const btn = e.target.closest(".datePickerIcon");
+      if (!btn) return;
+      const input = btn.closest(".datePickerWrap")?.querySelector("input[type=date]");
+      if (!input) return;
+      if (typeof input.showPicker === "function") {
+        try { input.showPicker(); } catch (err) { input.focus(); }
+      } else {
+        input.focus();
+      }
+    });
   }
 
   // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----
