@@ -9,7 +9,8 @@ from app.schemas.media_catalog import (
     BulkGroupAssignRequest,
     ContentFieldLockRequest,
     ContentFieldUpdateRequest,
-    ContentWatchedUpdateRequest,
+    ContentWatchedDateCreateRequest,
+    ContentWatchedDateUpdateRequest,
     EpisodeCreateRequest,
     EpisodeDiscAssignRequest,
     EpisodeUpdateRequest,
@@ -27,11 +28,13 @@ from app.services.media_catalog import (
     ContentExternalSourceConflict,
     ContentExternalSourceError,
     add_content_to_group,
+    add_content_watched_date,
     assign_episode_disc,
     backfill_tmdb_cover_images,
     bulk_assign_group,
     create_episode,
     create_season,
+    delete_content_watched_date,
     delete_episode,
     delete_season,
     get_bulk_refresh_tmdb_status,
@@ -53,9 +56,9 @@ from app.services.media_catalog import (
     set_content_cover_image,
     set_content_external_id,
     set_content_field_lock,
-    set_content_watched,
     update_content_external_source,
     update_content_fields,
+    update_content_watched_date,
     update_episode,
     update_physical_copy_fields,
     set_season_watched,
@@ -294,21 +297,58 @@ def patch_content_field_lock(
         raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
-@router.patch("/content/{content_id}/watched")
-def patch_content_watched(
+@router.post("/content/{content_id}/watched-dates")
+def post_content_watched_date(
     content_id: str,
-    payload: ContentWatchedUpdateRequest,
+    payload: ContentWatchedDateCreateRequest,
     db: Session = Depends(get_media_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Markerer/fjerner markeringen av at DEN INNLOGGEDE brukeren har
-    sett denne filmen/serien - per-bruker (content_watched), ikke et
-    globalt flagg. Krever innlogging (get_current_user), som også gir
-    oss user_id-en uten noen ekstra oppslag. Se set_content_watched()
-    for detaljer.
+    """Registrerer en ny "sett"-dato for DEN INNLOGGEDE brukeren på
+    denne filmen - per-bruker (content_watched), ikke et globalt
+    flagg. Brukeren kan ha flere datoer per tittel (rewatch-historikk).
+    Krever innlogging (get_current_user), som også gir oss user_id-en
+    uten noen ekstra oppslag. Se add_content_watched_date() for
+    detaljer.
     """
     try:
-        return set_content_watched(db, content_id, current_user.id, payload.watched)
+        return add_content_watched_date(db, content_id, current_user.id, payload.watched_date)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/content/{content_id}/watched-dates/{watched_id}")
+def patch_content_watched_date(
+    content_id: str,
+    watched_id: int,
+    payload: ContentWatchedDateUpdateRequest,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Endrer datoen på én eksisterende sett-registrering - kun hvis
+    den tilhører DEN INNLOGGEDE brukeren (eierskapssjekk i
+    update_content_watched_date()). content_id i URL-en brukes ikke
+    (watched_id er allerede unik), men beholdes for en RESTful URL som
+    matcher POST-endepunktet over.
+    """
+    try:
+        return update_content_watched_date(db, watched_id, current_user.id, payload.watched_date)
+    except ContentExternalSourceError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.delete("/content/{content_id}/watched-dates/{watched_id}")
+def delete_content_watched_date_route(
+    content_id: str,
+    watched_id: int,
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sletter én sett-registrering - kun hvis den tilhører DEN
+    INNLOGGEDE brukeren (eierskapssjekk i delete_content_watched_date()).
+    """
+    try:
+        return delete_content_watched_date(db, watched_id, current_user.id)
     except ContentExternalSourceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

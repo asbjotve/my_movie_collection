@@ -65,15 +65,34 @@ class ContentFieldLockRequest(BaseModel):
     locked: bool
 
 
-class ContentWatchedUpdateRequest(BaseModel):
-    """Body for PATCH /media/content/{content_id}/watched.
+class ContentWatchedDateCreateRequest(BaseModel):
+    """Body for POST /media/content/{content_id}/watched-dates.
 
-    Markerer/fjerner markeringen av at DENNE innloggede brukeren har
-    sett filmen/serien - se set_content_watched() i media_catalog.py.
-    Per-bruker (ikke et globalt flagg) - se content_watched-tabellen.
+    Registrerer en ny "sett"-dato for DENNE innloggede brukeren - en
+    bruker kan ha flere datoer per tittel (rewatch-historikk), se
+    add_content_watched_date() i media_catalog.py. watched_date=None
+    betyr dagens dato.
+
+    NB: feltet heter watched_date (ikke bare "date") fordi et Pydantic-
+    felt med samme navn som typen sin ("date: date | None") gir en
+    TypeError ved import pga. hvordan Pydantic v2 evaluerer
+    annotasjoner i klassens eget navnerom - feltnavnet skygger for
+    importen av datetime.date der.
     """
 
-    watched: bool
+    watched_date: date | None = None
+
+
+class ContentWatchedDateUpdateRequest(BaseModel):
+    """Body for PATCH /media/content/{content_id}/watched-dates/{watched_id}.
+
+    Endrer datoen på én eksisterende sett-registrering som tilhører
+    DENNE innloggede brukeren - se update_content_watched_date() i
+    media_catalog.py. Se ContentWatchedDateCreateRequest for hvorfor
+    feltet heter watched_date.
+    """
+
+    watched_date: date
 
 
 class SetContentExternalIdRequest(BaseModel):

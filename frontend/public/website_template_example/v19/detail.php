@@ -490,6 +490,8 @@ $sectionAccess = [
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_age')) ?></div><div class="vRow"><div class="v" id="fAge">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="age_restriction" data-type="text" data-target="fAge" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="age_restriction" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_type')) ?></div><div class="vRow"><div class="v" id="fType">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="content_type" data-type="select" data-target="fType" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><button type="button" class="lockToggleBtn" data-lock-fields="content_type" title="<?= htmlspecialchars(t('wte.detail.lock_field_btn')) ?>">🔓</button><?php endif; ?></div></div>
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_prod_company')) ?></div><div class="v" id="fProdCompany">-</div></div>
+        <!-- Vises kun for filmer (content_type='movie') - se renderWatchedCard(). Åpner watchedDatesModal med denne brukerens egen rewatch-historikk (content_watched, per-bruker, ikke et globalt flagg). -->
+        <div class="factCard" id="fWatchedCard" style="display:none;"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_watched')) ?></div><div class="vRow"><div class="v" id="fWatched">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" id="btnManageWatchedDates" title="<?= htmlspecialchars(t('wte.detail.watched_dates_manage_btn')) ?>">✏️</button><?php endif; ?></div></div>
         <!-- Filmgruppe(r) har ingen hengelås - det er ikke et TMDB/TVDB-flettbart felt (se MERGEABLE_CONTENT_FIELDS i backend). En film kan tilhøre flere grupper samtidig (many-to-many via content_group_membership) - administreres i én pop-up (legg til/fjern), se renderGroupsManageModal(). -->
         <div class="factCard"><div class="k"><?= htmlspecialchars(t('wte.detail.fact_group')) ?></div><div class="vRow"><div class="v" id="fGroup">-</div><?php if ($isLoggedIn): ?><button type="button" class="editPencilBtn" data-field="groups_manage" data-type="groupsManage" title="<?= htmlspecialchars(t('wte.detail.edit_field_btn')) ?>">✏️</button><?php endif; ?></div></div>
       </div>
@@ -671,6 +673,26 @@ $sectionAccess = [
     <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
       <button type="button" id="btnCancelEpisodeModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.cancel_btn')) ?></button>
       <button type="button" id="btnSaveEpisodeModal" class="refreshBtn"><?= htmlspecialchars(t('wte.detail.save_btn')) ?></button>
+    </div>
+  </div>
+</div>
+
+<!--
+  "Sett-datoer"-modal (rewatch-historikk, per innlogget bruker) - se
+  openWatchedDatesModal() lenger ned. Samme oppbygning/CSS som
+  watchedDatesModalOverlay i index.php (Mine filmer).
+-->
+<div id="watchedDatesModalOverlay" class="modalOverlay" style="display:none;">
+  <div class="modalBox" style="max-width:420px;">
+    <div class="modalHeader">
+      <h3><?= htmlspecialchars(t('wte.detail.watched_dates_modal_title')) ?></h3>
+      <button type="button" id="btnCloseWatchedDatesModal" class="modalCloseBtn">&times;</button>
+    </div>
+    <div id="watchedDatesModalStatus" class="refreshStatus"></div>
+    <ul id="watchedDatesModalList" style="list-style:none; margin:10px 0; padding:0; max-height:220px; overflow-y:auto;"></ul>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+      <input id="watchedDatesModalNewDate" type="date" style="flex:1; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+      <button type="button" class="refreshBtn" id="btnAddWatchedDate"><?= htmlspecialchars(t('wte.detail.watched_dates_add_btn')) ?></button>
     </div>
   </div>
 </div>
@@ -1837,6 +1859,7 @@ $sectionAccess = [
     document.getElementById("fType").textContent = item.content_type || "-";
     // Produksjonsselskap finnes ikke i databasen ennå - se kommentar i toppen av filen.
     document.getElementById("fProdCompany").textContent = item.production_company || "-";
+    renderWatchedCard(item);
     document.getElementById("fGroup").textContent = (item.groups && item.groups.length)
       ? item.groups.map(g => g.group_name).join(", ")
       : "-";
@@ -1936,6 +1959,138 @@ $sectionAccess = [
     detailStatus.style.display = "none";
     detailLayout.style.display = "grid";
     tabSection.style.display = "block";
+  }
+
+  // ---- "Sett"-kort + sett-datoer-modal (rewatch-historikk, per
+  // innlogget bruker) - kun for filmer (content_type='movie'), se
+  // content_watched/watched_flag/watched_dates i list_content()/
+  // get_content_by_id() (media_catalog.py). Samme mønster som
+  // watchedDatesModalOverlay i index.php (Mine filmer).
+  function watchedBadgeLabel(item){
+    const n = (item.watched_dates || []).length;
+    if (n === 0) return WTE_I18N.detail.watched_dates_none;
+    return wteFormat(WTE_I18N.detail.watched_dates_count, n);
+  }
+
+  function renderWatchedCard(item){
+    const card = document.getElementById("fWatchedCard");
+    if (!card) return;
+    if (item.content_type !== "movie") {
+      card.style.display = "none";
+      return;
+    }
+    card.style.display = "";
+    document.getElementById("fWatched").textContent = watchedBadgeLabel(item);
+  }
+
+  const watchedDatesModalOverlay = document.getElementById("watchedDatesModalOverlay");
+  const watchedDatesModalStatus = document.getElementById("watchedDatesModalStatus");
+  const watchedDatesModalList = document.getElementById("watchedDatesModalList");
+  const watchedDatesModalNewDate = document.getElementById("watchedDatesModalNewDate");
+  const btnCloseWatchedDatesModal = document.getElementById("btnCloseWatchedDatesModal");
+  const btnAddWatchedDate = document.getElementById("btnAddWatchedDate");
+  const btnManageWatchedDates = document.getElementById("btnManageWatchedDates");
+
+  function openWatchedDatesModal(){
+    if (!currentItem) return;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
+    watchedDatesModalNewDate.value = new Date().toISOString().slice(0, 10);
+    renderWatchedDatesModalList(currentItem.watched_dates || []);
+    watchedDatesModalOverlay.style.display = "flex";
+  }
+
+  function closeWatchedDatesModal(){
+    watchedDatesModalOverlay.style.display = "none";
+  }
+
+  function renderWatchedDatesModalList(dates){
+    if (dates.length === 0) {
+      watchedDatesModalList.innerHTML = `<li style="color:var(--muted); font-size:13px;">${escapeHtml(WTE_I18N.detail.watched_dates_empty)}</li>`;
+      return;
+    }
+    watchedDatesModalList.innerHTML = dates.map(d => `
+      <li style="display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--line,#262b38);">
+        <input type="date" class="watchedDateEditInput" data-watched-id="${d.watched_id}" value="${escapeHtml(d.date)}" style="flex:1; padding:6px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+        <button type="button" class="refreshBtn watchedDateDeleteBtn" data-watched-id="${d.watched_id}">&times;</button>
+      </li>
+    `).join("");
+    watchedDatesModalList.querySelectorAll(".watchedDateEditInput").forEach(el => {
+      el.addEventListener("change", () => updateWatchedDate(el.dataset.watchedId, el.value));
+    });
+    watchedDatesModalList.querySelectorAll(".watchedDateDeleteBtn").forEach(el => {
+      el.addEventListener("click", () => deleteWatchedDate(el.dataset.watchedId));
+    });
+  }
+
+  function applyWatchedDatesResult(result){
+    if (!currentItem) return;
+    currentItem.watched_flag = result.watched_flag;
+    currentItem.watched_dates = result.watched_dates;
+    renderWatchedDatesModalList(currentItem.watched_dates);
+    renderWatchedCard(currentItem);
+  }
+
+  async function addWatchedDate(){
+    if (!currentItem) return;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
+    try {
+      const res = await fetch("api.php?action=add_content_watched_date&id=" + encodeURIComponent(currentItem.content_id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ watched_date: watchedDatesModalNewDate.value || null }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      applyWatchedDatesResult(await res.json());
+    } catch (err) {
+      watchedDatesModalStatus.textContent = WTE_I18N.detail.watched_dates_error;
+      watchedDatesModalStatus.classList.add("error");
+    }
+  }
+
+  async function updateWatchedDate(watchedId, newDate){
+    if (!currentItem || !newDate) return;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
+    try {
+      const res = await fetch("api.php?action=update_content_watched_date&id=" + encodeURIComponent(currentItem.content_id) + "&watched_id=" + encodeURIComponent(watchedId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ watched_date: newDate }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      applyWatchedDatesResult(await res.json());
+    } catch (err) {
+      watchedDatesModalStatus.textContent = WTE_I18N.detail.watched_dates_error;
+      watchedDatesModalStatus.classList.add("error");
+    }
+  }
+
+  async function deleteWatchedDate(watchedId){
+    if (!currentItem) return;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
+    try {
+      const res = await fetch("api.php?action=delete_content_watched_date&id=" + encodeURIComponent(currentItem.content_id) + "&watched_id=" + encodeURIComponent(watchedId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      applyWatchedDatesResult(await res.json());
+    } catch (err) {
+      watchedDatesModalStatus.textContent = WTE_I18N.detail.watched_dates_error;
+      watchedDatesModalStatus.classList.add("error");
+    }
+  }
+
+  if (btnManageWatchedDates) {
+    btnManageWatchedDates.addEventListener("click", openWatchedDatesModal);
+    btnCloseWatchedDatesModal.addEventListener("click", closeWatchedDatesModal);
+    watchedDatesModalOverlay.addEventListener("click", (e) => {
+      if (e.target === watchedDatesModalOverlay) closeWatchedDatesModal();
+    });
+    btnAddWatchedDate.addEventListener("click", addWatchedDate);
   }
 
   async function loadDetail(){

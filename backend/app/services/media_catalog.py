@@ -16,7 +16,7 @@ import re
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
@@ -729,11 +729,15 @@ def list_content(db: Session, current_user_id: int | None = None) -> list[dict]:
     kall - se migrasjon 740c10b9db7b for bakgrunnen/målingene.
 
     current_user_id: hvis satt (innlogget bruker kjent for kallet, se
-    GET /media/content sin username-parameter), markeres
-    watched_flag=True kun for titler DENNE brukeren har markert som
-    sett (via content_watched, se set_content_watched()). Er None
-    (ukjent/anonym besøkende) er watched_flag alltid False - det
-    finnes ingen "global" sett-status lenger.
+    GET /media/content sin username-parameter), fylles watched_flag/
+    watched_dates ut med DENNE brukerens egen sett-historikk (via
+    content_watched - en bruker kan ha sett samme film flere ganger,
+    se add_content_watched_date()). watched_flag er True hvis minst én
+    dato finnes, watched_dates er en liste med
+    {"watched_id": int, "date": "YYYY-MM-DD"} nyest først. Er
+    current_user_id None (ukjent/anonym besøkende) er watched_flag
+    alltid False og watched_dates alltid tom - det finnes ingen
+    "global" sett-status lenger.
     """
 
     content_rows = db.execute(
@@ -756,15 +760,23 @@ def list_content(db: Session, current_user_id: int | None = None) -> list[dict]:
         )
     ).fetchall()
 
-    watched_content_ids: set[str] = set()
+    watched_dates_by_content: dict[str, list[dict]] = {}
     if current_user_id is not None:
-        watched_content_ids = {
-            _hex_id(row.content_id)
-            for row in db.execute(
-                text("SELECT content_id FROM content_watched WHERE user_id = :user_id"),
-                {"user_id": current_user_id},
-            ).fetchall()
-        }
+        for row in db.execute(
+            text(
+                """
+                SELECT watched_id, content_id, watched_date
+                FROM content_watched
+                WHERE user_id = :user_id
+                ORDER BY watched_date DESC
+                """
+            ),
+            {"user_id": current_user_id},
+        ).fetchall():
+            key = _hex_id(row.content_id)
+            watched_dates_by_content.setdefault(key, []).append(
+                {"watched_id": row.watched_id, "date": str(row.watched_date)}
+            )
 
     collection_rows = db.execute(
         text(
@@ -896,7 +908,8 @@ def list_content(db: Session, current_user_id: int | None = None) -> list[dict]:
                 ),
                 "runtime": row.runtime,
                 "age_restriction": row.age_restriction,
-                "watched_flag": content_id in watched_content_ids,
+                "watched_flag": content_id in watched_dates_by_content,
+                "watched_dates": watched_dates_by_content.get(content_id, []),
                 "temporary_flag": bool(row.temporary_flag),
                 "content_type": row.content_type,
                 "imdb_id": row.imdb_id,
@@ -928,9 +941,9 @@ def get_content_by_id(
     i content-tabellen ennå - kan legges til her senere hvis kolonnen
     opprettes i databasen.
 
-    current_user_id: se list_content() sin docstring - watched_flag i
-    svaret gjelder kun denne brukeren, og er False hvis None (ukjent/
-    anonym besøkende).
+    current_user_id: se list_content() sin docstring - watched_flag/
+    watched_dates gjelder kun denne brukeren, og er hhv. False/tom hvis
+    None (ukjent/anonym besøkende).
     """
 
     try:
@@ -966,17 +979,22 @@ def get_content_by_id(
     if row is None:
         return None
 
-    watched_flag = False
+    watched_dates: list[dict] = []
     if current_user_id is not None:
-        watched_flag = (
-            db.execute(
+        watched_dates = [
+            {"watched_id": r.watched_id, "date": str(r.watched_date)}
+            for r in db.execute(
                 text(
-                    "SELECT 1 FROM content_watched WHERE user_id = :user_id AND content_id = :content_id"
+                    """
+                    SELECT watched_id, watched_date
+                    FROM content_watched
+                    WHERE user_id = :user_id AND content_id = :content_id
+                    ORDER BY watched_date DESC
+                    """
                 ),
                 {"user_id": current_user_id, "content_id": raw_id},
-            ).fetchone()
-            is not None
-        )
+            ).fetchall()
+        ]
 
     collection_rows = db.execute(
         text(
@@ -1033,7 +1051,8 @@ def get_content_by_id(
         ),
         "runtime": row.runtime,
         "age_restriction": row.age_restriction,
-        "watched_flag": watched_flag,
+        "watched_flag": len(watched_dates) > 0,
+        "watched_dates": watched_dates,
         "temporary_flag": bool(row.temporary_flag),
         "content_type": row.content_type,
         "imdb_id": row.imdb_id,
@@ -1734,15 +1753,16 @@ def set_content_field_lock(db: Session, content_id: str, field: str, locked: boo
     }
 
 
-def set_content_watched(db: Session, content_id: str, user_id: int, watched: bool) -> dict:
-    """Markerer (eller fjerner markeringen av) en film/serie som "sett"
-    for ÉN bestemt bruker - se content_watched (migrasjon c6ef33fd4560)
-    og ContentWatched i media_models.py.
+def add_content_watched_date(
+    db: Session, content_id: str, user_id: int, watched_date: date | None = None
+) -> dict:
+    """Registrerer en ny "sett"-dato for ÉN bestemt bruker og tittel -
+    se content_watched (migrasjon 83248afa1d28) og ContentWatched i
+    media_models.py. En bruker kan registrere flere datoer på samme
+    tittel (rewatch-historikk), så dette setter alltid inn en NY rad
+    (ikke upsert som i den gamle set_content_watched()).
 
-    watched=True setter inn en rad (INSERT ... ON DUPLICATE KEY UPDATE,
-    siden brukeren kan trykke knappen flere ganger uten feil).
-    watched=False sletter raden (ingen "watched_flag=0"-rad finnes -
-    fravær av rad ER "ikke sett").
+    watched_date=None -> dagens dato (CURRENT_DATE).
 
     Kaster ContentExternalSourceError (404) hvis content ikke finnes.
     """
@@ -1761,25 +1781,149 @@ def set_content_watched(db: Session, content_id: str, user_id: int, watched: boo
             "Fant ikke content med denne IDen", status_code=404
         )
 
-    if watched:
+    if watched_date is None:
         db.execute(
             text(
                 """
-                INSERT INTO content_watched (user_id, content_id, watched_at)
-                VALUES (:user_id, :content_id, CURRENT_TIMESTAMP)
-                ON DUPLICATE KEY UPDATE watched_at = watched_at
+                INSERT INTO content_watched (user_id, content_id, watched_date)
+                VALUES (:user_id, :content_id, CURRENT_DATE)
                 """
             ),
             {"user_id": user_id, "content_id": raw_id},
         )
     else:
         db.execute(
-            text("DELETE FROM content_watched WHERE user_id = :user_id AND content_id = :content_id"),
-            {"user_id": user_id, "content_id": raw_id},
+            text(
+                """
+                INSERT INTO content_watched (user_id, content_id, watched_date)
+                VALUES (:user_id, :content_id, :watched_date)
+                """
+            ),
+            {"user_id": user_id, "content_id": raw_id, "watched_date": watched_date},
         )
     db.commit()
 
-    return {"status": "ok", "content_id": content_id, "watched_flag": watched}
+    watched_dates = [
+        {"watched_id": r.watched_id, "date": str(r.watched_date)}
+        for r in db.execute(
+            text(
+                """
+                SELECT watched_id, watched_date
+                FROM content_watched
+                WHERE user_id = :user_id AND content_id = :content_id
+                ORDER BY watched_date DESC
+                """
+            ),
+            {"user_id": user_id, "content_id": raw_id},
+        ).fetchall()
+    ]
+
+    return {
+        "status": "ok",
+        "content_id": content_id,
+        "watched_flag": True,
+        "watched_dates": watched_dates,
+    }
+
+
+def update_content_watched_date(
+    db: Session, watched_id: int, user_id: int, watched_date: date
+) -> dict:
+    """Endrer datoen på én eksisterende sett-registrering - kun
+    eieren (user_id) kan endre sin egen rad, se eierskapssjekken under.
+
+    Kaster ContentExternalSourceError (404) hvis raden ikke finnes
+    eller ikke tilhører denne brukeren.
+    """
+
+    row = db.execute(
+        text(
+            "SELECT content_id FROM content_watched WHERE watched_id = :watched_id AND user_id = :user_id"
+        ),
+        {"watched_id": watched_id, "user_id": user_id},
+    ).fetchone()
+    if row is None:
+        raise ContentExternalSourceError(
+            "Fant ikke sett-registrering med denne IDen", status_code=404
+        )
+
+    db.execute(
+        text("UPDATE content_watched SET watched_date = :watched_date WHERE watched_id = :watched_id"),
+        {"watched_date": watched_date, "watched_id": watched_id},
+    )
+    db.commit()
+
+    raw_id = row.content_id
+    watched_dates = [
+        {"watched_id": r.watched_id, "date": str(r.watched_date)}
+        for r in db.execute(
+            text(
+                """
+                SELECT watched_id, watched_date
+                FROM content_watched
+                WHERE user_id = :user_id AND content_id = :content_id
+                ORDER BY watched_date DESC
+                """
+            ),
+            {"user_id": user_id, "content_id": raw_id},
+        ).fetchall()
+    ]
+
+    return {
+        "status": "ok",
+        "content_id": _hex_id(raw_id),
+        "watched_flag": len(watched_dates) > 0,
+        "watched_dates": watched_dates,
+    }
+
+
+def delete_content_watched_date(db: Session, watched_id: int, user_id: int) -> dict:
+    """Sletter én sett-registrering - kun eieren (user_id) kan slette
+    sin egen rad, se eierskapssjekken under.
+
+    Kaster ContentExternalSourceError (404) hvis raden ikke finnes
+    eller ikke tilhører denne brukeren.
+    """
+
+    row = db.execute(
+        text(
+            "SELECT content_id FROM content_watched WHERE watched_id = :watched_id AND user_id = :user_id"
+        ),
+        {"watched_id": watched_id, "user_id": user_id},
+    ).fetchone()
+    if row is None:
+        raise ContentExternalSourceError(
+            "Fant ikke sett-registrering med denne IDen", status_code=404
+        )
+
+    raw_id = row.content_id
+    db.execute(
+        text("DELETE FROM content_watched WHERE watched_id = :watched_id"),
+        {"watched_id": watched_id},
+    )
+    db.commit()
+
+    watched_dates = [
+        {"watched_id": r.watched_id, "date": str(r.watched_date)}
+        for r in db.execute(
+            text(
+                """
+                SELECT watched_id, watched_date
+                FROM content_watched
+                WHERE user_id = :user_id AND content_id = :content_id
+                ORDER BY watched_date DESC
+                """
+            ),
+            {"user_id": user_id, "content_id": raw_id},
+        ).fetchall()
+    ]
+
+    return {
+        "status": "ok",
+        "content_id": _hex_id(raw_id),
+        "watched_flag": len(watched_dates) > 0,
+        "watched_dates": watched_dates,
+    }
 
 
 def update_physical_copy_fields(

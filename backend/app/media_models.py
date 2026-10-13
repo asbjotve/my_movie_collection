@@ -163,13 +163,20 @@ class Content(MediaBase):
 
 
 class ContentWatched(MediaBase):
-    """Per-user "watched it" marker for a content row. Presence of a row
-    means that user has marked this title as watched - there is no
-    watched_flag=0 state, toggling "unwatched" just deletes the row.
+    """One "I watched this on this date" entry for a content row, for
+    ONE user. A title can have zero, one, or many entries per user (full
+    rewatch history, not just a single "last seen" flag) - see
+    get_content_by_id()/list_content() for how these are aggregated
+    into watched_flag (any entry exists) + watched_dates (all entries,
+    newest first) in the API responses, and add_content_watched_date()/
+    update_content_watched_date()/delete_content_watched_date() in
+    media_catalog.py for the CRUD operations backing the date-manager
+    UI (see index.php/detail.php's "watched dates" modal).
 
     Replaces the old single global content.watched_flag column (see
-    migration c6ef33fd4560) so that each user tracks their own seen
-    status independently.
+    migration c6ef33fd4560), and the short-lived single-row-per-user
+    version of this same table (see migration 83248afa1d28) which only
+    supported one "watched" marker (no history/dates).
 
     user_id intentionally has NO foreign key - the users table lives in
     a separate database/connection (mmc_userdb, see app/db.py) from the
@@ -179,13 +186,19 @@ class ContentWatched(MediaBase):
 
     __tablename__ = "content_watched"
 
-    user_id = Column(Integer, primary_key=True)
+    watched_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False)
     content_id = Column(
         BINARY(16),
         ForeignKey("content.content_id", ondelete="CASCADE"),
-        primary_key=True,
+        nullable=False,
     )
-    watched_at = Column(TIMESTAMP, nullable=False)
+    watched_date = Column(Date, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+
+    __table_args__ = (
+        Index("ix_content_watched_user_content", "user_id", "content_id"),
+    )
 
 
 class PhysicalCopy(MediaBase):

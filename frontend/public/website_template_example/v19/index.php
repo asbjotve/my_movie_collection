@@ -636,6 +636,31 @@ $sectionAccess = [
         </div>
       </div>
     </div>
+
+    <!--
+      Modal for sett-datoer (rewatch-historikk) - samme
+      .modalOverlay/.modalBox-mønster som bulkGroupModalOverlay over.
+      Åpnes ved klikk på "Sett (N)"-badgen i grid/liste - se
+      openWatchedDatesModal()/renderWatchedDatesModalList() i JS.
+      Viser alle datoer DENNE brukeren har registrert for tittelen
+      (nyest først), med sletteknapp per dato, samt et skjema for å
+      legge til en ny dato (forhåndsutfylt med dagens dato, men
+      redigerbar).
+    -->
+    <div id="watchedDatesModalOverlay" class="modalOverlay" style="display:none;">
+      <div class="modalBox" style="max-width:420px;">
+        <div class="modalHeader">
+          <h3 id="watchedDatesModalTitle"><?= htmlspecialchars(t('wte.index.mine_filmer.watched_dates_modal_title')) ?></h3>
+          <button type="button" id="btnCloseWatchedDatesModal" class="modalCloseBtn">&times;</button>
+        </div>
+        <div id="watchedDatesModalStatus" class="refreshStatus"></div>
+        <ul id="watchedDatesModalList" style="list-style:none; margin:10px 0; padding:0; max-height:220px; overflow-y:auto;"></ul>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+          <input id="watchedDatesModalNewDate" type="date" style="flex:1; padding:8px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+          <button type="button" class="btn" id="btnAddWatchedDate"><?= htmlspecialchars(t('wte.index.mine_filmer.watched_dates_add_btn')) ?></button>
+        </div>
+      </div>
+    </div>
     <?php endif; ?>
 
     <?php endif; ?>
@@ -867,7 +892,7 @@ $sectionAccess = [
           <div class="title">${escapeHtml(item.title)}</div>
           <div class="sub">
             <span>${escapeHtml(item.first_release || "-")}</span>
-            <span class="tag badge watchedToggleBtn ${item.watched_flag ? "good" : ""}" data-id="${escapeHtml(item.content_id)}" ${IS_LOGGED_IN ? "style=\"cursor:pointer;\" title=\"" + escapeHtml(WTE_I18N.mine_filmer.toggle_watched_title) + "\"" : ""}>${item.watched_flag ? escapeHtml(WTE_I18N.mine_filmer.watched) : escapeHtml(WTE_I18N.mine_filmer.unwatched)}</span>
+            <span class="tag badge watchedBadgeBtn ${item.watched_flag ? "good" : ""}" data-id="${escapeHtml(item.content_id)}" ${IS_LOGGED_IN ? "style=\"cursor:pointer;\" title=\"" + escapeHtml(WTE_I18N.mine_filmer.watched_dates_badge_title) + "\"" : ""}>${watchedBadgeLabel(item)}</span>
           </div>
         </div>
       </div>
@@ -877,10 +902,10 @@ $sectionAccess = [
       cb.addEventListener("change", () => toggleMineFilmerSelection(cb.dataset.id, cb.checked));
     });
     if (IS_LOGGED_IN) {
-      mineFilmerGrid.querySelectorAll(".watchedToggleBtn").forEach(el => {
+      mineFilmerGrid.querySelectorAll(".watchedBadgeBtn").forEach(el => {
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          toggleContentWatched(el.dataset.id, el);
+          openWatchedDatesModal(el.dataset.id);
         });
       });
     }
@@ -903,7 +928,7 @@ $sectionAccess = [
       const imdbCell = item.imdb_id
         ? `<a href="https://www.imdb.com/title/${escapeHtml(item.imdb_id)}/" target="_blank" rel="noopener" class="imdbLink">${escapeHtml(item.imdb_id)}</a>`
         : "-";
-      const watchedCell = `<span class="tag badge watchedToggleBtn ${item.watched_flag ? "good" : ""}" data-id="${escapeHtml(item.content_id)}" ${IS_LOGGED_IN ? "style=\"cursor:pointer;\" title=\"" + escapeHtml(WTE_I18N.mine_filmer.toggle_watched_title) + "\"" : ""}>${item.watched_flag ? escapeHtml(WTE_I18N.mine_filmer.watched) : escapeHtml(WTE_I18N.mine_filmer.unwatched)}</span>`;
+      const watchedCell = `<span class="tag badge watchedBadgeBtn ${item.watched_flag ? "good" : ""}" data-id="${escapeHtml(item.content_id)}" ${IS_LOGGED_IN ? "style=\"cursor:pointer;\" title=\"" + escapeHtml(WTE_I18N.mine_filmer.watched_dates_badge_title) + "\"" : ""}>${watchedBadgeLabel(item)}</span>`;
       return `
         <tr data-id="${escapeHtml(item.content_id)}" style="cursor:pointer;">
           <td><input type="checkbox" class="rowSelectCheckbox" data-id="${escapeHtml(item.content_id)}" ${selectedMineFilmerIds.has(item.content_id) ? "checked" : ""} /></td>
@@ -920,10 +945,10 @@ $sectionAccess = [
       cb.addEventListener("change", () => toggleMineFilmerSelection(cb.dataset.id, cb.checked));
     });
     if (IS_LOGGED_IN) {
-      mineFilmerTableBody.querySelectorAll(".watchedToggleBtn").forEach(el => {
+      mineFilmerTableBody.querySelectorAll(".watchedBadgeBtn").forEach(el => {
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          toggleContentWatched(el.dataset.id, el);
+          openWatchedDatesModal(el.dataset.id);
         });
       });
     }
@@ -941,29 +966,132 @@ $sectionAccess = [
     });
   }
 
-  // Slår av/på "sett"-status for DENNE innloggede brukeren (per-bruker,
-  // se content_watched/PATCH /media/content/{id}/watched) - kalt fra
-  // badge-klikk i både grid- og listevisning. Oppdaterer lokal state
-  // (mineFilmerData) og re-rendrer med en gang (optimistisk), ruller
-  // tilbake badge-teksten/klassen hvis kallet feiler.
-  async function toggleContentWatched(contentId, triggerEl){
+  // Tekst på "sett"-badgen: "Ikke sett" hvis ingen datoer, ellers
+  // "Sett (N)" der N er antall registrerte datoer (rewatch-historikk)
+  // - se watched_dates/watched_flag i list_content() (media_catalog.py).
+  function watchedBadgeLabel(item){
+    const n = (item.watched_dates || []).length;
+    if (n === 0) return escapeHtml(WTE_I18N.mine_filmer.unwatched);
+    return escapeHtml(WTE_I18N.mine_filmer.watched) + " (" + n + ")";
+  }
+
+  // ---- Sett-datoer-modal (rewatch-historikk, per innlogget bruker) ----
+  // Åpnes ved klikk på "Sett (N)"-badgen i grid/liste - se
+  // content_watched og POST/PATCH/DELETE
+  // /media/content/{id}/watched-dates/... i media_catalog_route.py.
+  const watchedDatesModalOverlay = document.getElementById("watchedDatesModalOverlay");
+  const watchedDatesModalTitle = document.getElementById("watchedDatesModalTitle");
+  const watchedDatesModalStatus = document.getElementById("watchedDatesModalStatus");
+  const watchedDatesModalList = document.getElementById("watchedDatesModalList");
+  const watchedDatesModalNewDate = document.getElementById("watchedDatesModalNewDate");
+  const btnCloseWatchedDatesModal = document.getElementById("btnCloseWatchedDatesModal");
+  const btnAddWatchedDate = document.getElementById("btnAddWatchedDate");
+  let watchedDatesModalContentId = null;
+
+  function openWatchedDatesModal(contentId){
     const item = mineFilmerData.find(i => i.content_id === contentId);
     if (!item) return;
-    const newWatched = !item.watched_flag;
-    const previousWatched = item.watched_flag;
-    item.watched_flag = newWatched;
+    watchedDatesModalContentId = contentId;
+    watchedDatesModalTitle.textContent = item.title;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
+    watchedDatesModalNewDate.value = new Date().toISOString().slice(0, 10);
+    renderWatchedDatesModalList(item.watched_dates || []);
+    watchedDatesModalOverlay.style.display = "flex";
+  }
+
+  function closeWatchedDatesModal(){
+    watchedDatesModalOverlay.style.display = "none";
+    watchedDatesModalContentId = null;
+  }
+
+  function renderWatchedDatesModalList(dates){
+    if (dates.length === 0) {
+      watchedDatesModalList.innerHTML = `<li style="color:var(--muted); font-size:13px;">${escapeHtml(WTE_I18N.mine_filmer.watched_dates_empty)}</li>`;
+      return;
+    }
+    watchedDatesModalList.innerHTML = dates.map(d => `
+      <li style="display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--line,#262b38);">
+        <input type="date" class="watchedDateEditInput" data-watched-id="${d.watched_id}" value="${escapeHtml(d.date)}" style="flex:1; padding:6px; border-radius:7px; background:var(--bg,#0d0f14); color:var(--text); border:1px solid var(--line,#262b38);">
+        <button type="button" class="btn watchedDateDeleteBtn" data-watched-id="${d.watched_id}">&times;</button>
+      </li>
+    `).join("");
+    watchedDatesModalList.querySelectorAll(".watchedDateEditInput").forEach(el => {
+      el.addEventListener("change", () => updateWatchedDate(el.dataset.watchedId, el.value));
+    });
+    watchedDatesModalList.querySelectorAll(".watchedDateDeleteBtn").forEach(el => {
+      el.addEventListener("click", () => deleteWatchedDate(el.dataset.watchedId));
+    });
+  }
+
+  function applyWatchedDatesResult(result){
+    const item = mineFilmerData.find(i => i.content_id === watchedDatesModalContentId);
+    if (!item) return;
+    item.watched_flag = result.watched_flag;
+    item.watched_dates = result.watched_dates;
+    renderWatchedDatesModalList(item.watched_dates);
     renderMineFilmer(false);
+  }
+
+  async function addWatchedDate(){
+    if (!watchedDatesModalContentId) return;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
     try {
-      const res = await fetch("api.php?action=set_content_watched&id=" + encodeURIComponent(contentId), {
+      const res = await fetch("api.php?action=add_content_watched_date&id=" + encodeURIComponent(watchedDatesModalContentId), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrfHeader() },
-        body: JSON.stringify({ watched: newWatched }),
+        body: JSON.stringify({ watched_date: watchedDatesModalNewDate.value || null }),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
+      applyWatchedDatesResult(await res.json());
     } catch (err) {
-      item.watched_flag = previousWatched;
-      renderMineFilmer(false);
+      watchedDatesModalStatus.textContent = WTE_I18N.mine_filmer.watched_dates_error;
+      watchedDatesModalStatus.classList.add("error");
     }
+  }
+
+  async function updateWatchedDate(watchedId, newDate){
+    if (!watchedDatesModalContentId || !newDate) return;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
+    try {
+      const res = await fetch("api.php?action=update_content_watched_date&id=" + encodeURIComponent(watchedDatesModalContentId) + "&watched_id=" + encodeURIComponent(watchedId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({ watched_date: newDate }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      applyWatchedDatesResult(await res.json());
+    } catch (err) {
+      watchedDatesModalStatus.textContent = WTE_I18N.mine_filmer.watched_dates_error;
+      watchedDatesModalStatus.classList.add("error");
+    }
+  }
+
+  async function deleteWatchedDate(watchedId){
+    if (!watchedDatesModalContentId) return;
+    watchedDatesModalStatus.textContent = "";
+    watchedDatesModalStatus.classList.remove("error");
+    try {
+      const res = await fetch("api.php?action=delete_content_watched_date&id=" + encodeURIComponent(watchedDatesModalContentId) + "&watched_id=" + encodeURIComponent(watchedId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      applyWatchedDatesResult(await res.json());
+    } catch (err) {
+      watchedDatesModalStatus.textContent = WTE_I18N.mine_filmer.watched_dates_error;
+      watchedDatesModalStatus.classList.add("error");
+    }
+  }
+
+  if (btnCloseWatchedDatesModal) {
+    btnCloseWatchedDatesModal.addEventListener("click", closeWatchedDatesModal);
+    watchedDatesModalOverlay.addEventListener("click", (e) => {
+      if (e.target === watchedDatesModalOverlay) closeWatchedDatesModal();
+    });
+    btnAddWatchedDate.addEventListener("click", addWatchedDate);
   }
 
   // ---- Filter/søk – samme logikk som v15 (tekstsøk + type-chip + kun ikke-sett) ----
