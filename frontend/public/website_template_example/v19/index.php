@@ -1727,7 +1727,16 @@ $sectionAccess = [
         const res = await fetch("api.php?action=list_custom_lists");
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || res.statusText);
-        renderAndreListerGrid(Array.isArray(json) ? json : []);
+        const lists = Array.isArray(json) ? json : [];
+        renderAndreListerGrid(lists);
+        // Deep-link støtte: index.php?panel=andre_lister&list=<list_id>
+        // (brukt fra detail.php sin "Tilknyttet liste(r)"-kort) åpner
+        // listen direkte i stedet for å kreve et ekstra klikk i rutenettet.
+        const requestedListId = new URLSearchParams(window.location.search).get("list");
+        if (requestedListId) {
+          const match = lists.find(l => l.list_id === requestedListId);
+          if (match) openAndreListerDetail(match.list_id, match.list_name);
+        }
       } catch (err) {
         andreListerStatus.textContent = WTE_I18N.andre_lister.fetch_error_prefix + err.message;
       }

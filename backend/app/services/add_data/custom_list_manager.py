@@ -572,10 +572,77 @@ def get_list_items(
                 "sort_order": row.sort_order,
                 "group_label": row.group_label,
                 "owned": matched_content_id is not None,
+                "owned_physical": owned_physical,
+                "in_plex": in_plex,
                 "watched_flag": matched_content_id is not None and matched_content_id in watched_content_ids,
             }
         )
     return result
+
+
+def get_lists_for_content(db: Session, content_id: str) -> list[dict[str, str | bool]]:
+    """Returns every custom list containing an item that matches this
+    content row (by imdb_id or TMDB external id - the same reverse of
+    the matching get_list_items() uses for its "owned" field), for
+    detail.php's "Tilknyttet liste(r)" card.
+
+    Includes lists regardless of show_on_frontend, so the owner can
+    see every list a title is actually organized into from the detail
+    page - the frontend only renders a clickable link (into the public
+    "Andre lister" panel) for lists where show_on_frontend is true,
+    since only those are reachable/visible there; the rest are shown
+    as plain (non-linked) text."""
+    try:
+        content_id_bytes = uuid.UUID(hex=content_id).bytes
+    except (ValueError, AttributeError, TypeError):
+        return []
+
+    content_row = db.execute(
+        text("SELECT imdb_id FROM content WHERE content_id = :content_id"),
+        {"content_id": content_id_bytes},
+    ).fetchone()
+    if content_row is None:
+        return []
+
+    tmdb_row = db.execute(
+        text(
+            """
+            SELECT external_id FROM content_external_source
+            WHERE content_id = :content_id AND source = 'tmdb'
+            """
+        ),
+        {"content_id": content_id_bytes},
+    ).fetchone()
+
+    imdb_id = content_row.imdb_id
+    tmdb_id = tmdb_row.external_id if tmdb_row is not None else None
+
+    if not imdb_id and not tmdb_id:
+        return []
+
+    rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT cl.list_id, cl.list_name, cl.show_on_frontend
+            FROM custom_list_entries cle
+            JOIN list_items li ON li.list_item_id = cle.list_item_id
+            JOIN custom_lists cl ON cl.list_id = cle.list_id
+            WHERE (:imdb_id IS NOT NULL AND li.imdb_id = :imdb_id)
+               OR (:tmdb_id IS NOT NULL AND li.tmdb_id = :tmdb_id)
+            ORDER BY cl.list_name ASC
+            """
+        ),
+        {"imdb_id": imdb_id, "tmdb_id": tmdb_id},
+    ).fetchall()
+
+    return [
+        {
+            "list_id": str(uuid.UUID(bytes=row.list_id)),
+            "list_name": row.list_name,
+            "show_on_frontend": bool(row.show_on_frontend),
+        }
+        for row in rows
+    ]
 
 
 

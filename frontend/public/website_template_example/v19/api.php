@@ -575,6 +575,43 @@ if (($_GET['action'] ?? '') === 'similar') {
     exit;
 }
 
+// GET ?action=content_lists&id=<content_id>
+// Brukes av detail.php: "Tilknyttet liste(r)"-kort - hvilke
+// egendefinerte lister (custom_lists) denne filmen/serien faktisk
+// ligger i, med lenke inn i "Andre lister"-panelet for dem som er
+// synlige der - se GET /media/content/{id}/lists og
+// get_lists_for_content() i custom_list_manager.py.
+if (($_GET['action'] ?? '') === 'content_lists') {
+    $contentId = $_GET['id'] ?? '';
+    if ($contentId === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler id']);
+        exit;
+    }
+
+    $contentListsUrl = MEDIA_API_BASE_URL . '/media/content/' . rawurlencode($contentId) . '/lists';
+
+    $ch = curl_init($contentListsUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=list_stats
 // Brukes av stats.php: aggregerte statistikk-tall for samlingen
 // (totalt antall, per tiår/sjanger/format, mest-fylte filmgrupper) -

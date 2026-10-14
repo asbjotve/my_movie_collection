@@ -23,6 +23,7 @@ from app.schemas.media_catalog import (
     SetContentExternalIdRequest,
 )
 from app.security import get_current_user, get_user_by_username
+from app.services.add_data.custom_list_manager import get_lists_for_content
 from app.services.external_apis import ExternalApiError, search_tmdb, search_tvdb
 from app.services.media_catalog import (
     ContentExternalSourceConflict,
@@ -183,6 +184,18 @@ def get_content_similar(content_id: str, db: Session = Depends(get_media_db)):
     deler en sjanger med den.
     """
     return get_similar_content(db, content_id)
+
+
+@router.get("/content/{content_id}/lists", dependencies=[Depends(require_api_key)])
+def get_content_lists(content_id: str, db: Session = Depends(get_media_db)):
+    """Hvilke egendefinerte lister (custom_lists) denne filmen/serien
+    faktisk ligger i - for detail.php sitt "Tilknyttet liste(r)"-kort.
+    Se get_lists_for_content() i custom_list_manager.py for
+    matchingen (imdb_id/tmdb_id, samme som get_list_items() sin
+    "owned"). Returnerer bare en liste (ingen 404) - tom liste betyr
+    enten ukjent content_id eller at filmen ikke ligger i noen lister.
+    """
+    return get_lists_for_content(db, content_id)
 
 
 @router.patch("/content/{content_id}")
