@@ -1650,8 +1650,11 @@ $sectionAccess = [
             const toggleBtn = canShowCover
               ? `<button type="button" class="btn toggleCoverBtn" data-list-item-id="${it.list_item_id}" data-title="${it.title.replace(/"/g, "&quot;")}${year}" data-cover="${it.cover_image || ""}">${WTE_I18N.andre_lister.show_cover}</button>`
               : "";
-            const ownedBadge = it.owned
+            const ownedBadge = it.owned_physical
               ? `<span class="tag badge" title="${WTE_I18N.andre_lister.owned_badge}">✔ ${WTE_I18N.andre_lister.owned_badge}</span>`
+              : "";
+            const plexBadge = it.in_plex
+              ? `<span class="tag badge" title="${WTE_I18N.andre_lister.in_plex_badge}">📺 ${WTE_I18N.andre_lister.in_plex_badge}</span>`
               : "";
             // Vises kun for elementer som faktisk matcher en film i
             // samlingen (owned=true) OG når innlogget - watched_flag er
@@ -1669,6 +1672,7 @@ $sectionAccess = [
                 <span class="tag">${andreListerPosition}</span>
                 <strong>${it.title}${year}</strong>
                 ${ownedBadge}
+                ${plexBadge}
                 ${watchedBadge}
               </span>
               ${toggleBtn}

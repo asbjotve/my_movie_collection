@@ -525,9 +525,39 @@ def get_list_items(
                 ).fetchall()
             }
 
+    # Fysisk eierskap (content_in_physical_collection) vs. kun Plex
+    # (content_in_digital_library) - samme to kilder/distinksjon som
+    # "owned"/"plex"-filteret i Mine filmer (se list_content() i
+    # media_catalog.py og dens in_digital_library/collections-felter).
+    # Slås opp i to samlede spørringer (samme batch-mønster som
+    # watched_content_ids over), uavhengig av om noen elementer i det
+    # hele tatt matcher en content-rad.
+    physical_content_ids: set[bytes] = {
+        row.content_id
+        for row in db.execute(
+            text("SELECT DISTINCT content_id FROM content_in_physical_collection")
+        ).fetchall()
+    }
+    digital_library_content_ids: set[bytes] = {
+        row.content_id
+        for row in db.execute(
+            text("SELECT DISTINCT content_id FROM content_in_digital_library")
+        ).fetchall()
+    }
+
     result = []
     for row in rows:
         matched_content_id = row.matched_content_id_by_imdb or row.matched_content_id_by_tmdb
+        owned_physical = matched_content_id is not None and matched_content_id in physical_content_ids
+        # "in_plex" utelukker elementer som også er fysisk eid, slik at
+        # badgen i frontend ikke viser "I Plex" for noe som allerede
+        # vises som "Eid" (samme eksklusivitet som ownership-filteret
+        # i Mine filmer bruker for "plex"-valget).
+        in_plex = (
+            matched_content_id is not None
+            and matched_content_id in digital_library_content_ids
+            and not owned_physical
+        )
         result.append(
             {
                 "list_item_id": str(uuid.UUID(bytes=row.list_item_id)),
