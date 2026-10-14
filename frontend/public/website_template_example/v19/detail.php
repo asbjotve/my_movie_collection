@@ -404,6 +404,9 @@ $sectionAccess = [
     .boxSetTable td{ padding:6px 6px; border-bottom:1px solid var(--line); }
     .boxSetTable tr:last-child td{ border-bottom:none; }
     .boxSetTable tr.currentItem td{ color: var(--accent2); font-weight:700; }
+    .contentListsTable a{ color: var(--accent2); text-decoration:underline; }
+    .contentListsTable a:hover{ color: var(--text); }
+    .contentListsTable .notPublicHint{ color: var(--muted); font-size:11px; }
 
     #detailStatus{ color: var(--muted); font-size:13px; }
     /* Native date-picker calendar icon is near-invisible on the dark
@@ -1106,12 +1109,18 @@ $sectionAccess = [
         return;
       }
       btn.style.display = "";
-      panel.innerHTML = `<ul style="list-style:none; margin:0; padding:0;">${lists.map(l => {
+      const rows = lists.map(l => {
         const label = escapeHtml(l.list_name);
-        return l.show_on_frontend
-          ? `<li style="padding:6px 0; border-bottom:1px solid var(--line);"><a href="index.php?panel=andre_lister&list=${encodeURIComponent(l.list_id)}">${label}</a></li>`
-          : `<li style="padding:6px 0; border-bottom:1px solid var(--line); color:var(--muted);">${label} <span style="font-size:11px;">(${escapeHtml(WTE_I18N.detail.lists_tab_not_public)})</span></li>`;
-      }).join("")}</ul>`;
+        const linkCell = l.show_on_frontend
+          ? `<a href="index.php?panel=andre_lister&list=${encodeURIComponent(l.list_id)}">${label}</a>`
+          : `${label} <span class="notPublicHint">(${escapeHtml(WTE_I18N.detail.lists_tab_not_public)})</span>`;
+        return `<tr><td>${linkCell}</td></tr>`;
+      }).join("");
+      panel.innerHTML = `
+        <div class="boxSetTable contentListsTable">
+          <table><tbody>${rows}</tbody></table>
+        </div>
+      `;
     } catch (err) {
       btn.style.display = "none";
       panel.innerHTML = "";
