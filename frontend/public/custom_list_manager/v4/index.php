@@ -235,6 +235,25 @@ if (($_GET['ajax'] ?? '') !== '') {
         $forwardResult($rawResponse, $curlError, $httpCode);
     }
 
+    if ($ajaxAction === 'set_list_share' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $listId = trim((string) ($_POST['list_id'] ?? ''));
+        $enabled = (string) ($_POST['enabled'] ?? '') === '1';
+
+        if ($listId === '') {
+            $respond(400, ['error' => t('clm.messages.list_required')]);
+        }
+
+        $body = json_encode(['enabled' => $enabled], JSON_UNESCAPED_UNICODE);
+        [$rawResponse, $curlError, $httpCode] = apiCall(
+            'PATCH',
+            "$listsBaseEndpoint/" . rawurlencode($listId) . '/share',
+            [],
+            false,
+            $body
+        );
+        $forwardResult($rawResponse, $curlError, $httpCode);
+    }
+
     if ($ajaxAction === 'add_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $listId = trim((string) ($_POST['list_id'] ?? ''));
         $title = trim((string) ($_POST['title'] ?? ''));
@@ -1163,7 +1182,7 @@ if ($listsResponse === false || $listsCurlError) {
           <select id="editListSelect">
             <option value=""><?= h(t('clm.add_tab.list_placeholder')) ?></option>
             <?php foreach ($availableLists as $list): ?>
-              <option value="<?= h((string) ($list['list_id'] ?? '')) ?>" data-show-on-frontend="<?= !empty($list['show_on_frontend']) ? '1' : '0' ?>">
+              <option value="<?= h((string) ($list['list_id'] ?? '')) ?>" data-show-on-frontend="<?= !empty($list['show_on_frontend']) ? '1' : '0' ?>" data-share-token="<?= h((string) ($list['share_token'] ?? '')) ?>">
                 <?= h((string) ($list['list_name'] ?? '')) ?>
               </option>
             <?php endforeach; ?>
@@ -1175,6 +1194,16 @@ if ($listsResponse === false || $listsCurlError) {
           <?= h(t('clm.edit_tab.visibility_label')) ?>
           <span id="editListVisibilityStatus" class="row-status"></span>
         </label>
+
+        <label class="visibility-toggle" id="editListShareWrap" style="display:none;">
+          <input type="checkbox" id="editListShareToggle" title="<?= h(t('clm.edit_tab.share_title')) ?>">
+          <?= h(t('clm.edit_tab.share_label')) ?>
+          <span id="editListShareStatus" class="row-status"></span>
+        </label>
+        <div id="editListShareUrlWrap" style="display:none; margin:6px 0 14px;">
+          <input type="text" id="editListShareUrl" readonly style="width:70%;">
+          <button type="button" id="editListShareCopyBtn"><?= h(t('clm.edit_tab.share_copy_btn')) ?></button>
+        </div>
 
         <div id="editItemsStatus"></div>
         <div id="editItemsTable"></div>

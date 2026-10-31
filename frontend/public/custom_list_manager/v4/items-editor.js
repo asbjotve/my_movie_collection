@@ -43,6 +43,12 @@
   const visibilityWrap = document.getElementById('editListVisibilityWrap');
   const visibilityToggle = document.getElementById('editListVisibilityToggle');
   const visibilityStatusEl = document.getElementById('editListVisibilityStatus');
+  const shareWrap = document.getElementById('editListShareWrap');
+  const shareToggle = document.getElementById('editListShareToggle');
+  const shareStatusEl = document.getElementById('editListShareStatus');
+  const shareUrlWrap = document.getElementById('editListShareUrlWrap');
+  const shareUrlInput = document.getElementById('editListShareUrl');
+  const shareCopyBtn = document.getElementById('editListShareCopyBtn');
 
   // window.clmActiveEditRow tells script.js/tvdb-search.js which row's
   // inputs a TMDB/TVDB search result should be applied to (set right
@@ -118,8 +124,95 @@
     }
   });
 
+  // Public share.php lives in website_template_example/v19 on the same
+  // domain/vhost as this admin app (both under /var/www/mmc.plexcity.net/
+  // public/) - build the absolute URL client-side rather than hardcoding
+  // a domain, so this keeps working across dev/staging hosts too.
+  function shareUrlFor(token) {
+    return `${window.location.origin}/website_template_example/v19/share.php?token=${encodeURIComponent(token)}`;
+  }
+
+  // Mirrors syncVisibilityToggle() above: shows/hides the "del offentlig"
+  // checkbox and the read-only share-URL field, syncing from the
+  // selected <option>'s cached data-share-token attribute (set
+  // server-side from the initial /lists fetch - see index.php).
+  function syncShareToggle(listId) {
+    if (!shareWrap || !shareToggle) return;
+    if (!listId) {
+      shareWrap.style.display = 'none';
+      if (shareUrlWrap) shareUrlWrap.style.display = 'none';
+      return;
+    }
+    const option = listSelect?.querySelector(`option[value="${CSS.escape(listId)}"]`);
+    const token = option?.dataset.shareToken || '';
+    shareToggle.checked = token !== '';
+    shareWrap.style.display = '';
+    setStatus(shareStatusEl, '', 'info');
+    if (shareUrlWrap && shareUrlInput) {
+      if (token) {
+        shareUrlInput.value = shareUrlFor(token);
+        shareUrlWrap.style.display = '';
+      } else {
+        shareUrlInput.value = '';
+        shareUrlWrap.style.display = 'none';
+      }
+    }
+  }
+
+  shareToggle?.addEventListener('change', async () => {
+    const listId = listSelect?.value;
+    if (!listId) return;
+    const enabled = shareToggle.checked;
+    shareToggle.disabled = true;
+    setStatus(shareStatusEl, tr('share_saving'), 'info');
+    try {
+      const res = await fetch(ajaxUrl('set_list_share'), {
+        method: 'POST',
+        body: new URLSearchParams({ list_id: listId, enabled: enabled ? '1' : '0' }),
+        keepalive: true,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+      const option = listSelect?.querySelector(`option[value="${CSS.escape(listId)}"]`);
+      const token = data?.share_token || '';
+      if (option) option.dataset.shareToken = token;
+
+      if (shareUrlWrap && shareUrlInput) {
+        if (token) {
+          shareUrlInput.value = shareUrlFor(token);
+          shareUrlWrap.style.display = '';
+        } else {
+          shareUrlInput.value = '';
+          shareUrlWrap.style.display = 'none';
+        }
+      }
+
+      setStatus(shareStatusEl, tr('share_saved'), 'success');
+      setTimeout(() => setStatus(shareStatusEl, '', 'info'), 1500);
+    } catch (err) {
+      shareToggle.checked = !enabled;
+      setStatus(shareStatusEl, tr('share_error_prefix', err.message || err), 'error');
+    } finally {
+      shareToggle.disabled = false;
+    }
+  });
+
+  shareCopyBtn?.addEventListener('click', async () => {
+    if (!shareUrlInput?.value) return;
+    try {
+      await navigator.clipboard.writeText(shareUrlInput.value);
+      const original = shareCopyBtn.textContent;
+      shareCopyBtn.textContent = tr('share_copied');
+      setTimeout(() => { shareCopyBtn.textContent = original; }, 1500);
+    } catch {
+      shareUrlInput.select();
+    }
+  });
+
   async function loadItems(listId) {
     syncVisibilityToggle(listId);
+    syncShareToggle(listId);
     collapsedGroups.clear();
     if (!listId) {
       currentItems = [];

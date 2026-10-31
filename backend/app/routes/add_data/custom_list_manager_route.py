@@ -10,11 +10,13 @@ from app.services.add_data.custom_list_manager import (
     add_item_to_custom_list,
     create_custom_list,
     delete_list_item,
+    get_list_by_share_token,
     get_list_item_cover_preview,
     get_list_items,
     list_custom_lists,
     reorder_list_items,
     set_list_item_group_label,
+    set_list_share_token,
     set_list_visibility,
     update_list_item,
 )
@@ -161,6 +163,41 @@ async def patch_list_visibility(
         return set_list_visibility(db, list_id=list_id, show_on_frontend=show_on_frontend)
     except ListItemUploadError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.patch("/{list_id}/share")
+async def patch_list_share(
+    list_id: str,
+    enabled: bool = Body(..., embed=True),
+    db: Session = Depends(get_media_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Enable/disable the public read-only share link for a list - see
+    set_list_share_token()."""
+    try:
+        return set_list_share_token(db, list_id=list_id, enabled=enabled)
+    except ListItemUploadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.get("/share/{share_token}", dependencies=[Depends(require_api_key)])
+async def get_shared_list_route(
+    share_token: str,
+    db: Session = Depends(get_media_db),
+):
+    """Public read-only share link target - resolves the token back to
+    its list and returns the same item shape as GET /{list_id}/items,
+    but always anonymous (no watched_flag/username lookup, since this
+    is reachable by people with no login at all - see
+    get_list_by_share_token())."""
+    resolved = get_list_by_share_token(db, share_token=share_token)
+    if resolved is None:
+        raise HTTPException(status_code=404, detail="Delt liste finnes ikke, eller deling er slått av.")
+    return {
+        "list_id": resolved["list_id"],
+        "list_name": resolved["list_name"],
+        "items": get_list_items(db, list_id=resolved["list_id"], current_user_id=None),
+    }
 
 
 @router.patch("/{list_id}/items/reorder")

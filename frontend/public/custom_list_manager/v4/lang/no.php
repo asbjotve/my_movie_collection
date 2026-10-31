@@ -116,6 +116,13 @@ return [
             'visibility_saving'  => 'Lagrer…',
             'visibility_saved'   => 'Lagret',
             'visibility_error_prefix' => 'Kunne ikke lagre synlighet: %s',
+            'share_label'        => 'Del liste med en offentlig, skrivebeskyttet lenke',
+            'share_title'        => 'Når denne er på, kan hvem som helst med lenken se listen (skrivebeskyttet) - helt uavhengig av innlogging',
+            'share_saving'       => 'Lagrer…',
+            'share_saved'        => 'Lagret',
+            'share_error_prefix' => 'Kunne ikke lagre deling: %s',
+            'share_copy_btn'     => 'Kopier',
+            'share_copied'       => 'Kopiert!',
             'add_new_heading'    => '+ Nytt element',
 
             'loading'            => 'Laster elementer…',

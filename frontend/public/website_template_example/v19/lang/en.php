@@ -119,6 +119,14 @@ return [
             ],
         ],
 
+        'share' => [
+            'meta_title'   => 'Shared list',
+            'loading'      => 'Loading…',
+            'not_found'    => 'This shared list no longer exists, or sharing has been turned off.',
+            'empty'        => 'This list is empty.',
+            'footer_note'  => 'This is a read-only, shared view - no login is required or possible here.',
+        ],
+
         'detail' => [
             'meta_title'          => 'Media catalog – details (v19)',
             'meta_title_suffix'   => ' – Media catalog (v19)',

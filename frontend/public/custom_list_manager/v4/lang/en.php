@@ -117,6 +117,13 @@ return [
             'visibility_saving'  => 'Saving…',
             'visibility_saved'   => 'Saved',
             'visibility_error_prefix' => 'Could not save visibility: %s',
+            'share_label'        => 'Share list via a public, read-only link',
+            'share_title'        => 'When on, anyone with the link can view the list (read-only) - no login needed',
+            'share_saving'       => 'Saving…',
+            'share_saved'        => 'Saved',
+            'share_error_prefix' => 'Could not save sharing: %s',
+            'share_copy_btn'     => 'Copy',
+            'share_copied'       => 'Copied!',
             'add_new_heading'    => '+ New item',
 
             'loading'            => 'Loading items…',

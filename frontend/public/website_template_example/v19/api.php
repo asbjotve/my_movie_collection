@@ -612,6 +612,43 @@ if (($_GET['action'] ?? '') === 'content_lists') {
     exit;
 }
 
+// GET ?action=shared_list&token=<share_token>
+// Brukes av share.php: offentlig, skrivebeskyttet delt visning av en
+// enkelt egendefinert liste - IKKE innloggingsbeskyttet med vilje
+// (selve den ugjettelige share_token-en ER tilgangskontrollen her,
+// se set_list_share_token()/get_list_by_share_token() i
+// custom_list_manager.py og GET /lists/share/{token}).
+if (($_GET['action'] ?? '') === 'shared_list') {
+    $shareToken = $_GET['token'] ?? '';
+    if ($shareToken === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Mangler token']);
+        exit;
+    }
+
+    $sharedListUrl = MEDIA_API_BASE_URL . '/lists/share/' . rawurlencode($shareToken);
+
+    $ch = curl_init($sharedListUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => with_api_key_header([]),
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Kunne ikke nå API-et: ' . $curlError]);
+        exit;
+    }
+
+    http_response_code($httpCode ?: 502);
+    echo $response;
+    exit;
+}
+
 // GET ?action=list_stats
 // Brukes av stats.php: aggregerte statistikk-tall for samlingen
 // (totalt antall, per tiår/sjanger/format, mest-fylte filmgrupper) -

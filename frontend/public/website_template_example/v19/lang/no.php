@@ -122,6 +122,14 @@ return [
             ],
         ],
 
+        'share' => [
+            'meta_title'   => 'Delt liste',
+            'loading'      => 'Laster…',
+            'not_found'    => 'Denne delte listen finnes ikke lenger, eller deling er slått av.',
+            'empty'        => 'Listen er tom.',
+            'footer_note'  => 'Dette er en skrivebeskyttet, delt visning - ingen innlogging er nødvendig eller mulig her.',
+        ],
+
         'detail' => [
             'meta_title'          => 'Media-katalog – detaljer (v19)',
             'meta_title_suffix'   => ' – Media-katalog (v19)',

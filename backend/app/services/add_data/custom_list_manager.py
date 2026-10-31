@@ -1,3 +1,4 @@
+import secrets
 import uuid
 
 from sqlalchemy import bindparam, text
@@ -59,7 +60,7 @@ def list_custom_lists(
     # "Andre lister"-panelet i website_template_example for å vise antall
     # elementer uten å måtte gjøre ett ekstra kall pr. liste.
     query = """
-        SELECT cl.list_id, cl.list_name, cl.show_on_frontend,
+        SELECT cl.list_id, cl.list_name, cl.show_on_frontend, cl.share_token,
                COUNT(cle.list_item_id) AS item_count
         FROM custom_lists cl
         LEFT JOIN custom_list_entries cle ON cle.list_id = cl.list_id
@@ -82,16 +83,21 @@ def list_custom_lists(
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
 
-    query += " GROUP BY cl.list_id, cl.list_name, cl.show_on_frontend ORDER BY cl.list_name ASC"
+    query += " GROUP BY cl.list_id, cl.list_name, cl.show_on_frontend, cl.share_token ORDER BY cl.list_name ASC"
 
     rows = db.execute(text(query), params).fetchall()
 
+    # share_token is only ever useful to the admin management UI (to
+    # build/copy the public share link) - the only_visible=True call
+    # (public "Andre lister" panel) never needs it, so it's omitted
+    # there rather than exposed in that response for no reason.
     return [
         {
             "list_id": str(uuid.UUID(bytes=row.list_id)),
             "list_name": row.list_name,
             "item_count": int(row.item_count),
             "show_on_frontend": bool(row.show_on_frontend),
+            **({} if only_visible else {"share_token": row.share_token}),
         }
         for row in rows
     ]
@@ -152,6 +158,57 @@ def set_list_visibility(db: Session, list_id: str, show_on_frontend: bool) -> di
     db.commit()
 
     return {"list_id": list_id, "show_on_frontend": show_on_frontend}
+
+
+def set_list_share_token(db: Session, list_id: str, enabled: bool) -> dict[str, str | bool | None]:
+    """Enable/disable the public read-only share link for a list.
+
+    Enabling generates a new unguessable token (discarding any
+    previous one, so an old shared link stops working the moment
+    sharing is toggled off and on again); disabling clears it back to
+    NULL. Independent of show_on_frontend - a list can be shared
+    without being listed in the logged-in "Andre lister" panel, and
+    vice versa."""
+    list_id_bytes = _parse_list_id(list_id)
+    # token_urlsafe(32) -> 43 base64url chars, matches the column width.
+    new_token = secrets.token_urlsafe(32) if enabled else None
+
+    result = db.execute(
+        text(
+            """
+            UPDATE custom_lists
+            SET share_token = :share_token
+            WHERE list_id = :list_id
+            """
+        ),
+        {"list_id": list_id_bytes, "share_token": new_token},
+    )
+    if result.rowcount == 0:
+        db.rollback()
+        raise ListItemUploadError("Listen finnes ikke.", status_code=404)
+    db.commit()
+
+    return {"list_id": list_id, "share_token": new_token}
+
+
+def get_list_by_share_token(db: Session, share_token: str) -> dict[str, str] | None:
+    """Resolves a public share token back to its list_id/list_name -
+    used by the unauthenticated public share-link route. Returns None
+    for an unknown/disabled token (expired or never-enabled)."""
+    row = db.execute(
+        text(
+            """
+            SELECT list_id, list_name
+            FROM custom_lists
+            WHERE share_token = :share_token
+            """
+        ),
+        {"share_token": share_token},
+    ).fetchone()
+    if row is None:
+        return None
+
+    return {"list_id": str(uuid.UUID(bytes=row.list_id)), "list_name": row.list_name}
 
 
 def add_item_to_custom_list(

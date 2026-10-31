@@ -265,8 +265,16 @@ class CustomList(MediaBase):
     # off so a newly created list stays admin-only until explicitly
     # switched on - see set_list_visibility() in custom_list_manager.py.
     show_on_frontend = Column(TINYINT(1), nullable=False, server_default="0")
+    # Opt-in, unguessable token for a public read-only share link -
+    # NULL means sharing is disabled. Independent of show_on_frontend
+    # (that one only governs the logged-in "Andre lister" panel) - see
+    # set_list_share_token() in custom_list_manager.py.
+    share_token = Column(String(43), nullable=True)
 
-    __table_args__ = (UniqueConstraint("list_name", name="uk_list_name"),)
+    __table_args__ = (
+        UniqueConstraint("list_name", name="uk_list_name"),
+        UniqueConstraint("share_token", name="uk_custom_lists_share_token"),
+    )
 
 
 class ContentExternalSource(MediaBase):
