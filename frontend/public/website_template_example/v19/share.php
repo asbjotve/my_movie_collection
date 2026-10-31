@@ -71,14 +71,23 @@ require_once __DIR__ . '/lang.php';
     .statusText{ color: var(--muted); font-size:13px; }
     .statusText.error{ color: var(--danger); }
     footer{ margin-top:32px; color: var(--muted); font-size:11px; }
+    @keyframes skeletonPulse{ 0%{ opacity:.45 } 50%{ opacity:.9 } 100%{ opacity:.45 } }
+    .skeleton{ background: var(--panel2); border-radius:6px; animation: skeletonPulse 1.4s ease-in-out infinite; }
+    .skeletonRow{ background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+    .skeletonRow .skeleton-line{ height:12px; }
+    .skeleton-line.title{ height:22px; width:50%; }
   </style>
 </head>
 <body>
   <main>
-    <h1 id="shareListTitle"><?= htmlspecialchars(t('wte.share.loading')) ?></h1>
+    <h1 id="shareListTitle" class="skeleton skeleton-line title" style="width:50%;"><?= htmlspecialchars(t('wte.share.loading')) ?></h1>
     <p class="shareHint"><?= htmlspecialchars(t('wte.share.footer_note')) ?></p>
-    <p class="statusText" id="shareStatus"><?= htmlspecialchars(t('wte.share.loading')) ?></p>
-    <div class="list" id="shareItemsList"></div>
+    <p class="statusText" id="shareStatus" style="display:none;"><?= htmlspecialchars(t('wte.share.loading')) ?></p>
+    <div class="list" id="shareItemsList">
+      <div class="skeletonRow"><div class="skeleton skeleton-line" style="width:70%;"></div></div>
+      <div class="skeletonRow"><div class="skeleton skeleton-line" style="width:55%;"></div></div>
+      <div class="skeletonRow"><div class="skeleton skeleton-line" style="width:65%;"></div></div>
+    </div>
   </main>
 
   <script>
@@ -99,9 +108,18 @@ require_once __DIR__ . '/lang.php';
       const listEl = document.getElementById("shareItemsList");
       const token = new URLSearchParams(window.location.search).get("token") || "";
 
+      // Fjerner skjelett-stilen/bredden fra tittelen og de 3
+      // plassholder-radene fra listen - kalles uansett utfall under
+      // (suksess, tom liste, ukjent token eller feil).
+      function clearSkeleton(){
+        titleEl.classList.remove("skeleton", "skeleton-line", "title");
+        titleEl.style.width = "";
+        listEl.innerHTML = "";
+      }
+
       if (!token) {
+        clearSkeleton();
         titleEl.textContent = WTE_I18N.share.not_found;
-        statusEl.style.display = "none";
         return;
       }
 
@@ -110,15 +128,16 @@ require_once __DIR__ . '/lang.php';
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || res.statusText);
 
+        clearSkeleton();
         titleEl.textContent = json.list_name || WTE_I18N.share.meta_title;
         document.title = (json.list_name ? json.list_name + " – " : "") + WTE_I18N.share.meta_title;
 
         const items = Array.isArray(json.items) ? json.items : [];
         if (!items.length) {
+          statusEl.style.display = "";
           statusEl.textContent = WTE_I18N.share.empty;
           return;
         }
-        statusEl.style.display = "none";
 
         // Samme gruppe-oppdeling (group_label) som "Andre lister"-
         // detaljvisningen i index.php.
@@ -158,9 +177,8 @@ require_once __DIR__ . '/lang.php';
           return header + `<div class="list">${rows}</div>`;
         }).join("");
       } catch (err) {
+        clearSkeleton();
         titleEl.textContent = WTE_I18N.share.not_found;
-        statusEl.textContent = "";
-        statusEl.style.display = "none";
       }
     })();
   </script>

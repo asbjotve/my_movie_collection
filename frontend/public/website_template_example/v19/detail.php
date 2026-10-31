@@ -409,6 +409,17 @@ $sectionAccess = [
     .contentListsTable .notPublicHint{ color: var(--muted); font-size:11px; }
 
     #detailStatus{ color: var(--muted); font-size:13px; }
+    /* ---- Loading-skjelett for detaljsiden (samme pulsering som
+       index.php sine .skeleton-elementer) - vises mens dataene hentes,
+       erstatter den gamle rene "Laster..."-teksten. ---- */
+    @keyframes skeletonPulse{ 0%{ opacity:.45 } 50%{ opacity:.9 } 100%{ opacity:.45 } }
+    .skeleton{ background: var(--panel2); border-radius:6px; animation: skeletonPulse 1.4s ease-in-out infinite; }
+    .detailSkeleton{ display:grid; grid-template-columns: 320px 1fr; gap:24px; align-items:start; }
+    @media (max-width: 800px){ .detailSkeleton{ grid-template-columns: 1fr; } }
+    .detailSkeleton .poster.skeleton{ height:460px; }
+    .detailSkeleton .skeleton-line{ height:14px; margin-bottom:10px; }
+    .detailSkeleton .skeleton-line.title{ height:28px; width:60%; margin-bottom:16px; }
+    .detailSkeleton .skeleton-line.short{ width:35%; }
     /* Native date-picker calendar icon is near-invisible on the dark
        theme by default - force it to render light so it's visible. */
     input[type="date"]{ color-scheme: dark; }
@@ -464,7 +475,17 @@ $sectionAccess = [
     <?php endif; ?>
   </div>
 
-  <div id="detailStatus"><?= htmlspecialchars(t('wte.detail.loading')) ?></div>
+  <div id="detailStatus">
+    <div class="detailSkeleton">
+      <div class="poster skeleton"></div>
+      <div>
+        <div class="skeleton skeleton-line title"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line short"></div>
+      </div>
+    </div>
+  </div>
 
   <div class="detailLayout" id="detailLayout" style="display:none;">
     <div class="posterCol">

@@ -261,6 +261,29 @@ $sectionAccess = [
     .card .meta{ padding:14px; }
     .card .title{ font-weight:700; margin-bottom:6px; }
     .card .sub{ color: var(--muted); font-size:12px; display:flex; gap:8px; flex-wrap:wrap; }
+
+    /* ---- Loading-skjelett (skeleton) ----
+       Erstatter ren statustekst ("Laster...") med pulserende grå
+       plassholder-kort/rader mens data hentes - samme kort-/rad-mål som
+       de ferdige .card/.row-elementene, slik at layoutet ikke "hopper"
+       når de ekte dataene erstatter dem (renderXGrid()-funksjonene
+       overskriver bare .innerHTML, så skjelettene forsvinner av seg
+       selv når ekte kort rendres). */
+    @keyframes skeletonPulse{ 0%{ opacity:.45 } 50%{ opacity:.9 } 100%{ opacity:.45 } }
+    .skeleton{
+      background: var(--panel2);
+      border-radius:6px;
+      animation: skeletonPulse 1.4s ease-in-out infinite;
+    }
+    .skeletonCard .cover{ background: var(--panel2); animation: skeletonPulse 1.4s ease-in-out infinite; }
+    .skeletonCard .skeleton-line{ height:12px; margin-bottom:8px; }
+    .skeletonCard .skeleton-line.short{ width:55%; margin-bottom:0; }
+    .skeletonRow{
+      display:flex; justify-content:space-between; align-items:center; gap:12px;
+      background: var(--panel); border:1px solid var(--line); border-radius:12px;
+      padding:12px 14px;
+    }
+    .skeletonRow .skeleton-line{ height:12px; }
     .tag{
       font-size:11px; padding:3px 8px; border-radius:999px;
       background: rgba(111,141,255,.14);
@@ -563,6 +586,7 @@ $sectionAccess = [
         <input id="mineFilmerOnlyUnwatched" type="checkbox" />
         <?= htmlspecialchars(t('wte.index.mine_filmer.only_unwatched')) ?>
       </label>
+      <button type="button" class="btn" id="btnWatchTonight" title="<?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_hint')) ?>">🎲 <?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_btn')) ?></button>
       <div class="viewToggle" id="mineFilmerViewToggle">
         <button type="button" data-view="grid" class="btn active"><?= htmlspecialchars(t('wte.index.mine_filmer.view_grid')) ?></button>
         <button type="button" data-view="list" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.view_list')) ?></button>
@@ -725,6 +749,28 @@ $sectionAccess = [
         <img id="coverPreviewModalImg" src="" alt="" style="width:100%; max-width:300px; border-radius:10px;">
       </div>
     </div>
+
+    <!--
+      "Hva skal jeg se i kveld?"-modal: viser ett tilfeldig valgt kort
+      fra samme filtrerte sett som rutenettet/tabellen akkurat nå viser
+      (se getFilteredMineFilmer() - respekterer søk/sjanger/tiår/eier/
+      kun-usett-filtrene), slik at man f.eks. kan huke av "kun usett"
+      først for kun å få usette forslag. "Nytt forslag" trekker et nytt
+      tilfeldig kort uten å lukke modalen.
+    -->
+    <div id="watchTonightModalOverlay" class="modalOverlay" style="display:none;">
+      <div class="modalBox" style="max-width:360px; text-align:center;">
+        <div class="modalHeader">
+          <h3><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_modal_title')) ?></h3>
+          <button type="button" id="btnCloseWatchTonightModal" class="modalCloseBtn">&times;</button>
+        </div>
+        <div id="watchTonightModalBody"></div>
+        <div style="margin-top:16px; display:flex; gap:8px; justify-content:center;">
+          <button type="button" id="btnWatchTonightReroll" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_reroll_btn')) ?></button>
+          <a id="watchTonightGoLink" href="#" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_go_btn')) ?></a>
+        </div>
+      </div>
+    </div>
   <?php endif; ?>
 </section>
 
@@ -845,6 +891,36 @@ $sectionAccess = [
     return template.replace(/%[sd]/g, () => (i < args.length ? args[i++] : ''));
   }
 
+  // ---- Loading-skjelett-hjelpere ----
+  // Definert her, på toppnivå i scriptet (ikke inne i
+  // "if (!mineFilmerLocked)"), fordi både Mine filmer- og Andre
+  // lister-panelene bruker dem - og de to panelene kan være låst
+  // uavhengig av hverandre (f.eks. Mine filmer låst, Andre lister
+  // åpen), så begge må kunne kalle disse uansett lås-status.
+  function skeletonCardsHtml(n){
+    return Array.from({ length: n }).map(() => `
+      <div class="card skeletonCard">
+        <div class="cover skeleton"></div>
+        <div class="meta">
+          <div class="skeleton skeleton-line"></div>
+          <div class="skeleton skeleton-line short"></div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // Samme idé som skeletonCardsHtml(), men for tabell-radene i
+  // "liste"-visningen av Mine filmer.
+  function skeletonTableRowsHtml(n, cols){
+    const cells = Array.from({ length: cols }).map(() => `<td><div class="skeleton skeleton-line"></div></td>`).join("");
+    return Array.from({ length: n }).map(() => `<tr class="skeletonCard">${cells}</tr>`).join("");
+  }
+
+  // Og for .row-baserte lister (Andre lister sin liste-detalj-visning).
+  function skeletonRowsHtml(n){
+    return Array.from({ length: n }).map(() => `<div class="skeletonRow"><div class="skeleton skeleton-line" style="flex:1;"></div></div>`).join("");
+  }
+
   // ---- Demo-data (kun plassholder, ingen database) ----
   const demoWishlist = [
     { title: WTE_I18N.onskeliste.demo_items?.[0] ?? "Oppenheimer", addedAt:"2026-05-01" },
@@ -863,6 +939,13 @@ $sectionAccess = [
   const mineFilmerStatus = document.getElementById("mineFilmerStatus");
   const mineFilmerLoadMoreStatus = document.getElementById("mineFilmerLoadMoreStatus");
   const mineFilmerLoadMoreSentinel = document.getElementById("mineFilmerLoadMoreSentinel");
+
+  // Skjul den gamle "Laster..."-teksten med en gang og vis skjelett-kort
+  // i stedet - loadMineFilmer() under erstatter dette med ekte kort/rader
+  // (grid) eller rydder det selv ved feil.
+  mineFilmerStatus.style.display = "none";
+  mineFilmerGrid.innerHTML = skeletonCardsHtml(10);
+  mineFilmerTableBody.innerHTML = skeletonTableRowsHtml(8, 6);
 
   // ---- Render-paginering ("Client-side render pagination" i TODO.md) ----
   // Hele katalogen hentes fortsatt i ett JSON-kall (facett-telling/filter
@@ -888,6 +971,8 @@ $sectionAccess = [
       "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
     }[c]));
   }
+
+
 
   // Generisk debounce: utsetter kallet til fn til det har gått `delay`
   // ms siden siste kall - brukes på søkefeltet nedenfor slik at
@@ -1248,6 +1333,56 @@ $sectionAccess = [
     });
   }
 
+  // ---- "Hva skal jeg se i kveld?" - tilfeldig forslag ----
+  // Trekker et tilfeldig element fra getFilteredMineFilmer() (dvs.
+  // samme sett som akkurat nå vises, inkl. søk/sjanger/tiår/eier/
+  // kun-usett-filtrene) - ikke hele katalogen, slik at brukeren kan
+  // snevre inn utvalget (f.eks. "kun usett" + en sjanger) før man
+  // trykker terningen.
+  const watchTonightBtn = document.getElementById("btnWatchTonight");
+  const watchTonightModalOverlay = document.getElementById("watchTonightModalOverlay");
+  const watchTonightModalBody = document.getElementById("watchTonightModalBody");
+  const watchTonightRerollBtn = document.getElementById("btnWatchTonightReroll");
+  const watchTonightGoLink = document.getElementById("watchTonightGoLink");
+
+  function pickWatchTonightSuggestion(){
+    const candidates = getFilteredMineFilmer();
+    if (!candidates.length) {
+      watchTonightModalBody.innerHTML = `<p class="pageHint">${escapeHtml(WTE_I18N.mine_filmer.watch_tonight_empty)}</p>`;
+      watchTonightGoLink.style.display = "none";
+      watchTonightRerollBtn.style.display = "none";
+      return;
+    }
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    watchTonightGoLink.style.display = "";
+    watchTonightRerollBtn.style.display = candidates.length > 1 ? "" : "none";
+    watchTonightGoLink.href = "detail.php?id=" + encodeURIComponent(pick.content_id);
+    watchTonightModalBody.innerHTML = `
+      <div class="card" style="text-align:left;">
+        <div class="cover">
+          ${pick.cover_image ? `<img class="coverImg" src="${escapeHtml(pick.cover_image)}" alt="${escapeHtml(pick.title)}">` : ""}
+          <div class="coverBadge badge">${escapeHtml((pick.content_type || "").toUpperCase())}</div>
+        </div>
+        <div class="meta">
+          <div class="title">${escapeHtml(pick.title)}</div>
+          <div class="sub"><span>${escapeHtml(pick.first_release || "-")}</span></div>
+        </div>
+      </div>
+    `;
+  }
+
+  watchTonightBtn?.addEventListener("click", () => {
+    pickWatchTonightSuggestion();
+    watchTonightModalOverlay.style.display = "flex";
+  });
+  watchTonightRerollBtn?.addEventListener("click", pickWatchTonightSuggestion);
+  document.getElementById("btnCloseWatchTonightModal")?.addEventListener("click", () => {
+    watchTonightModalOverlay.style.display = "none";
+  });
+  watchTonightModalOverlay?.addEventListener("click", (e) => {
+    if (e.target === watchTonightModalOverlay) watchTonightModalOverlay.style.display = "none";
+  });
+
   // Enkeltvalg (som type-chippene) - "owned" er standard siden
   // samlingen primært er fysisk DVD/Blu-ray-materiale.
   function renderMineFilmerOwnershipChips(){
@@ -1415,6 +1550,9 @@ $sectionAccess = [
       mineFilmerData = Array.isArray(json) ? json : [];
       mineFilmerStatus.style.display = "none";
     } catch (err) {
+      mineFilmerGrid.innerHTML = "";
+      mineFilmerTableBody.innerHTML = "";
+      mineFilmerStatus.style.display = "";
       mineFilmerStatus.textContent = WTE_I18N.mine_filmer.fetch_error_prefix + err.message;
       mineFilmerStatus.style.color = "var(--danger)";
       return;
@@ -1603,7 +1741,7 @@ $sectionAccess = [
       andreListerStatus.style.display = "none";
       andreListerDetail.style.display = "block";
       andreListerDetailTitle.textContent = listName;
-      andreListerItemsList.innerHTML = `<div class="row">${WTE_I18N.andre_lister.loading}</div>`;
+      andreListerItemsList.innerHTML = skeletonRowsHtml(5);
       try {
         const res = await fetch("api.php?action=list_custom_list_items&list_id=" + encodeURIComponent(listId));
         const json = await res.json();
@@ -1723,6 +1861,8 @@ $sectionAccess = [
     };
 
     (async () => {
+      andreListerStatus.style.display = "none";
+      andreListerGrid.innerHTML = skeletonCardsHtml(6);
       try {
         const res = await fetch("api.php?action=list_custom_lists");
         const json = await res.json();
@@ -1738,6 +1878,8 @@ $sectionAccess = [
           if (match) openAndreListerDetail(match.list_id, match.list_name);
         }
       } catch (err) {
+        andreListerGrid.innerHTML = "";
+        andreListerStatus.style.display = "";
         andreListerStatus.textContent = WTE_I18N.andre_lister.fetch_error_prefix + err.message;
       }
     })();
