@@ -170,8 +170,10 @@ backlog to pick from.
       strips the entire query when the title itself is just a year.
       Needs a fallback: if stripping the year leaves an empty search
       string, keep the original query instead.
-- [ ] "What should I watch tonight?" - random suggestion button,
-      optionally filterable (e.g. unwatched, recently added).
+- [x] "What should I watch tonight?" - random suggestion button,
+      optionally filterable (e.g. unwatched, recently added). Picks a
+      random title from the currently filtered Mine filmer set, shown
+      in a modal with a reroll button.
 
 ## Statistics / reporting
 
@@ -282,8 +284,10 @@ backlog to pick from.
       shared browser-wide) to a per-user, server-side preference -
       right now it "leaks" between different people sharing the same
       browser/machine.
-- [ ] Loading skeleton/spinner while a page or panel is fetching data,
-      instead of only a plain status text line.
+- [x] Loading skeleton/spinner while a page or panel is fetching data,
+      instead of only a plain status text line. Added pulsing skeleton
+      placeholders (cards/rows) in index.php (Mine filmer, Andre
+      lister), detail.php, and share.php.
 - [ ] Dark/light theme toggle based on `prefers-color-scheme` - low
       effort since the CSS already uses variables (`var(--accent)`,
       `var(--muted)`, etc.).
