@@ -709,6 +709,28 @@ $sectionAccess = [
     </div>
     <?php endif; ?>
 
+    <!--
+      "Hva skal jeg se i kveld?"-modal: viser ett tilfeldig valgt kort
+      fra samme filtrerte sett som rutenettet/tabellen akkurat nå viser
+      (se getFilteredMineFilmer() - respekterer søk/sjanger/tiår/eier/
+      kun-usett-filtrene), slik at man f.eks. kan huke av "kun usett"
+      først for kun å få usette forslag. "Nytt forslag" trekker et nytt
+      tilfeldig kort uten å lukke modalen.
+    -->
+    <div id="watchTonightModalOverlay" class="modalOverlay" style="display:none;">
+      <div class="modalBox" style="max-width:360px; text-align:center;">
+        <div class="modalHeader">
+          <h3><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_modal_title')) ?></h3>
+          <button type="button" id="btnCloseWatchTonightModal" class="modalCloseBtn">&times;</button>
+        </div>
+        <div id="watchTonightModalBody"></div>
+        <div style="margin-top:16px; display:flex; gap:8px; justify-content:center;">
+          <button type="button" id="btnWatchTonightReroll" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_reroll_btn')) ?></button>
+          <a id="watchTonightGoLink" href="#" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_go_btn')) ?></a>
+        </div>
+      </div>
+    </div>
+
     <?php endif; ?>
   </section>
 
@@ -747,28 +769,6 @@ $sectionAccess = [
           <button type="button" id="btnCloseCoverPreviewModal" class="modalCloseBtn">&times;</button>
         </div>
         <img id="coverPreviewModalImg" src="" alt="" style="width:100%; max-width:300px; border-radius:10px;">
-      </div>
-    </div>
-
-    <!--
-      "Hva skal jeg se i kveld?"-modal: viser ett tilfeldig valgt kort
-      fra samme filtrerte sett som rutenettet/tabellen akkurat nå viser
-      (se getFilteredMineFilmer() - respekterer søk/sjanger/tiår/eier/
-      kun-usett-filtrene), slik at man f.eks. kan huke av "kun usett"
-      først for kun å få usette forslag. "Nytt forslag" trekker et nytt
-      tilfeldig kort uten å lukke modalen.
-    -->
-    <div id="watchTonightModalOverlay" class="modalOverlay" style="display:none;">
-      <div class="modalBox" style="max-width:360px; text-align:center;">
-        <div class="modalHeader">
-          <h3><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_modal_title')) ?></h3>
-          <button type="button" id="btnCloseWatchTonightModal" class="modalCloseBtn">&times;</button>
-        </div>
-        <div id="watchTonightModalBody"></div>
-        <div style="margin-top:16px; display:flex; gap:8px; justify-content:center;">
-          <button type="button" id="btnWatchTonightReroll" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_reroll_btn')) ?></button>
-          <a id="watchTonightGoLink" href="#" class="btn"><?= htmlspecialchars(t('wte.index.mine_filmer.watch_tonight_go_btn')) ?></a>
-        </div>
       </div>
     </div>
   <?php endif; ?>
