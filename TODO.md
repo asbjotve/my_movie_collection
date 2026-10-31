@@ -608,9 +608,12 @@ backlog to pick from.
       (e.g. hex-encoded IDs instead of raw binary, no nested JSON
       blobs) and may need per-table access rather than one big
       flattened payload.
-- [ ] Read-only share link for a custom list (e.g. a public,
+- [x] Read-only share link for a custom list (e.g. a public,
       unguessable URL) so a list can be shared with friends/family
-      without giving them a login.
+      without giving them a login. Implemented as a `share_token` on
+      `custom_lists`, a "Del offentlig" toggle in
+      `custom_list_manager/v4`, and a standalone
+      `website_template_example/v19/share.php` page.
 - [ ] Price/availability tracking for wishlist items (e.g. periodic
       check against a shop/price API), to get notified when a wanted
       title becomes available or drops in price.
